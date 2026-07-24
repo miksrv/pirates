@@ -81,6 +81,8 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     perk: overrides.perk ?? null,
     escortOf: null,
     escortSlot: 0,
+    bombsToDrop: 0,
+    bombDropTimer: 0,
   }
 
   applyPerk(ship)

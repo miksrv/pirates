@@ -74,6 +74,7 @@ function startLoop(): void {
         ships: world.ships.map(shipToWire),
         bullets: world.bullets,
         pickups: world.pickups,
+        bombs: world.bombs,
         obstacles: world.obstacles.filter((o) => o.destructible).map((o) => ({ id: o.id, hp: o.hp })),
         events: pendingEvents,
       }

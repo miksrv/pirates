@@ -1,5 +1,6 @@
 import { updateBotAI } from './ai'
 import { spawnBullet, updateBullets } from './bulletLogic'
+import { updateBombLayers, updateBombs } from './bombs'
 import {
   BASE_ARMOR,
   BASE_DAMAGE,
@@ -46,6 +47,7 @@ export function createWorld(options: WorldOptions = {}): World {
     bullets: [],
     obstacles: [],
     pickups: [],
+    bombs: [],
     events: [],
     time: 0,
     pickupSpawnTimer: PICKUP_SPAWN_INTERVAL,
@@ -109,6 +111,8 @@ function respawnShip(world: World, ship: Ship): void {
   ship.radius = SHIP_RADIUS // in case they went down while empowered by the Leviathan
   ship.shieldCharges = 0
   ship.infernoShots = 0
+  ship.bombsToDrop = 0
+  ship.bombDropTimer = 0
   ship.moveDir = { x: 0, y: 0 }
   ship.boost = 1
   ship.boosting = false
@@ -212,6 +216,8 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
 
   resolveShipCollisions(world)
   updateBullets(world, dt)
+  updateBombLayers(world, dt)
+  updateBombs(world)
 
   // Escorts leave no wrecks: drop the sunk ones, and disband any wedge whose captain has gone
   // down or left the match.

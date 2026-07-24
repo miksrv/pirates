@@ -25,6 +25,7 @@ import { PICKUP_DEFS } from '../game/pickupConfig'
 import { buildStats } from '../game/stats'
 import { BOT_COUNT } from '../game/constants'
 import type {
+  Bomb,
   EffectType,
   GameEvent,
   Obstacle,
@@ -127,6 +128,10 @@ interface PickupView {
   minimapMarker?: Phaser.GameObjects.Arc
 }
 
+interface BombView {
+  label: Phaser.GameObjects.Text
+}
+
 const hexToNumber = (hex: string): number => parseInt(hex.replace('#', ''), 16)
 
 /** Ship sprites face "down" (bow at the bottom of the image) by default, unlike a 0-rad = "right" world angle. */
@@ -155,6 +160,7 @@ export class MainScene extends Phaser.Scene {
   private bulletViews = new Map<string, BulletView>()
   private obstacleViews = new Map<string, ObstacleView>()
   private pickupViews = new Map<string, PickupView>()
+  private bombViews = new Map<string, BombView>()
 
   private keys!: Record<
     'W' | 'A' | 'S' | 'D' | 'up' | 'down' | 'left' | 'right' | 'space' | 'SHIFT',
@@ -304,6 +310,10 @@ export class MainScene extends Phaser.Scene {
       p.minimapMarker?.destroy()
     }
     this.pickupViews.clear()
+    for (const b of this.bombViews.values()) {
+      b.label.destroy()
+    }
+    this.bombViews.clear()
   }
 
   private startNewWorld(): void {
@@ -355,6 +365,7 @@ export class MainScene extends Phaser.Scene {
 
     this.syncObstacles()
     this.syncPickups()
+    this.syncBombs()
     this.syncBullets()
     this.syncShips()
 
@@ -979,6 +990,34 @@ export class MainScene extends Phaser.Scene {
 
     const view: PickupView = { circle, label, minimapMarker }
     this.pickupViews.set(pickup.id, view)
+    return view
+  }
+
+  private syncBombs(): void {
+    const world = this.world!
+    const currentIds = new Set(world.bombs.map((b) => b.id))
+    for (const [id, view] of this.bombViews) {
+      if (!currentIds.has(id)) {
+        view.label.destroy()
+        this.bombViews.delete(id)
+      }
+    }
+
+    for (const bomb of world.bombs) {
+      if (!this.bombViews.has(bomb.id)) this.createBombView(bomb)
+    }
+  }
+
+  private createBombView(bomb: Bomb): BombView {
+    const label = this.add
+      .text(bomb.pos.x, bomb.pos.y, '💣', { fontSize: '18px' })
+      .setOrigin(0.5, 0.5)
+      .setDepth(9)
+
+    this.minimapCam.ignore(label)
+
+    const view: BombView = { label }
+    this.bombViews.set(bomb.id, view)
     return view
   }
 }

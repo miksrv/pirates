@@ -85,7 +85,7 @@ export function updateBullets(world: World, dt: number): void {
 
       consumed = true
       const wasAlive = ship.alive
-      applyDamage(world, ship, bullet)
+      applyDamage(world, ship, bullet.damage, bullet.ownerId)
       world.events.push({ kind: 'impact', pos: { ...bullet.pos }, lethal: wasAlive && !ship.alive })
       break
     }
@@ -97,8 +97,9 @@ export function updateBullets(world: World, dt: number): void {
   world.bullets = remaining
 }
 
-function applyDamage(world: World, ship: Ship, bullet: Bullet): void {
-  const attacker = world.ships.find((t) => t.id === bullet.ownerId)
+/** Shared by cannonballs and bomb detonations: shield block, armor mitigation, kill/death bookkeeping. */
+export function applyDamage(world: World, ship: Ship, damage: number, attackerId: string): void {
+  const attacker = world.ships.find((t) => t.id === attackerId)
   const attackerName = attacker?.name ?? '???'
 
   if (ship.shieldCharges > 0) {
@@ -107,7 +108,7 @@ function applyDamage(world: World, ship: Ship, bullet: Bullet): void {
     return
   }
 
-  const mitigated = bullet.damage * (1 - ship.armor)
+  const mitigated = damage * (1 - ship.armor)
   ship.hp = clamp(ship.hp - mitigated, 0, ship.maxHp)
 
   if (ship.escortOf) {

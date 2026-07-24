@@ -26,6 +26,7 @@ export type PickupType =
   | 'leviathan'
   | 'infernoShot'
   | 'fleet'
+  | 'bomb'
 
 /** Timed buffs/debuffs layered on top of a ship's base stats — see src/game/effects.ts. */
 export type EffectType =
@@ -115,6 +116,10 @@ export interface Ship {
   escortOf: string | null
   /** Escort ships only: which wedge slot they hold behind their captain. */
   escortSlot: number
+  /** Bomb pickup: bombs still queued to drop astern (see src/game/bombs.ts). */
+  bombsToDrop: number
+  /** Bomb pickup: countdown to the next queued drop. */
+  bombDropTimer: number
 }
 
 export interface Bullet {
@@ -160,6 +165,16 @@ export interface Pickup {
   pulse: number
 }
 
+/** A mine laid on the water by the bomb pickup — sits until any hull touches it, then detonates. */
+export interface Bomb {
+  id: string
+  pos: Vec2
+  radius: number
+  damage: number
+  /** Ship that laid it — for attribution; it can (and will) blow up its own layer too. */
+  ownerId: string
+}
+
 /**
  * One-frame notifications emitted by the simulation so a presentation layer
  * (Phaser scene, canvas renderer, ...) can react with sound/VFX without the
@@ -185,6 +200,8 @@ export interface World {
   bullets: Bullet[]
   obstacles: Obstacle[]
   pickups: Pickup[]
+  /** Mines laid by the bomb pickup — persist until detonated, i.e. for the rest of the round. */
+  bombs: Bomb[]
   events: GameEvent[]
   time: number
   pickupSpawnTimer: number

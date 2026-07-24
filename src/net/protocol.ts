@@ -1,5 +1,5 @@
 import { MEGA_SPAWN_INTERVAL, PICKUP_SPAWN_INTERVAL } from '../game/constants'
-import type { Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, World } from '../game/types'
+import type { Bomb, Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, World } from '../game/types'
 
 /**
  * Wire format shared by the WebSocket server and the browser client. Everything is plain JSON;
@@ -19,6 +19,7 @@ export interface WireWorld {
   bullets: Bullet[]
   obstacles: WireObstacle[]
   pickups: Pickup[]
+  bombs: Bomb[]
 }
 
 export interface JoinMsg {
@@ -50,6 +51,7 @@ export interface SnapshotMsg {
   ships: Ship[]
   bullets: Bullet[]
   pickups: Pickup[]
+  bombs: Bomb[]
   /** Surviving destructible obstacles; a destructible absent from this list was destroyed. */
   obstacles: { id: string; hp: number }[]
   events: GameEvent[]
@@ -80,6 +82,7 @@ export function worldToWire(world: World): WireWorld {
       maxHp: Number.isFinite(o.maxHp) ? o.maxHp : null,
     })),
     pickups: world.pickups,
+    bombs: world.bombs,
   }
 }
 
@@ -94,6 +97,7 @@ export function wireToWorld(wire: WireWorld): World {
       (o): Obstacle => ({ ...o, hp: o.hp ?? Infinity, maxHp: o.maxHp ?? Infinity }),
     ),
     pickups: wire.pickups,
+    bombs: wire.bombs,
     events: [],
     pickupSpawnTimer: PICKUP_SPAWN_INTERVAL,
     // Client-side copies are display-only; the server owns both spawn clocks.

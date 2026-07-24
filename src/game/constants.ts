@@ -117,3 +117,9 @@ export const BOOST_RECOVER_TIME = 5 // seconds to refill the meter from empty (w
 
 export const RESPAWN_TIME = 4 // seconds before a sunk ship returns (only when world.respawnEnabled)
 export const MAX_BOT_COUNT = 10
+
+// --- Бомбы: mines laid astern after the bomb pickup, live until touched or the round ends ------
+export const BOMB_DROP_COUNT = 3 // mines laid per pickup
+export const BOMB_DROP_INTERVAL = 1 // seconds between each drop
+export const BOMB_RADIUS = 12
+export const BOMB_DAMAGE = 35 // a hefty direct-contact hit, no splash

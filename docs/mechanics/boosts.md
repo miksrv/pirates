@@ -23,6 +23,12 @@ Source: `src/game/pickupConfig.ts` · Spawning: ≤18 on map, +1 every ~2.33s, 1
 - The loaded cannon burns with flame, and the round flies wreathed in fire — both sides can see it coming.
 - Only counter: 🛡️ Капитанский щит blocks it. Lost on respawn; bots use it too.
 
+## 💣 Бомбы (mines)
+- Source: `src/game/bombs.ts`. On pickup, queues 3 mines; one drops astern every 1s (so all 3 are down ~3s after pickup).
+- Each mine is dropped just behind the ship's current heading and then sits still — no timer, no fuse, lasts for the rest of the round or until something sets it off.
+- **Any hull** that touches a mine detonates it for 35 damage (direct contact only, no splash) — including the ship that laid it, and including other mines' owners. Shield charges block it like any other hit.
+- Bots collect and lay this pickup the same as players; they don't specifically avoid mines lying on the water.
+
 ## Hull & defense
 - ⚓ **Аварийный ремонт** — instantly +35 HP
 - 🪵 **Усиленная обшивка** — +20 max HP (cap 320), also heals +20
@@ -31,7 +37,7 @@ Source: `src/game/pickupConfig.ts` · Spawning: ≤18 on map, +1 every ~2.33s, 1
 - 🛡️ **Капитанский щит** — fully blocks the next hit (stacks up to 3)
 - 🎭 **Маскировка** — hides your name and hp/reload/boost bars from other players for 15s (you still see your own)
 
-(The two headline pickups — 🔱 Ярость Левиафана and 🔥 Адское ядро — are described at the top.)
+(🔱 Ярость Левиафана, 🔥 Адское ядро and 💣 Бомбы — the pickups that spawn their own entity rather than just buff stats — are described above.)
 
 ## Speed & maneuvering
 - 🪢 **Новые паруса** — +10% speed (cap 375)

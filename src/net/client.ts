@@ -159,6 +159,7 @@ export class NetClient {
       })
 
     world.pickups = s1.snap.pickups
+    world.bombs = s1.snap.bombs
     world.time = s1.snap.time
 
     const surviving = new Map(s1.snap.obstacles.map((o) => [o.id, o.hp]))

@@ -10,6 +10,8 @@ import {
   MAX_SPEED_CAP,
   MEGA_DURATION,
   INFERNO_MAX_CHARGES,
+  BOMB_DROP_COUNT,
+  BOMB_DROP_INTERVAL,
 } from './constants'
 import { clamp } from './vector'
 
@@ -83,6 +85,17 @@ export const PICKUP_DEFS: Record<PickupType, PickupDef> = {
     description: 'Корабли сопровождения идут за вами клином (до 5)',
     apply: (ship, world) => {
       grantFleet(world, ship)
+    },
+  },
+  bomb: {
+    type: 'bomb',
+    label: 'Бомбы',
+    emoji: '💣',
+    color: '#4a4a4a',
+    description: 'Следующие 3 сек оставляет за собой 3 бомбы, которые взрывают любой корабль',
+    apply: (ship) => {
+      ship.bombsToDrop = BOMB_DROP_COUNT
+      ship.bombDropTimer = BOMB_DROP_INTERVAL
     },
   },
   infernoShot: {
