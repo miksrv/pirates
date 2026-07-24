@@ -1,4 +1,4 @@
-import { BULLET_SPEED } from './constants'
+import { BOOST_DRAIN_TIME, BOOST_RECOVER_TIME, BOOST_SPEED_MULT, BULLET_SPEED } from './constants'
 import { decayEffects, getEffectMagnitude } from './effects'
 import { resolveObstacle } from './physics'
 import type { Ship, World } from './types'
@@ -16,8 +16,13 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): void {
 
   const moveLen = length(ship.moveDir)
 
+  // Boost only burns while actually underway; the meter refills any time it isn't burning.
+  const boostActive = ship.boosting && ship.boost > 0 && moveLen > 0.01
+  if (boostActive) ship.boost = Math.max(0, ship.boost - dt / BOOST_DRAIN_TIME)
+  else ship.boost = Math.min(1, ship.boost + dt / BOOST_RECOVER_TIME)
+
   if (moveLen > 0.01) {
-    const effectiveSpeed = ship.speed * speedMult
+    const effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
     const dx = (ship.moveDir.x / moveLen) * effectiveSpeed * dt
     const dy = (ship.moveDir.y / moveLen) * effectiveSpeed * dt
     ship.pos.x += dx

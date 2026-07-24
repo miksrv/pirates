@@ -54,6 +54,8 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     alive: true,
     kills: 0,
     respawnTimer: 0,
+    boost: 1,
+    boosting: false,
     ai: isPlayer
       ? null
       : {

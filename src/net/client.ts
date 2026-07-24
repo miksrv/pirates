@@ -16,6 +16,18 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
+/** JSON turns NaN/Infinity into null; one bad coordinate would poison the camera transform
+ * for good, so anything non-finite falls back and gets reported once. */
+let badDataWarned = false
+function finite(v: unknown, fallback: number): number {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (!badDataWarned) {
+    badDataWarned = true
+    console.warn('[net] non-finite value in snapshot, using fallback', v)
+  }
+  return fallback
+}
+
 function lerpAngle(a: number, b: number, t: number): number {
   return a + angleDiff(b, a) * t
 }
@@ -119,25 +131,32 @@ export class NetClient {
 
     const prevShips = new Map(s0.snap.ships.map((s) => [s.id, s]))
     world.ships = s1.snap.ships.map((ship) => {
+      const px = finite(ship.pos.x, world.width / 2)
+      const py = finite(ship.pos.y, world.height / 2)
       const prev = prevShips.get(ship.id)
-      if (!prev || !ship.alive) return ship
+      if (!prev || !ship.alive) return { ...ship, pos: { x: px, y: py } }
       return {
         ...ship,
-        pos: { x: lerp(prev.pos.x, ship.pos.x, t), y: lerp(prev.pos.y, ship.pos.y, t) },
-        bodyAngle: lerpAngle(prev.bodyAngle, ship.bodyAngle, t),
-        cannonAngle: lerpAngle(prev.cannonAngle, ship.cannonAngle, t),
+        pos: { x: lerp(finite(prev.pos.x, px), px, t), y: lerp(finite(prev.pos.y, py), py, t) },
+        bodyAngle: lerpAngle(finite(prev.bodyAngle, 0), finite(ship.bodyAngle, 0), t),
+        cannonAngle: lerpAngle(finite(prev.cannonAngle, 0), finite(ship.cannonAngle, 0), t),
       }
     })
 
     const prevBullets = new Map(s0.snap.bullets.map((b) => [b.id, b]))
-    world.bullets = s1.snap.bullets.map((bullet) => {
-      const prev = prevBullets.get(bullet.id)
-      if (!prev) return bullet
-      return {
-        ...bullet,
-        pos: { x: lerp(prev.pos.x, bullet.pos.x, t), y: lerp(prev.pos.y, bullet.pos.y, t) },
-      }
-    })
+    world.bullets = s1.snap.bullets
+      .filter((b) => Number.isFinite(b.pos.x) && Number.isFinite(b.pos.y))
+      .map((bullet) => {
+        const prev = prevBullets.get(bullet.id)
+        if (!prev) return bullet
+        return {
+          ...bullet,
+          pos: {
+            x: lerp(finite(prev.pos.x, bullet.pos.x), bullet.pos.x, t),
+            y: lerp(finite(prev.pos.y, bullet.pos.y), bullet.pos.y, t),
+          },
+        }
+      })
 
     world.pickups = s1.snap.pickups
     world.time = s1.snap.time

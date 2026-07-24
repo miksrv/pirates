@@ -72,5 +72,9 @@ export const BOT_LEAD_JITTER_MAX = 1.15 // ...or over-lead up to 115% of it
 
 export const SHIP_SHIP_PUSH = 0.5
 
+export const BOOST_SPEED_MULT = 1.6 // shift-boost speed multiplier
+export const BOOST_DRAIN_TIME = 2.5 // seconds of continuous boost from a full meter
+export const BOOST_RECOVER_TIME = 5 // seconds to refill the meter from empty (while not boosting)
+
 export const RESPAWN_TIME = 4 // seconds before a sunk ship returns (only when world.respawnEnabled)
 export const MAX_BOT_COUNT = 10

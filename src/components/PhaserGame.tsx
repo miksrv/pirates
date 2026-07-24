@@ -49,6 +49,12 @@ export default function PhaserGame() {
       const scene = game.scene.getScene('main') as MainScene
       sceneRef.current = scene
 
+      // A lost WebGL context renders as a permanent black canvas while the React HUD keeps
+      // working — surface it instead of leaving the player staring into the void.
+      game.canvas.addEventListener('webglcontextlost', () =>
+        setNetError('Сбой графики (WebGL context lost) — перезагрузите страницу'),
+      )
+
       scene.events.on('stats', (next: Stats) => setStats(next))
       scene.events.on('game-over', () => setGameOver(true))
       scene.events.on('net-error', (message: string) => setNetError(message))

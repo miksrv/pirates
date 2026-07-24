@@ -87,6 +87,10 @@ export interface Ship {
   alive: boolean
   kills: number
   respawnTimer: number
+  /** Boost meter, 0..1: drains while boosting, refills while not. */
+  boost: number
+  /** Whether this ship is trying to boost this frame (set from input; bots never boost). */
+  boosting: boolean
   ai: BotAI | null
   effects: ActiveEffect[]
   shieldCharges: number
@@ -165,6 +169,7 @@ export interface PlayerInput {
   moveDir: Vec2
   aimAngle: number
   firing: boolean
+  boosting: boolean
 }
 
 /** Latest input per human-controlled ship id; ships without an entry idle in place. */

@@ -69,6 +69,7 @@ export default function HUD({ started, gameOver, netError, stats, log, onStart, 
             <li><b>WASD / стрелки</b> — управление кораблём</li>
             <li><b>Мышь</b> — прицеливание пушкой</li>
             <li><b>ЛКМ / пробел</b> — огонь</li>
+            <li><b>Shift</b> — ускорение; голубая полоска под кораблём тратится и восстанавливается</li>
             <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
           </ul>
           <div className="menu-setting">

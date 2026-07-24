@@ -5,7 +5,8 @@ Client: `src/net/` · Server: `server/index.ts` · Protocol: `src/net/protocol.t
 ## Model
 - Authoritative server: runs the same simulation (`src/game/`) at 30Hz, broadcasts snapshots at 15Hz.
 - Client streams input (≤20 msg/s), renders snapshots interpolated 120ms in the past. No prediction; only the own cannon is aimed locally (no mouse lag).
-- One shared arena: created when the first player joins (their bot-count setting applies), torn down when the last leaves. Max 8 players.
+- One shared arena: created when the first player joins, torn down when the last leaves. Max 8 players.
+- Bots are always present: `BOTS` env on the server wins (0 allowed for pure PvP), else the first joiner's slider when ≥1, else 5.
 - FFA: humans + bots all fight each other, friendly fire on. Bots run server-side.
 
 ## Rule differences vs single player

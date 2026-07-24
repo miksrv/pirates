@@ -68,6 +68,8 @@ interface ShipView {
   hpBarFg: Phaser.GameObjects.Rectangle
   reloadBarBg: Phaser.GameObjects.Rectangle
   reloadBarFg: Phaser.GameObjects.Rectangle
+  boostBarBg: Phaser.GameObjects.Rectangle
+  boostBarFg: Phaser.GameObjects.Rectangle
   nameText: Phaser.GameObjects.Text
   buffText: Phaser.GameObjects.Text
   lastState: ShipHealthState
@@ -115,7 +117,10 @@ export class MainScene extends Phaser.Scene {
   private obstacleViews = new Map<string, ObstacleView>()
   private pickupViews = new Map<string, PickupView>()
 
-  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'up' | 'down' | 'left' | 'right' | 'space', Phaser.Input.Keyboard.Key>
+  private keys!: Record<
+    'W' | 'A' | 'S' | 'D' | 'up' | 'down' | 'left' | 'right' | 'space' | 'SHIFT',
+    Phaser.Input.Keyboard.Key
+  >
 
   constructor() {
     super('main')
@@ -152,7 +157,7 @@ export class MainScene extends Phaser.Scene {
       repeat: 0,
     })
 
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,up,down,left,right,space') as unknown as typeof this.keys
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,up,down,left,right,space,SHIFT') as unknown as typeof this.keys
 
     this.input.keyboard!.on('keydown-R', () => {
       if (this.gameOverEmitted && this.mode === 'local') this.startNewWorld()
@@ -262,9 +267,10 @@ export class MainScene extends Phaser.Scene {
     }
 
     const firing = this.input.activePointer.leftButtonDown() || this.keys.space.isDown
+    const boosting = this.keys.SHIFT.isDown
 
     if (this.mode === 'online' && this.net) {
-      this.net.sendInput({ moveDir, aimAngle, firing })
+      this.net.sendInput({ moveDir, aimAngle, firing, boosting })
       this.net.syncWorld()
       // syncWorld replaces the ships array; re-find our ship and aim its cannon locally so the
       // crosshair doesn't lag a round-trip behind the mouse.
@@ -272,7 +278,7 @@ export class MainScene extends Phaser.Scene {
       if (player && player.alive) player.cannonAngle = aimAngle
       this.handleEvents(this.net.drainEvents())
     } else {
-      stepWorld(this.world, dt, { [this.playerId]: { moveDir, aimAngle, firing } })
+      stepWorld(this.world, dt, { [this.playerId]: { moveDir, aimAngle, firing, boosting } })
       this.handleEvents(this.world.events)
     }
 
@@ -361,15 +367,18 @@ export class MainScene extends Phaser.Scene {
     const reloadBarY = barY + 7
     const reloadBarBg = this.add.rectangle(0, reloadBarY, barW, 3, 0x000000, 0.6)
     const reloadBarFg = this.add.rectangle(-barW / 2, reloadBarY, barW, 3, 0xffb84d, 1).setOrigin(0, 0.5)
+    const boostBarY = reloadBarY + 5
+    const boostBarBg = this.add.rectangle(0, boostBarY, barW, 3, 0x000000, 0.6)
+    const boostBarFg = this.add.rectangle(-barW / 2, boostBarY, barW, 3, 0x5fd0ff, 1).setOrigin(0, 0.5)
     const nameText = this.add
       .text(0, barY - 12, ship.name, { fontSize: '12px', color: '#e8ecf1' })
       .setOrigin(0.5, 0.5)
     const buffText = this.add
       .text(0, barY - 26, '', { fontSize: '20px', stroke: '#0b0e14', strokeThickness: 3 })
       .setOrigin(0.5, 0.5)
-    container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, nameText, buffText])
+    container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, boostBarBg, boostBarFg, nameText, buffText])
 
-    this.minimapCam.ignore([cannon, hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, nameText, buffText])
+    this.minimapCam.ignore([cannon, hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, boostBarBg, boostBarFg, nameText, buffText])
 
     if (ship.id === this.playerId) {
       this.cameras.main.startFollow(container, true, 0.15, 0.15)
@@ -383,6 +392,8 @@ export class MainScene extends Phaser.Scene {
       hpBarFg,
       reloadBarBg,
       reloadBarFg,
+      boostBarBg,
+      boostBarFg,
       nameText,
       buffText,
       lastState: 1,
@@ -421,6 +432,8 @@ export class MainScene extends Phaser.Scene {
         view.hpBarFg.setVisible(!wrecked)
         view.reloadBarBg.setVisible(!wrecked)
         view.reloadBarFg.setVisible(!wrecked)
+        view.boostBarBg.setVisible(!wrecked)
+        view.boostBarFg.setVisible(!wrecked)
         view.nameText.setVisible(!wrecked)
         view.buffText.setVisible(!wrecked)
         view.container.setAlpha(wrecked ? 0.75 : 1)
@@ -436,6 +449,8 @@ export class MainScene extends Phaser.Scene {
       const reloadFrac = reloadTime > 0 ? clamp(1 - ship.cooldown / reloadTime, 0, 1) : 1
       view.reloadBarFg.scaleX = reloadFrac
       view.reloadBarFg.fillColor = reloadFrac >= 1 ? 0x3ee06f : 0xffb84d
+
+      view.boostBarFg.scaleX = clamp(ship.boost ?? 1, 0, 1)
 
       const buffText = buildBuffIconText(ship)
       if (buffText !== view.lastBuffText) {

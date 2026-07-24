@@ -99,6 +99,8 @@ function respawnShip(world: World, ship: Ship): void {
   ship.effects = []
   ship.shieldCharges = 0
   ship.moveDir = { x: 0, y: 0 }
+  ship.boost = 1
+  ship.boosting = false
   ship.alive = true
   if (ship.ai) {
     ship.ai.state = 'patrol'
@@ -133,9 +135,11 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
       if (input) {
         ship.moveDir = input.moveDir
         ship.cannonAngle = input.aimAngle
+        ship.boosting = input.boosting === true
         wantsToFire = input.firing
       } else {
         ship.moveDir = { x: 0, y: 0 }
+        ship.boosting = false
       }
     }
 

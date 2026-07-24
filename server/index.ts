@@ -37,7 +37,7 @@ function broadcast(msg: ServerMsg): void {
 }
 
 function idleInput(): PlayerInput {
-  return { moveDir: { x: 0, y: 0 }, aimAngle: 0, firing: false }
+  return { moveDir: { x: 0, y: 0 }, aimAngle: 0, firing: false, boosting: false }
 }
 
 /** Clamps every number a client can send us — never trust remote floats. */
@@ -51,6 +51,7 @@ function sanitizeInput(raw: unknown): PlayerInput {
     },
     aimAngle: num(input.aimAngle),
     firing: input.firing === true,
+    boosting: input.boosting === true,
   }
 }
 
@@ -96,6 +97,16 @@ function sanitizeName(raw: unknown): string | undefined {
   return name.length > 0 ? name : undefined
 }
 
+/** Multiplayer arenas always get bots: the BOTS env var wins (may be 0 for pure PvP), else the
+ * first joiner's request when it's ≥1, else the default — a 0/garbage request never empties the map. */
+function resolveBotCount(requested: number): number {
+  const env = Number(process.env.BOTS)
+  if (Number.isFinite(env)) return Math.max(0, Math.min(MAX_BOT_COUNT, Math.floor(env)))
+  const n = Math.floor(requested)
+  if (!Number.isFinite(n) || n < 1) return BOT_COUNT
+  return Math.min(MAX_BOT_COUNT, n)
+}
+
 function handleJoin(socket: WebSocket, botCount: number, name?: string): void {
   if (clients.size >= MAX_PLAYERS) {
     sendTo(socket, { type: 'error', message: 'Арена заполнена, попробуйте позже' })
@@ -104,8 +115,7 @@ function handleJoin(socket: WebSocket, botCount: number, name?: string): void {
   }
 
   if (!world) {
-    const bots = Math.max(0, Math.min(MAX_BOT_COUNT, Math.floor(botCount ?? BOT_COUNT)))
-    world = createWorld({ botCount: bots, withPlayer: false, respawnEnabled: true })
+    world = createWorld({ botCount: resolveBotCount(botCount), withPlayer: false, respawnEnabled: true })
     startLoop()
   }
 
