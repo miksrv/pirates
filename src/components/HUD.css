@@ -55,6 +55,62 @@
   transform: translateY(-1px);
 }
 
+.secondary-btn {
+  background: transparent;
+  color: #5fd0ff;
+  border: 1px solid #5fd0ff;
+  border-radius: 8px;
+  padding: 12px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.secondary-btn:hover {
+  background: rgba(95, 208, 255, 0.12);
+  transform: translateY(-1px);
+}
+
+.menu-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.menu-setting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 0 20px;
+  color: #cfd6e3;
+  font-size: 14px;
+}
+
+.menu-setting input[type='range'] {
+  width: 160px;
+  accent-color: #3ee06f;
+}
+
+.nickname-input {
+  width: 160px;
+  background: #0f131c;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  color: #e8ecf1;
+  padding: 7px 10px;
+  font-size: 14px;
+}
+
+.nickname-input:focus {
+  outline: none;
+  border-color: #3ee06f;
+}
+
+.event-log-info {
+  color: #ffd97a;
+}
+
 .hud {
   position: absolute;
   inset: 0;

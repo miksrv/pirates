@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import { MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../game/constants'
+import { useEffect, useRef, useState } from 'react'
+import { BOT_COUNT, MAX_BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../game/constants'
 import type { Stats } from '../game/stats'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
@@ -7,11 +7,14 @@ import './HUD.css'
 interface HUDProps {
   started: boolean
   gameOver: boolean
+  netError: string | null
   stats: Stats | null
   log: LogEntry[]
-  onStart: () => void
+  onStart: (mode: 'local' | 'online', botCount: number, nickname: string) => void
   onRestart: () => void
 }
+
+const NICKNAME_LS_KEY = 'pirates.nickname'
 
 function EventLog({ log }: { log: LogEntry[] }) {
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -35,7 +38,27 @@ function EventLog({ log }: { log: LogEntry[] }) {
   )
 }
 
-export default function HUD({ started, gameOver, stats, log, onStart, onRestart }: HUDProps) {
+export default function HUD({ started, gameOver, netError, stats, log, onStart, onRestart }: HUDProps) {
+  const [botCount, setBotCount] = useState(BOT_COUNT)
+  const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
+
+  const handleNickname = (value: string) => {
+    setNickname(value)
+    localStorage.setItem(NICKNAME_LS_KEY, value)
+  }
+
+  if (netError) {
+    return (
+      <div className="overlay">
+        <div className="panel">
+          <h1>Мультиплеер</h1>
+          <p className="subtitle">{netError}</p>
+          <button className="primary-btn" onClick={() => window.location.reload()}>В меню</button>
+        </div>
+      </div>
+    )
+  }
+
   if (!started) {
     return (
       <div className="overlay">
@@ -48,7 +71,33 @@ export default function HUD({ started, gameOver, stats, log, onStart, onRestart 
             <li><b>ЛКМ / пробел</b> — огонь</li>
             <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
           </ul>
-          <button className="primary-btn" onClick={onStart}>Играть</button>
+          <div className="menu-setting">
+            <label htmlFor="bot-count">Ботов: <b>{botCount}</b></label>
+            <input
+              id="bot-count"
+              type="range"
+              min={0}
+              max={MAX_BOT_COUNT}
+              value={botCount}
+              onChange={(e) => setBotCount(Number(e.target.value))}
+            />
+          </div>
+          <div className="menu-setting">
+            <label htmlFor="nickname">Ник:</label>
+            <input
+              id="nickname"
+              className="nickname-input"
+              type="text"
+              maxLength={16}
+              placeholder="для Multi Player"
+              value={nickname}
+              onChange={(e) => handleNickname(e.target.value)}
+            />
+          </div>
+          <div className="menu-buttons">
+            <button className="primary-btn" onClick={() => onStart('local', botCount, nickname)}>Играть</button>
+            <button className="secondary-btn" onClick={() => onStart('online', botCount, nickname)}>Multi Player</button>
+          </div>
         </div>
       </div>
     )

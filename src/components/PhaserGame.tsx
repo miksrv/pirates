@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../game/stats'
-import { MainScene } from '../phaser/MainScene'
+import { defaultServerUrl } from '../net/config'
+import { MainScene, type LaunchConfig } from '../phaser/MainScene'
 import HUD from './HUD'
 import type { LogEntry, LogEntryKind } from './logEntry'
 
@@ -15,10 +16,11 @@ export default function PhaserGame() {
 
   const [started, setStarted] = useState(false)
   const [gameOver, setGameOver] = useState(false)
+  const [netError, setNetError] = useState<string | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
 
-  const handleStart = useCallback(() => {
+  const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string) => {
     if (gameRef.current) return
 
     const game = new Phaser.Game({
@@ -33,6 +35,13 @@ export default function PhaserGame() {
       },
       scene: [MainScene],
     })
+    const launch: LaunchConfig = {
+      mode,
+      botCount,
+      serverUrl: defaultServerUrl(),
+      nickname: nickname.trim() || undefined,
+    }
+    game.registry.set('launch', launch)
     gameRef.current = game
     if (import.meta.env.DEV) (window as unknown as { __game: Phaser.Game }).__game = game
 
@@ -42,6 +51,7 @@ export default function PhaserGame() {
 
       scene.events.on('stats', (next: Stats) => setStats(next))
       scene.events.on('game-over', () => setGameOver(true))
+      scene.events.on('net-error', (message: string) => setNetError(message))
       scene.events.on('restarted', () => {
         setGameOver(false)
         setStats(null)
@@ -74,6 +84,7 @@ export default function PhaserGame() {
       <HUD
         started={started}
         gameOver={gameOver}
+        netError={netError}
         stats={stats}
         log={log}
         onStart={handleStart}

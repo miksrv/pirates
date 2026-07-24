@@ -144,6 +144,8 @@ export type GameEvent =
   | { kind: 'damage'; attackerName: string; targetName: string; amount: number }
   | { kind: 'kill'; attackerName: string; targetName: string }
   | { kind: 'shieldBlock'; shipName: string }
+  | { kind: 'playerJoined'; shipName: string }
+  | { kind: 'playerLeft'; shipName: string }
 
 export interface World {
   width: number
@@ -155,6 +157,8 @@ export interface World {
   events: GameEvent[]
   time: number
   pickupSpawnTimer: number
+  /** Multiplayer arenas respawn sunk ships (stats reset to base); single-player leaves wrecks. */
+  respawnEnabled: boolean
 }
 
 export interface PlayerInput {
@@ -162,3 +166,6 @@ export interface PlayerInput {
   aimAngle: number
   firing: boolean
 }
+
+/** Latest input per human-controlled ship id; ships without an entry idle in place. */
+export type PlayerInputs = Record<string, PlayerInput>

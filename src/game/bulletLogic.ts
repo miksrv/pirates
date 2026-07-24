@@ -1,4 +1,4 @@
-import { PICKUP_DROP_CHANCE } from './constants'
+import { PICKUP_DROP_CHANCE, RESPAWN_TIME } from './constants'
 import { nextId } from './id'
 import { spawnPickupAt } from './map'
 import { obstacleOverlap } from './physics'
@@ -106,6 +106,7 @@ function applyDamage(world: World, ship: Ship, bullet: Bullet): void {
 
   if (ship.hp <= 0 && ship.alive) {
     ship.alive = false
+    ship.respawnTimer = RESPAWN_TIME
     if (attacker) attacker.kills += 1
     world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
   } else {

@@ -22,9 +22,18 @@ import {
 import type { IslandShape } from '../game/islandShape'
 import { PICKUP_DEFS } from '../game/pickupConfig'
 import { buildStats } from '../game/stats'
-import type { EffectType, Obstacle, Pickup, Ship, ShipHealthState, World } from '../game/types'
+import { BOT_COUNT } from '../game/constants'
+import type { EffectType, GameEvent, Obstacle, Pickup, Ship, ShipHealthState, World } from '../game/types'
 import { createWorld, stepWorld } from '../game/world'
 import { clamp } from '../game/vector'
+import { NetClient } from '../net/client'
+
+export interface LaunchConfig {
+  mode: 'local' | 'online'
+  botCount: number
+  serverUrl?: string
+  nickname?: string
+}
 
 function shipHealthState(ship: Ship): ShipHealthState {
   if (!ship.alive) return 4
@@ -88,10 +97,14 @@ const SHIP_SPRITE_OFFSET = -Math.PI / 2
 const CANNON_SPRITE_OFFSET = 0
 
 export class MainScene extends Phaser.Scene {
-  private world!: World
+  private world: World | null = null
   private playerId = ''
   private gameOverEmitted = false
   private statsAccum = 0
+
+  private mode: 'local' | 'online' = 'local'
+  private botCount = BOT_COUNT
+  private net: NetClient | null = null
 
   private groundTile!: Phaser.GameObjects.TileSprite
   private minimapCam!: Phaser.Cameras.Scene2D.Camera
@@ -142,7 +155,7 @@ export class MainScene extends Phaser.Scene {
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,up,down,left,right,space') as unknown as typeof this.keys
 
     this.input.keyboard!.on('keydown-R', () => {
-      if (this.gameOverEmitted) this.startNewWorld()
+      if (this.gameOverEmitted && this.mode === 'local') this.startNewWorld()
     })
 
     // Keep the camera viewport in sync when the browser window (and thus the canvas) resizes.
@@ -151,12 +164,37 @@ export class MainScene extends Phaser.Scene {
       this.positionMinimap()
     })
 
-    this.startNewWorld()
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.net?.close())
+
+    const launch = (this.registry.get('launch') ?? {}) as Partial<LaunchConfig>
+    this.mode = launch.mode ?? 'local'
+    this.botCount = launch.botCount ?? BOT_COUNT
+
+    if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname)
+    else this.startNewWorld()
   }
 
-  /** Public: called by the React shell to restart after game over. */
+  /** Public: called by the React shell to restart after game over (local mode only). */
   restart(): void {
-    this.startNewWorld()
+    if (this.mode === 'local') this.startNewWorld()
+  }
+
+  private connectOnline(url: string, nickname?: string): void {
+    this.net = new NetClient(url, this.botCount, nickname)
+    this.net.onReady = () => {
+      const net = this.net!
+      this.clearViews()
+      this.world = net.world
+      this.playerId = net.shipId
+      this.gameOverEmitted = false
+      this.statsAccum = 0
+      this.cameras.main.setBounds(0, 0, net.world!.width, net.world!.height)
+      this.events.emit('restarted')
+    }
+    this.net.onError = (message: string) => {
+      this.world = null
+      this.events.emit('net-error', message)
+    }
   }
 
   /** Keeps the minimap pinned to the bottom-right corner of the (resizable) viewport. */
@@ -170,7 +208,7 @@ export class MainScene extends Phaser.Scene {
     this.minimapMaskShape.fillRoundedRect(x, y, MINIMAP_W, MINIMAP_H, 8)
   }
 
-  private startNewWorld(): void {
+  private clearViews(): void {
     for (const v of this.shipViews.values()) v.container.destroy()
     this.shipViews.clear()
     for (const s of this.bulletViews.values()) s.destroy()
@@ -190,8 +228,12 @@ export class MainScene extends Phaser.Scene {
       p.label.destroy()
     }
     this.pickupViews.clear()
+  }
 
-    this.world = createWorld()
+  private startNewWorld(): void {
+    this.clearViews()
+
+    this.world = createWorld({ botCount: this.botCount })
     this.playerId = this.world.ships.find((t) => t.team === 'player')!.id
     this.gameOverEmitted = false
     this.statsAccum = 0
@@ -205,7 +247,7 @@ export class MainScene extends Phaser.Scene {
     if (this.gameOverEmitted) return
 
     const dt = Math.min(deltaMs / 1000, 0.05)
-    const player = this.world.ships.find((t) => t.id === this.playerId)
+    let player = this.world.ships.find((t) => t.id === this.playerId)
 
     const moveDir = { x: 0, y: 0 }
     if (this.keys.A.isDown || this.keys.left.isDown) moveDir.x -= 1
@@ -221,15 +263,25 @@ export class MainScene extends Phaser.Scene {
 
     const firing = this.input.activePointer.leftButtonDown() || this.keys.space.isDown
 
-    stepWorld(this.world, dt, { moveDir, aimAngle, firing })
-    this.handleEvents()
+    if (this.mode === 'online' && this.net) {
+      this.net.sendInput({ moveDir, aimAngle, firing })
+      this.net.syncWorld()
+      // syncWorld replaces the ships array; re-find our ship and aim its cannon locally so the
+      // crosshair doesn't lag a round-trip behind the mouse.
+      player = this.world.ships.find((t) => t.id === this.playerId)
+      if (player && player.alive) player.cannonAngle = aimAngle
+      this.handleEvents(this.net.drainEvents())
+    } else {
+      stepWorld(this.world, dt, { [this.playerId]: { moveDir, aimAngle, firing } })
+      this.handleEvents(this.world.events)
+    }
 
     this.syncObstacles()
     this.syncPickups()
     this.syncBullets()
     this.syncShips()
 
-    if (player && !player.alive && !this.gameOverEmitted) {
+    if (this.mode === 'local' && player && !player.alive && !this.gameOverEmitted) {
       this.gameOverEmitted = true
       this.events.emit('game-over')
       return
@@ -242,8 +294,8 @@ export class MainScene extends Phaser.Scene {
     }
   }
 
-  private handleEvents(): void {
-    for (const ev of this.world.events) {
+  private handleEvents(events: GameEvent[]): void {
+    for (const ev of events) {
       if (ev.kind === 'shot') {
         this.sound.play(SFX.shoot, { volume: 0.3 })
       } else if (ev.kind === 'impact') {
@@ -263,6 +315,10 @@ export class MainScene extends Phaser.Scene {
         this.events.emit('log', { text: `💀 ${ev.attackerName} потопил ${ev.targetName}`, kind: 'kill' })
       } else if (ev.kind === 'shieldBlock') {
         this.events.emit('log', { text: `🛡️ ${ev.shipName} заблокировал удар`, kind: 'shield' })
+      } else if (ev.kind === 'playerJoined') {
+        this.events.emit('log', { text: `⚓ ${ev.shipName} вошёл в бой`, kind: 'info' })
+      } else if (ev.kind === 'playerLeft') {
+        this.events.emit('log', { text: `🏳️ ${ev.shipName} покинул бой`, kind: 'info' })
       }
     }
   }
@@ -277,7 +333,7 @@ export class MainScene extends Phaser.Scene {
   private createShipView(ship: Ship): ShipView {
     const container = this.add.container(ship.pos.x, ship.pos.y).setDepth(10)
 
-    if (ship.team === 'player') {
+    if (ship.id === this.playerId) {
       const ring = this.add.circle(0, 0, ship.radius + 8)
       ring.setStrokeStyle(2, 0x3ee06f, 0.5)
       container.add(ring)
@@ -315,7 +371,7 @@ export class MainScene extends Phaser.Scene {
 
     this.minimapCam.ignore([cannon, hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, nameText, buffText])
 
-    if (ship.team === 'player') {
+    if (ship.id === this.playerId) {
       this.cameras.main.startFollow(container, true, 0.15, 0.15)
     }
 
@@ -339,14 +395,15 @@ export class MainScene extends Phaser.Scene {
   /** Ships never disappear when destroyed — they switch to the wrecked sprite and stay put
    * as scenery, so every ship that has ever existed keeps a view for the rest of the match. */
   private syncShips(): void {
+    const world = this.world!
     for (const [id, view] of this.shipViews) {
-      if (!this.world.ships.some((t) => t.id === id)) {
+      if (!world.ships.some((t) => t.id === id)) {
         view.container.destroy()
         this.shipViews.delete(id)
       }
     }
 
-    for (const ship of this.world.ships) {
+    for (const ship of world.ships) {
       const view = this.shipViews.get(ship.id) ?? this.createShipView(ship)
 
       view.container.setPosition(ship.pos.x, ship.pos.y)
@@ -389,7 +446,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private syncBullets(): void {
-    const currentIds = new Set(this.world.bullets.map((b) => b.id))
+    const world = this.world!
+    const currentIds = new Set(world.bullets.map((b) => b.id))
     for (const [id, sprite] of this.bulletViews) {
       if (!currentIds.has(id)) {
         sprite.destroy()
@@ -397,7 +455,7 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    for (const bullet of this.world.bullets) {
+    for (const bullet of world.bullets) {
       let sprite = this.bulletViews.get(bullet.id)
       if (!sprite) {
         sprite = this.add.sprite(bullet.pos.x, bullet.pos.y, CANNONBALL_KEY).setDepth(12)
@@ -408,7 +466,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private syncObstacles(): void {
-    const currentIds = new Set(this.world.obstacles.map((o) => o.id))
+    const world = this.world!
+    const currentIds = new Set(world.obstacles.map((o) => o.id))
     for (const [id, view] of this.obstacleViews) {
       if (!currentIds.has(id)) {
         view.sprite.destroy()
@@ -422,7 +481,7 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    for (const obstacle of this.world.obstacles) {
+    for (const obstacle of world.obstacles) {
       let view = this.obstacleViews.get(obstacle.id)
       if (!view) view = this.createObstacleView(obstacle)
 
@@ -589,7 +648,8 @@ export class MainScene extends Phaser.Scene {
   }
 
   private syncPickups(): void {
-    const currentIds = new Set(this.world.pickups.map((p) => p.id))
+    const world = this.world!
+    const currentIds = new Set(world.pickups.map((p) => p.id))
     for (const [id, view] of this.pickupViews) {
       if (!currentIds.has(id)) {
         view.circle.destroy()
@@ -598,7 +658,7 @@ export class MainScene extends Phaser.Scene {
       }
     }
 
-    for (const pickup of this.world.pickups) {
+    for (const pickup of world.pickups) {
       const view = this.pickupViews.get(pickup.id) ?? this.createPickupView(pickup)
       const scale = 1 + Math.sin(pickup.pulse) * 0.12
       view.circle.setScale(scale)

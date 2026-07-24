@@ -14,12 +14,12 @@ export const BULLET_SPEED = 640
 export const BULLET_MAX_LIFE = 1.4 // seconds
 
 export const BASE_MAX_HP = 100
-export const BASE_SPEED = 125
+export const BASE_SPEED = 187.5
 export const BASE_DAMAGE = 14
 export const BASE_FIRE_RATE = 1 / 3 // 1 shot every 3 seconds
 export const BASE_ARMOR = 0
 
-export const MAX_SPEED_CAP = 250
+export const MAX_SPEED_CAP = 375
 export const MAX_DAMAGE_CAP = 46
 export const MAX_ARMOR_CAP = 0.6
 export const MAX_FIRE_RATE_CAP = 0.8 // reload down to 1.25s at max upgrades
@@ -58,7 +58,7 @@ export const BOT_OBSTACLE_AVOID_WEIGHT = 1.8 // how strongly obstacle avoidance 
 export const BOT_LOS_STEP = 30 // sampling step (px) for line-of-sight checks
 export const BOT_STEER_DEADLOCK_THRESHOLD = 0.35 // steering sum below this means forces cancelled — slide, don't flip
 export const BOT_STUCK_TIMEOUT = 1.2 // seconds per stuck-check window
-export const BOT_STUCK_MOVE_EPSILON = 40 // net drift (px) per window below this counts as stuck (free sailing is ~150)
+export const BOT_STUCK_MOVE_EPSILON = 40 // net drift (px) per window below this counts as stuck (free sailing is ~225)
 export const BOT_DISENGAGE_TIME = 2.5 // seconds a stuck bot ignores targets and commits to sailing clear
 export const BOT_MOVE_TURN_RATE = 7 // rad/s the desired heading may swing — kills frame-to-frame hull shake
 export const BOT_CANNON_TURN_RATE = 5 // rad/s the cannon tracks its aim point instead of snapping
@@ -71,3 +71,6 @@ export const BOT_LEAD_JITTER_MIN = 0.7 // bots under-lead down to 70% of the per
 export const BOT_LEAD_JITTER_MAX = 1.15 // ...or over-lead up to 115% of it
 
 export const SHIP_SHIP_PUSH = 0.5
+
+export const RESPAWN_TIME = 4 // seconds before a sunk ship returns (only when world.respawnEnabled)
+export const MAX_BOT_COUNT = 10

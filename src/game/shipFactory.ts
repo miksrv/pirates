@@ -13,6 +13,8 @@ const BOT_NAMES = [
   'Немезида',
 ]
 const BOT_VARIANTS: ShipVariant[] = ['red', 'blue', 'dark', 'sand', 'yellow']
+/** Hull colors handed out to humans by join order in multiplayer. */
+export const PLAYER_VARIANTS: ShipVariant[] = ['green', 'blue', 'yellow', 'sand', 'red', 'dark']
 const VARIANT_COLORS: Record<ShipVariant, string> = {
   green: '#3ee06f',
   red: '#e05252',
@@ -22,13 +24,19 @@ const VARIANT_COLORS: Record<ShipVariant, string> = {
   yellow: '#f0c93e',
 }
 
-export function createShip(team: Team, pos: Vec2, index = 0): Ship {
+export interface ShipOverrides {
+  name?: string
+  variant?: ShipVariant
+}
+
+export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOverrides = {}): Ship {
   const isPlayer = team === 'player'
-  const variant: ShipVariant = isPlayer ? 'green' : BOT_VARIANTS[index % BOT_VARIANTS.length]
+  const variant: ShipVariant =
+    overrides.variant ?? (isPlayer ? 'green' : BOT_VARIANTS[index % BOT_VARIANTS.length])
   return {
     id: nextId(team),
     team,
-    name: isPlayer ? 'Игрок' : BOT_NAMES[index % BOT_NAMES.length],
+    name: overrides.name ?? (isPlayer ? 'Игрок' : BOT_NAMES[index % BOT_NAMES.length]),
     color: VARIANT_COLORS[variant],
     variant,
     pos: { ...pos },
