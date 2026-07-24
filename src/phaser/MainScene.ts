@@ -10,7 +10,7 @@ import {
   ISLAND_FORT_KEYS,
   ISLAND_GRASS_KEY,
   ISLAND_ROCK_KEYS,
-  ISLAND_SHALLOW_WATER_KEYS,
+  ISLAND_SHALLOW_WATER_KEY,
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
   SFX,
@@ -581,9 +581,8 @@ export class MainScene extends Phaser.Scene {
     this.drawIslandLobes(shallowWaterMaskShape, cx, cy, shallowRadius, shape)
 
     const shallowCover = shallowRadius * 5
-    const shallowKey = ISLAND_SHALLOW_WATER_KEYS[Math.floor(Math.random() * ISLAND_SHALLOW_WATER_KEYS.length)]
     const shallowWaterOverlay = this.add
-      .tileSprite(cx, cy, shallowCover, shallowCover, shallowKey)
+      .tileSprite(cx, cy, shallowCover, shallowCover, ISLAND_SHALLOW_WATER_KEY)
       .setDepth(3.5)
       .setMask(shallowWaterMaskShape.createGeometryMask())
 

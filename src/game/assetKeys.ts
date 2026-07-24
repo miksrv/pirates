@@ -39,18 +39,14 @@ export const ISLAND_GRASS_KEY = 'tile_grass'
 
 /**
  * Shallow-water shoreline ring drawn around every island, between the open water and the sand.
- * These 5 tile cleanly (near-uniform fill, safe to repeat via TileSprite). The pack also ships
- * edge/corner variants with a baked-in diagonal coastline cut (tile_shallow_water_edge_*.png,
- * tile_shallow_water_corner_*.png) — kept on disk for a future neighbor-aware autotiled shore,
- * but not wired in here since tiling them as-is would repeat their cut into a grid pattern.
+ * Only tile_shallow_water_1 is a truly uniform fill — safe to repeat via TileSprite without
+ * seams. tile_shallow_water_2..5 each carry a small corner/edge notch that looks fine alone but
+ * lines up into a visible repeating grid of "wedges" when tiled — do not use them for the ring.
+ * The pack also ships edge/corner variants with a baked-in diagonal coastline cut
+ * (tile_shallow_water_edge_*.png, tile_shallow_water_corner_*.png) — kept on disk for a future
+ * neighbor-aware autotiled shore, same reasoning: they'd repeat into a grid pattern if tiled.
  */
-export const ISLAND_SHALLOW_WATER_KEYS = [
-  'tile_shallow_water_1',
-  'tile_shallow_water_2',
-  'tile_shallow_water_3',
-  'tile_shallow_water_4',
-  'tile_shallow_water_5',
-]
+export const ISLAND_SHALLOW_WATER_KEY = 'tile_shallow_water_1'
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
 export const ISLAND_TREE_KEYS = ['tile_tree1', 'tile_tree2', 'tile_tree3']
@@ -81,7 +77,7 @@ export const ALL_IMAGE_KEYS: string[] = [
   CANNONBALL_KEY,
   ...Object.values(OBSTACLE_KEY),
   ISLAND_GRASS_KEY,
-  ...ISLAND_SHALLOW_WATER_KEYS,
+  ISLAND_SHALLOW_WATER_KEY,
   ...ISLAND_TREE_KEYS,
   ...ISLAND_ROCK_KEYS,
   ISLAND_CANNON_KEY,
