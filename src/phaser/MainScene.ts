@@ -10,6 +10,7 @@ import {
   ISLAND_FORT_KEYS,
   ISLAND_GRASS_KEY,
   ISLAND_ROCK_KEYS,
+  ISLAND_SHALLOW_WATER_KEYS,
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
   SFX,
@@ -78,7 +79,9 @@ interface ShipView {
 
 interface ObstacleView {
   sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.TileSprite
+  shallowWaterOverlay?: Phaser.GameObjects.TileSprite
   grassOverlay?: Phaser.GameObjects.Sprite | Phaser.GameObjects.TileSprite
+  shallowWaterMaskShape?: Phaser.GameObjects.Graphics
   maskShape?: Phaser.GameObjects.Graphics
   grassMaskShape?: Phaser.GameObjects.Graphics
   decorations?: Phaser.GameObjects.Sprite[]
@@ -220,7 +223,9 @@ export class MainScene extends Phaser.Scene {
     this.bulletViews.clear()
     for (const o of this.obstacleViews.values()) {
       o.sprite.destroy()
+      o.shallowWaterOverlay?.destroy()
       o.grassOverlay?.destroy()
+      o.shallowWaterMaskShape?.destroy()
       o.maskShape?.destroy()
       o.grassMaskShape?.destroy()
       o.decorations?.forEach((d) => d.destroy())
@@ -486,7 +491,9 @@ export class MainScene extends Phaser.Scene {
     for (const [id, view] of this.obstacleViews) {
       if (!currentIds.has(id)) {
         view.sprite.destroy()
+        view.shallowWaterOverlay?.destroy()
         view.grassOverlay?.destroy()
+        view.shallowWaterMaskShape?.destroy()
         view.maskShape?.destroy()
         view.grassMaskShape?.destroy()
         view.decorations?.forEach((d) => d.destroy())
@@ -554,17 +561,31 @@ export class MainScene extends Phaser.Scene {
   }
 
   /**
-   * Islands get an organic (non-perfectly-round) coastline: a sand base and — for bigger
-   * ones — a smaller grass interior, both built from the island's stored shape recipe (the
-   * same recipe the physics layer used to build its collision circles, so a ship never sails
-   * through visible sand). Trees, shoreline rocks, and occasionally a cannon or small fort
-   * are scattered on top, matching the pack's sample scenes.
+   * Islands get an organic (non-perfectly-round) coastline: a shallow-water ring, a sand base,
+   * and — for bigger ones — a smaller grass interior, all built from the island's stored shape
+   * recipe (the same recipe the physics layer used to build its collision circles, so a ship
+   * never sails through visible sand). The ring is just a bigger copy of the sand's lobed shape,
+   * drawn first and at a lower depth, so the sand naturally occludes everything but its outer
+   * band — no separate ring/donut mask needed. Trees, shoreline rocks, and occasionally a cannon
+   * or small fort are scattered on top, matching the pack's sample scenes.
    */
   private createIslandView(obstacle: Obstacle): ObstacleView {
     const { x: cx, y: cy } = obstacle.pos
     const sandRadius = obstacle.w / 2
     const shape = obstacle.islandShape!
     const { stretchX, stretchY } = shape
+
+    const shallowRadius = sandRadius * 1.3
+    const shallowWaterMaskShape = this.make.graphics({ x: 0, y: 0 }, false)
+    shallowWaterMaskShape.fillStyle(0xffffff)
+    this.drawIslandLobes(shallowWaterMaskShape, cx, cy, shallowRadius, shape)
+
+    const shallowCover = shallowRadius * 5
+    const shallowKey = ISLAND_SHALLOW_WATER_KEYS[Math.floor(Math.random() * ISLAND_SHALLOW_WATER_KEYS.length)]
+    const shallowWaterOverlay = this.add
+      .tileSprite(cx, cy, shallowCover, shallowCover, shallowKey)
+      .setDepth(3.5)
+      .setMask(shallowWaterMaskShape.createGeometryMask())
 
     const maskShape = this.make.graphics({ x: 0, y: 0 }, false)
     maskShape.fillStyle(0xffffff)
@@ -597,7 +618,15 @@ export class MainScene extends Phaser.Scene {
     const decorations = this.scatterIslandProps(cx, cy, sandRadius, hasGrass, stretchX, stretchY)
     this.minimapCam.ignore(decorations)
 
-    const view: ObstacleView = { sprite, grassOverlay, maskShape, grassMaskShape, decorations }
+    const view: ObstacleView = {
+      sprite,
+      shallowWaterOverlay,
+      grassOverlay,
+      shallowWaterMaskShape,
+      maskShape,
+      grassMaskShape,
+      decorations,
+    }
     this.obstacleViews.set(obstacle.id, view)
     return view
   }
