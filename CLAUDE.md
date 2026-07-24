@@ -1,34 +1,76 @@
-# Deployment
+# CLAUDE.md
 
-Auto-deploy via GitHub Actions (`.github/workflows/deploy.yml`) is temporarily
-disabled (switched to `workflow_dispatch`) — the private SSH key is
-password-protected, and the server's firewall only allows SSH from trusted
-IPs, so GitHub Actions runners can't connect.
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
-When the user asks to deploy the project — perform the deploy manually from
-the user's local machine (its IP is already allowlisted on the server, and
-the key doesn't need to be passwordless since it's entered locally):
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
-1. Build the project:
-   ```
-   npm run build
-   ```
-2. Upload `dist/` and `ecosystem.config.js` to the server:
-   ```
-   rsync -avz --delete \
-     -e "ssh -i ~/.ssh/sonarqube.pl.bugfocus.com" \
-     dist ecosystem.config.js \
-     mikhail.topchilo@164.92.90.168:/home/mikhail.topchilo/apps/pirates/
-   ```
-3. Restart pm2 on the server:
-   ```
-   ssh -i ~/.ssh/sonarqube.pl.bugfocus.com mikhail.topchilo@164.92.90.168 \
-     "cd /home/mikhail.topchilo/apps/pirates && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
-   ```
+## 1. Think Before Coding
 
-Deploy path on the server: `/home/mikhail.topchilo/apps/pirates`.
-PM2 process name: `pirates` (see `ecosystem.config.js`), serves `dist/` via
-`serve` on port 3010.
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
 
-Before the first run on the server, `serve` must be installed globally:
-`npm i -g serve`.
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+
+## 5. Other rules
+- Be concise.
+- When 
+
+## 6. Game rules & mechanics docs
+
+- `docs/mechanics/` holds the rules and mechanics of the game — one short `.md` file per game area (e.g. `battle-ship-ai.md`).
+- ALWAYS update the matching file in `docs/mechanics/` when changing core mechanics or rules; add a new file when a new area appears.
+- Keep these docs concise and skimmable: short bullets, numbers over prose. Humans must read fast and understand quick — never write lengthy texts there.

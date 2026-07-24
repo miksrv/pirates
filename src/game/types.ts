@@ -44,6 +44,21 @@ export interface BotAI {
   targetPos: Vec2 | null
   targetShipId: string | null
   retargetTimer: number
+  /** Current orbit direction around the target; flips on a random timer so strafing stays unpredictable. */
+  strafeDir: 1 | -1
+  strafeTimer: number
+  /** Range-keeping maneuver in 'attack', with hysteresis so it doesn't flip every frame. */
+  maneuver: 'close' | 'hold' | 'back'
+  /** Anchor + accumulated time for stuck detection: how long the bot has hovered near lastPos. */
+  lastPos: Vec2 | null
+  stuckTimer: number
+  /** While > 0 the bot is disengaging: it ignores targets and just sails for its waypoint. */
+  commitTimer: number
+  /** Current gunnery error, held for a while then re-rolled: signed angular error (in units of
+   * the distance-scaled spread), lead misjudgement factor, and time left before the re-roll. */
+  aimError: number
+  leadFactor: number
+  aimErrorTimer: number
 }
 
 export type ShipVariant = 'green' | 'red' | 'blue' | 'dark' | 'sand' | 'yellow'
