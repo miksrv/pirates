@@ -1,5 +1,6 @@
 import { nextId } from './id'
-import type { Ship, ShipVariant, Team } from './types'
+import { applyPerk } from './perks'
+import type { PerkType, Ship, ShipVariant, Team } from './types'
 import type { Vec2 } from './vector'
 import { BASE_ARMOR, BASE_DAMAGE, BASE_FIRE_RATE, BASE_MAX_HP, BASE_SPEED, SHIP_RADIUS } from './constants'
 
@@ -27,13 +28,14 @@ const VARIANT_COLORS: Record<ShipVariant, string> = {
 export interface ShipOverrides {
   name?: string
   variant?: ShipVariant
+  perk?: PerkType | null
 }
 
 export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOverrides = {}): Ship {
   const isPlayer = team === 'player'
   const variant: ShipVariant =
     overrides.variant ?? (isPlayer ? 'green' : BOT_VARIANTS[index % BOT_VARIANTS.length])
-  return {
+  const ship: Ship = {
     id: nextId(team),
     team,
     name: overrides.name ?? (isPlayer ? 'Игрок' : BOT_NAMES[index % BOT_NAMES.length]),
@@ -75,5 +77,9 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
         },
     effects: [],
     shieldCharges: 0,
+    perk: overrides.perk ?? null,
   }
+
+  applyPerk(ship)
+  return ship
 }

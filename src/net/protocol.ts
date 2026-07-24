@@ -1,5 +1,5 @@
 import { PICKUP_SPAWN_INTERVAL } from '../game/constants'
-import type { Bullet, GameEvent, Obstacle, Pickup, PlayerInput, Ship, World } from '../game/types'
+import type { Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, World } from '../game/types'
 
 /**
  * Wire format shared by the WebSocket server and the browser client. Everything is plain JSON;
@@ -27,6 +27,8 @@ export interface JoinMsg {
   botCount: number
   /** Desired ship name; server sanitizes and falls back to "Игрок N". */
   name?: string
+  /** Chosen loadout perk; server validates against PERK_DEFS. */
+  perk?: PerkType | null
 }
 
 export interface InputMsg {

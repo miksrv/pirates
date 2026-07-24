@@ -3,6 +3,9 @@ import type { Vec2 } from './vector'
 
 export type Team = 'player' | 'bot'
 
+/** Loadout bonus chosen before the match — see src/game/perks.ts. */
+export type PerkType = 'swiftSails' | 'quickReload' | 'heavyShot'
+
 export type PickupType =
   | 'health'
   | 'maxHp'
@@ -19,6 +22,7 @@ export type PickupType =
   | 'sharpshooter'
   | 'shield'
   | 'carpenter'
+  | 'disguise'
 
 /** Timed buffs/debuffs layered on top of a ship's base stats — see src/game/effects.ts. */
 export type EffectType =
@@ -29,6 +33,7 @@ export type EffectType =
   | 'bulletSpeedBoost'
   | 'krakenJitter'
   | 'regen'
+  | 'disguise'
 
 export interface ActiveEffect {
   type: EffectType
@@ -94,6 +99,8 @@ export interface Ship {
   ai: BotAI | null
   effects: ActiveEffect[]
   shieldCharges: number
+  /** Pre-match loadout choice; re-applied on respawn. */
+  perk: PerkType | null
 }
 
 export interface Bullet {

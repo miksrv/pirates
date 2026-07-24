@@ -53,6 +53,9 @@ export const BOT_STRAFE_FLIP_MAX = 4.2 // max seconds between random strafe-dire
 export const BOT_DODGE_LOOKAHEAD = 0.9 // only dodge bullets arriving within this many seconds
 export const BOT_DODGE_MISS_MARGIN = 30 // predicted pass distance beyond the hull that still triggers a dodge
 export const BOT_DODGE_WEIGHT = 1.6 // how strongly an incoming bullet bends the heading
+export const BOT_DODGE_URGENCY_GAIN = 2 // extra dodge weight multiplier at maximum urgency
+export const BOT_BOOST_DODGE_URGENCY = 0.35 // dodge urgency that triggers an evasive boost burst
+export const BOT_BOOST_DODGE_MIN_TIME = 0.3 // only boost-dodge with at least this long until impact
 export const BOT_OBSTACLE_AVOID_RANGE = 110 // start steering around islands/rocks within this hull gap
 export const BOT_OBSTACLE_AVOID_WEIGHT = 1.8 // how strongly obstacle avoidance bends the heading
 export const BOT_LOS_STEP = 30 // sampling step (px) for line-of-sight checks
@@ -73,6 +76,8 @@ export const BOT_LEAD_JITTER_MAX = 1.15 // ...or over-lead up to 115% of it
 export const SHIP_SHIP_PUSH = 0.5
 
 export const BOOST_SPEED_MULT = 1.6 // shift-boost speed multiplier
+export const BOT_BOOST_MIN_START = 0.35 // bots only start boosting with at least this much meter
+export const BOT_BOOST_MIN_KEEP = 0.05 // once boosting, they keep it down to this floor
 export const BOOST_DRAIN_TIME = 2.5 // seconds of continuous boost from a full meter
 export const BOOST_RECOVER_TIME = 5 // seconds to refill the meter from empty (while not boosting)
 

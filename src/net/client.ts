@@ -1,4 +1,4 @@
-import type { GameEvent, PlayerInput, World } from '../game/types'
+import type { GameEvent, PerkType, PlayerInput, World } from '../game/types'
 import { angleDiff } from '../game/vector'
 import { wireToWorld, type ClientMsg, type ServerMsg, type SnapshotMsg } from './protocol'
 
@@ -50,9 +50,9 @@ export class NetClient {
   onReady: (() => void) | null = null
   onError: ((message: string) => void) | null = null
 
-  constructor(url: string, botCount: number, name?: string) {
+  constructor(url: string, botCount: number, name?: string, perk?: PerkType | null) {
     this.ws = new WebSocket(url)
-    this.ws.onopen = () => this.send({ type: 'join', botCount, name })
+    this.ws.onopen = () => this.send({ type: 'join', botCount, name, perk })
     this.ws.onmessage = (ev) => {
       try {
         this.handleMessage(JSON.parse(String(ev.data)) as ServerMsg)

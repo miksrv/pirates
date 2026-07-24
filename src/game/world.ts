@@ -19,7 +19,8 @@ import { findFreeSpawnPoint, generateObstacles, spawnRandomPickup } from './map'
 import { PICKUP_DEFS } from './pickupConfig'
 import { createShip, PLAYER_VARIANTS } from './shipFactory'
 import { resolveShipCollisions, tryFireCannon, updateShipMovement } from './shipMovement'
-import type { Pickup, PlayerInputs, Ship, World } from './types'
+import { applyPerk } from './perks'
+import type { PerkType, Pickup, PlayerInputs, Ship, World } from './types'
 import { circlesOverlap } from './physics'
 
 export interface WorldOptions {
@@ -27,6 +28,8 @@ export interface WorldOptions {
   /** false for server arenas: humans join later via addPlayerShip. */
   withPlayer?: boolean
   respawnEnabled?: boolean
+  /** Loadout perk for the local player ship (single-player only). */
+  playerPerk?: PerkType | null
 }
 
 export function createWorld(options: WorldOptions = {}): World {
@@ -47,7 +50,7 @@ export function createWorld(options: WorldOptions = {}): World {
   }
 
   const center = { x: WORLD_W / 2, y: WORLD_H / 2 }
-  if (withPlayer) world.ships.push(createShip('player', center))
+  if (withPlayer) world.ships.push(createShip('player', center, 0, { perk: options.playerPerk ?? null }))
 
   const botSpawns: { x: number; y: number }[] = []
   for (let i = 0; i < botCount; i += 1) {
@@ -71,11 +74,12 @@ export function createWorld(options: WorldOptions = {}): World {
 }
 
 /** Adds a human-controlled ship (multiplayer join). `index` picks the hull color and default name. */
-export function addPlayerShip(world: World, index: number, name?: string): Ship {
+export function addPlayerShip(world: World, index: number, name?: string, perk?: PerkType | null): Ship {
   const pos = findFreeSpawnPoint(world, 40)
   const ship = createShip('player', pos, index, {
     name: name ?? `Игрок ${index + 1}`,
     variant: PLAYER_VARIANTS[index % PLAYER_VARIANTS.length],
+    perk: perk ?? null,
   })
   world.ships.push(ship)
   return ship
@@ -95,6 +99,7 @@ function respawnShip(world: World, ship: Ship): void {
   ship.damage = BASE_DAMAGE
   ship.armor = BASE_ARMOR
   ship.fireRate = BASE_FIRE_RATE
+  applyPerk(ship) // pickup upgrades are lost on death, the chosen loadout is not
   ship.cooldown = 0
   ship.effects = []
   ship.shieldCharges = 0

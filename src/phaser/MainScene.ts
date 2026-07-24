@@ -24,7 +24,16 @@ import type { IslandShape } from '../game/islandShape'
 import { PICKUP_DEFS } from '../game/pickupConfig'
 import { buildStats } from '../game/stats'
 import { BOT_COUNT } from '../game/constants'
-import type { EffectType, GameEvent, Obstacle, Pickup, Ship, ShipHealthState, World } from '../game/types'
+import type {
+  EffectType,
+  GameEvent,
+  Obstacle,
+  PerkType,
+  Pickup,
+  Ship,
+  ShipHealthState,
+  World,
+} from '../game/types'
 import { createWorld, stepWorld } from '../game/world'
 import { clamp } from '../game/vector'
 import { NetClient } from '../net/client'
@@ -34,6 +43,7 @@ export interface LaunchConfig {
   botCount: number
   serverUrl?: string
   nickname?: string
+  perk?: PerkType | null
 }
 
 function shipHealthState(ship: Ship): ShipHealthState {
@@ -53,6 +63,13 @@ const EFFECT_EMOJI: Record<EffectType, string> = {
   bulletSpeedBoost: '🎯',
   krakenJitter: '🐙',
   regen: '🛠️',
+  disguise: '🎭',
+}
+
+/** Overhead label. Marks AI ships so a human can tell them from other players at a glance —
+ * keyed off `team`, since bots' `ai` field is stripped from multiplayer snapshots. */
+function shipLabel(ship: Ship): string {
+  return ship.team === 'bot' ? `${ship.name} (bot)` : ship.name
 }
 
 function buildBuffIconText(ship: Ship): string {
@@ -75,6 +92,7 @@ interface ShipView {
   buffText: Phaser.GameObjects.Text
   lastState: ShipHealthState
   lastBuffText: string
+  lastOverheadHidden: boolean
 }
 
 interface ObstacleView {
@@ -109,7 +127,10 @@ export class MainScene extends Phaser.Scene {
 
   private mode: 'local' | 'online' = 'local'
   private botCount = BOT_COUNT
+  private perk: PerkType | null = null
   private net: NetClient | null = null
+  private watchdogAccum = 0
+  private watchdogReported = ''
 
   private groundTile!: Phaser.GameObjects.TileSprite
   private minimapCam!: Phaser.Cameras.Scene2D.Camera
@@ -177,6 +198,7 @@ export class MainScene extends Phaser.Scene {
     const launch = (this.registry.get('launch') ?? {}) as Partial<LaunchConfig>
     this.mode = launch.mode ?? 'local'
     this.botCount = launch.botCount ?? BOT_COUNT
+    this.perk = launch.perk ?? null
 
     if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname)
     else this.startNewWorld()
@@ -188,7 +210,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private connectOnline(url: string, nickname?: string): void {
-    this.net = new NetClient(url, this.botCount, nickname)
+    this.net = new NetClient(url, this.botCount, nickname, this.perk)
     this.net.onReady = () => {
       const net = this.net!
       this.clearViews()
@@ -243,7 +265,7 @@ export class MainScene extends Phaser.Scene {
   private startNewWorld(): void {
     this.clearViews()
 
-    this.world = createWorld({ botCount: this.botCount })
+    this.world = createWorld({ botCount: this.botCount, playerPerk: this.perk })
     this.playerId = this.world.ships.find((t) => t.team === 'player')!.id
     this.gameOverEmitted = false
     this.statsAccum = 0
@@ -302,6 +324,44 @@ export class MainScene extends Phaser.Scene {
     if (this.statsAccum <= 0 && player) {
       this.statsAccum = 0.1
       this.events.emit('stats', buildStats(this.world, player))
+    }
+
+    this.watchdogAccum -= dt
+    if (this.watchdogAccum <= 0) {
+      this.watchdogAccum = 2
+      this.runRenderWatchdog()
+    }
+  }
+
+  /** The HUD can stay alive while the canvas silently goes black (zero-size after a resize,
+   * detached from the DOM, NaN camera transform) — none of it throws, so nothing hits the
+   * console. Detect each case, self-heal what's healable, and log the rest loudly. */
+  private runRenderWatchdog(): void {
+    const canvas = this.game.canvas
+    const cam = this.cameras.main
+    let problem = ''
+
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      problem = `canvas ${canvas?.width ?? '?'}x${canvas?.height ?? '?'}`
+      this.scale.refresh()
+    } else if (!document.body.contains(canvas)) {
+      problem = 'canvas detached from DOM'
+    } else if (!Number.isFinite(cam.scrollX) || !Number.isFinite(cam.scrollY)) {
+      problem = `camera scroll ${cam.scrollX}/${cam.scrollY}`
+      cam.stopFollow()
+      cam.setScroll(0, 0)
+      const own = this.shipViews.get(this.playerId)
+      if (own && Number.isFinite(own.container.x) && Number.isFinite(own.container.y)) {
+        cam.startFollow(own.container, true, 0.15, 0.15)
+      }
+    }
+
+    if (problem && problem !== this.watchdogReported) {
+      this.watchdogReported = problem
+      console.error('[render-watchdog]', problem)
+      this.events.emit('log', { text: `⚠️ Рендер: ${problem}`, kind: 'info' })
+    } else if (!problem) {
+      this.watchdogReported = ''
     }
   }
 
@@ -376,7 +436,7 @@ export class MainScene extends Phaser.Scene {
     const boostBarBg = this.add.rectangle(0, boostBarY, barW, 3, 0x000000, 0.6)
     const boostBarFg = this.add.rectangle(-barW / 2, boostBarY, barW, 3, 0x5fd0ff, 1).setOrigin(0, 0.5)
     const nameText = this.add
-      .text(0, barY - 12, ship.name, { fontSize: '12px', color: '#e8ecf1' })
+      .text(0, barY - 12, shipLabel(ship), { fontSize: '12px', color: '#e8ecf1' })
       .setOrigin(0.5, 0.5)
     const buffText = this.add
       .text(0, barY - 26, '', { fontSize: '20px', stroke: '#0b0e14', strokeThickness: 3 })
@@ -403,6 +463,7 @@ export class MainScene extends Phaser.Scene {
       buffText,
       lastState: 1,
       lastBuffText: '',
+      lastOverheadHidden: false,
     }
     this.shipViews.set(ship.id, view)
     return view
@@ -422,7 +483,11 @@ export class MainScene extends Phaser.Scene {
     for (const ship of world.ships) {
       const view = this.shipViews.get(ship.id) ?? this.createShipView(ship)
 
-      view.container.setPosition(ship.pos.x, ship.pos.y)
+      // Never write a non-finite position into the view: the camera follows this container,
+      // and one NaN frame would poison the camera transform for the rest of the session.
+      if (Number.isFinite(ship.pos.x) && Number.isFinite(ship.pos.y)) {
+        view.container.setPosition(ship.pos.x, ship.pos.y)
+      }
       view.hull.setRotation(ship.bodyAngle + SHIP_SPRITE_OFFSET)
       view.cannon.setRotation(ship.cannonAngle + CANNON_SPRITE_OFFSET)
 
@@ -433,15 +498,24 @@ export class MainScene extends Phaser.Scene {
 
         const wrecked = state === 4
         view.cannon.setVisible(!wrecked)
-        view.hpBarBg.setVisible(!wrecked)
-        view.hpBarFg.setVisible(!wrecked)
-        view.reloadBarBg.setVisible(!wrecked)
-        view.reloadBarFg.setVisible(!wrecked)
-        view.boostBarBg.setVisible(!wrecked)
-        view.boostBarFg.setVisible(!wrecked)
-        view.nameText.setVisible(!wrecked)
-        view.buffText.setVisible(!wrecked)
         view.container.setAlpha(wrecked ? 0.75 : 1)
+      }
+
+      // Overhead UI (name, hp/reload/boost bars, buffs) hides for wrecks and for disguised
+      // ships — but a disguised captain still sees their own.
+      const disguised = ship.id !== this.playerId && ship.effects.some((e) => e.type === 'disguise')
+      const overheadHidden = state === 4 || disguised
+      if (overheadHidden !== view.lastOverheadHidden) {
+        view.lastOverheadHidden = overheadHidden
+        const visible = !overheadHidden
+        view.hpBarBg.setVisible(visible)
+        view.hpBarFg.setVisible(visible)
+        view.reloadBarBg.setVisible(visible)
+        view.reloadBarFg.setVisible(visible)
+        view.boostBarBg.setVisible(visible)
+        view.boostBarFg.setVisible(visible)
+        view.nameText.setVisible(visible)
+        view.buffText.setVisible(visible)
       }
 
       if (state === 4) continue

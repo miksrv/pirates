@@ -72,6 +72,16 @@ export const PICKUP_DEFS: Record<PickupType, PickupDef> = {
       ship.shieldCharges = clamp(ship.shieldCharges + 1, 0, 3)
     },
   },
+  disguise: {
+    type: 'disguise',
+    label: 'Маскировка',
+    emoji: '🎭',
+    color: '#9aa5b8',
+    description: 'Скрывает имя и полоски от других игроков на 15 сек',
+    apply: (ship) => {
+      applyTemporaryEffect(ship, 'disguise', 15, 1)
+    },
+  },
 
   // --- Speed & maneuvering ---------------------------------------------------------------
   speed: {

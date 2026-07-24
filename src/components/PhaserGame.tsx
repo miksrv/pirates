@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../game/stats'
+import type { PerkType } from '../game/types'
 import { defaultServerUrl } from '../net/config'
 import { MainScene, type LaunchConfig } from '../phaser/MainScene'
 import HUD from './HUD'
@@ -20,7 +21,7 @@ export default function PhaserGame() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
 
-  const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string) => {
+  const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => {
     if (gameRef.current) return
 
     const game = new Phaser.Game({
@@ -40,6 +41,7 @@ export default function PhaserGame() {
       botCount,
       serverUrl: defaultServerUrl(),
       nickname: nickname.trim() || undefined,
+      perk,
     }
     game.registry.set('launch', launch)
     gameRef.current = game

@@ -1,7 +1,8 @@
 import { createServer } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
 import { BOT_COUNT, MAX_BOT_COUNT } from '../src/game/constants'
-import type { GameEvent, PlayerInput, PlayerInputs, World } from '../src/game/types'
+import { isPerkType } from '../src/game/perks'
+import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World } from '../src/game/types'
 import { addPlayerShip, createWorld, removeShip, stepWorld } from '../src/game/world'
 import { shipToWire, worldToWire, type ClientMsg, type ServerMsg, type SnapshotMsg } from '../src/net/protocol'
 
@@ -107,7 +108,7 @@ function resolveBotCount(requested: number): number {
   return Math.min(MAX_BOT_COUNT, n)
 }
 
-function handleJoin(socket: WebSocket, botCount: number, name?: string): void {
+function handleJoin(socket: WebSocket, botCount: number, name?: string, perk?: PerkType | null): void {
   if (clients.size >= MAX_PLAYERS) {
     sendTo(socket, { type: 'error', message: 'Арена заполнена, попробуйте позже' })
     socket.close()
@@ -119,7 +120,7 @@ function handleJoin(socket: WebSocket, botCount: number, name?: string): void {
     startLoop()
   }
 
-  const ship = addPlayerShip(world, joinCounter, name)
+  const ship = addPlayerShip(world, joinCounter, name, perk)
   joinCounter += 1
   clients.set(socket, { socket, shipId: ship.id, shipName: ship.name, input: idleInput() })
   sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world) })
@@ -144,7 +145,7 @@ wss.on('connection', (socket: WebSocket) => {
     }
 
     if (msg.type === 'join' && !clients.has(socket)) {
-      handleJoin(socket, msg.botCount, sanitizeName(msg.name))
+      handleJoin(socket, msg.botCount, sanitizeName(msg.name), isPerkType(msg.perk) ? msg.perk : null)
     } else if (msg.type === 'input') {
       const client = clients.get(socket)
       if (client) client.input = sanitizeInput(msg.input)

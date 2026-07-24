@@ -1,8 +1,13 @@
 import {
+  BOOST_SPEED_MULT,
   BOT_AIM_REROLL_MAX,
   BOT_AIM_REROLL_MIN,
   BOT_AIM_SPREAD,
   BOT_ATTACK_RANGE,
+  BOT_BOOST_DODGE_MIN_TIME,
+  BOT_BOOST_DODGE_URGENCY,
+  BOT_BOOST_MIN_KEEP,
+  BOT_BOOST_MIN_START,
   BOT_BOUNDARY_AVOID_WEIGHT,
   BOT_BOUNDARY_MARGIN,
   BOT_CANNON_TURN_RATE,
@@ -12,6 +17,7 @@ import {
   BOT_DISENGAGE_TIME,
   BOT_DODGE_LOOKAHEAD,
   BOT_DODGE_MISS_MARGIN,
+  BOT_DODGE_URGENCY_GAIN,
   BOT_DODGE_WEIGHT,
   BOT_FIRE_ALIGN_TOLERANCE,
   BOT_FLEE_HP_FRACTION,
@@ -115,11 +121,20 @@ function obstacleAvoidance(ship: Ship, world: World): Vec2 {
   return { x: ax, y: ay }
 }
 
-/** Sidestep force for enemy bullets predicted to pass within a hull's width — perpendicular
- * escape away from the incoming line of fire, scaled by how direct the hit would be. */
-function bulletDodge(ship: Ship, world: World): Vec2 {
+/**
+ * Sidestep force for enemy bullets predicted to pass within a hull's width. The escape vector
+ * (ship minus the bullet's closest-approach point) is perpendicular to the bullet's path by
+ * construction — the only useful way out, since a cannonball outruns any ship head-on.
+ *
+ * `urgency` (0..1) is the worst threat's imminence: how central the hit would be *and* how soon
+ * it lands. Callers use it to outweigh terrain steering and to spend boost — a shot arriving in
+ * 0.2s deserves a harder swerve than one 0.9s out.
+ */
+function bulletDodge(ship: Ship, world: World): { x: number; y: number; urgency: number; escapable: boolean } {
   let dx = 0
   let dy = 0
+  let worstUrgency = 0
+  let escapable = false
 
   for (const bullet of world.bullets) {
     if (bullet.ownerId === ship.id) continue
@@ -144,12 +159,19 @@ function bulletDodge(ship: Ship, world: World): Vec2 {
       const vn = normalize(bullet.vel)
       away = { x: -vn.y, y: vn.x }
     }
-    const urgency = 1 - missDist / dangerRadius
-    dx += away.x * (0.5 + urgency)
-    dy += away.y * (0.5 + urgency)
+    const centrality = 1 - missDist / dangerRadius
+    const imminence = 1 - tClosest / BOT_DODGE_LOOKAHEAD
+    const urgency = centrality * imminence
+    if (urgency > worstUrgency) worstUrgency = urgency
+    // Extra speed only helps if there's still time to translate clear of the line of fire.
+    // Inside that window a boost just makes the escape faster *and* straighter — easier to lead.
+    if (tClosest >= BOT_BOOST_DODGE_MIN_TIME) escapable = true
+
+    dx += away.x * (0.5 + centrality + imminence)
+    dy += away.y * (0.5 + centrality + imminence)
   }
 
-  return { x: dx, y: dy }
+  return { x: dx, y: dy, urgency: worstUrgency, escapable }
 }
 
 /** True when a cannonball fired from `from` could reach `to` without hitting an island or rock. */
@@ -168,11 +190,13 @@ function hasLineOfSight(world: World, from: Vec2, to: Vec2): boolean {
   return true
 }
 
-/** A ship's actual world velocity, matching how updateShipMovement integrates moveDir. */
+/** A ship's actual world velocity, matching how updateShipMovement integrates moveDir —
+ * including the shift-boost multiplier, so boosted targets are still led correctly. */
 function shipVelocity(ship: Ship): Vec2 {
   const dir = normalize(ship.moveDir)
   if (dir.x === 0 && dir.y === 0) return dir
-  return scale(dir, ship.speed * getEffectMagnitude(ship, 'speedBoost', 1))
+  const boostMult = ship.boosting && ship.boost > 0 ? BOOST_SPEED_MULT : 1
+  return scale(dir, ship.speed * getEffectMagnitude(ship, 'speedBoost', 1) * boostMult)
 }
 
 /** Where to aim so a bullet meets the target on its current course: solves
@@ -479,15 +503,18 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   const dodge = bulletDodge(ship, world)
   const avoidObstacle = obstacleAvoidance(ship, world)
   const avoidEdge = boundaryAvoidance(ship, world)
+  // An imminent cannonball has to outweigh terrain avoidance, or a bot hugging a coastline
+  // gets pinned against it and eats the shot — scraping an island is the cheaper mistake.
+  const dodgeWeight = BOT_DODGE_WEIGHT * (1 + BOT_DODGE_URGENCY_GAIN * dodge.urgency)
   const steered = {
     x:
       ship.moveDir.x +
-      dodge.x * BOT_DODGE_WEIGHT +
+      dodge.x * dodgeWeight +
       avoidObstacle.x * BOT_OBSTACLE_AVOID_WEIGHT +
       avoidEdge.x * BOT_BOUNDARY_AVOID_WEIGHT,
     y:
       ship.moveDir.y +
-      dodge.y * BOT_DODGE_WEIGHT +
+      dodge.y * dodgeWeight +
       avoidObstacle.y * BOT_OBSTACLE_AVOID_WEIGHT +
       avoidEdge.y * BOT_BOUNDARY_AVOID_WEIGHT,
   }
@@ -515,6 +542,16 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     const smoothed = moveAngleTowards(angleOf(prevMoveDir), angleOf(ship.moveDir), BOT_MOVE_TURN_RATE * dt)
     ship.moveDir = fromAngle(smoothed)
   }
+
+  // Spend boost where speed wins fights: swerving clear of an incoming ball (the extra speed is
+  // what turns a graze into a miss), escaping while fleeing or disengaging, and closing a long
+  // gap on a chase. Meter hysteresis (start high, keep to the floor) avoids flickering.
+  const wantsBoost =
+    (dodge.escapable && dodge.urgency >= BOT_BOOST_DODGE_URGENCY) ||
+    ai.state === 'flee' ||
+    disengaging ||
+    (ai.state === 'chase' && target !== null && distance(ship.pos, target.pos) > BOT_ATTACK_RANGE * 1.15)
+  ship.boosting = wantsBoost && ship.boost > (ship.boosting ? BOT_BOOST_MIN_KEEP : BOT_BOOST_MIN_START)
 
   return wantsToFire
 }

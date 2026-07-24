@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { BOT_COUNT, MAX_BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../game/constants'
+import { isPerkType, PERK_DEFS, PERK_TYPES } from '../game/perks'
 import type { Stats } from '../game/stats'
+import type { PerkType } from '../game/types'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
 
@@ -10,11 +12,12 @@ interface HUDProps {
   netError: string | null
   stats: Stats | null
   log: LogEntry[]
-  onStart: (mode: 'local' | 'online', botCount: number, nickname: string) => void
+  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => void
   onRestart: () => void
 }
 
 const NICKNAME_LS_KEY = 'pirates.nickname'
+const PERK_LS_KEY = 'pirates.perk'
 
 function EventLog({ log }: { log: LogEntry[] }) {
   const listRef = useRef<HTMLDivElement | null>(null)
@@ -41,10 +44,22 @@ function EventLog({ log }: { log: LogEntry[] }) {
 export default function HUD({ started, gameOver, netError, stats, log, onStart, onRestart }: HUDProps) {
   const [botCount, setBotCount] = useState(BOT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
+  /** Set once the player picks a mode — switches the menu to the perk step. */
+  const [pendingMode, setPendingMode] = useState<'local' | 'online' | null>(null)
+  const [perk, setPerk] = useState<PerkType>(() => {
+    const saved = localStorage.getItem(PERK_LS_KEY)
+    return isPerkType(saved) ? saved : 'swiftSails'
+  })
 
   const handleNickname = (value: string) => {
     setNickname(value)
     localStorage.setItem(NICKNAME_LS_KEY, value)
+  }
+
+  const handleLaunch = () => {
+    if (!pendingMode) return
+    localStorage.setItem(PERK_LS_KEY, perk)
+    onStart(pendingMode, botCount, nickname, perk)
   }
 
   if (netError) {
@@ -54,6 +69,40 @@ export default function HUD({ started, gameOver, netError, stats, log, onStart, 
           <h1>Мультиплеер</h1>
           <p className="subtitle">{netError}</p>
           <button className="primary-btn" onClick={() => window.location.reload()}>В меню</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!started && pendingMode) {
+    return (
+      <div className="overlay">
+        <div className="panel">
+          <h1>Выберите перк</h1>
+          <p className="subtitle">
+            {pendingMode === 'online' ? 'Мультиплеер' : 'Одиночная игра'} — бонус действует весь бой
+            {pendingMode === 'online' ? ' и сохраняется после возрождения' : ''}
+          </p>
+          <div className="perk-grid">
+            {PERK_TYPES.map((type) => {
+              const def = PERK_DEFS[type]
+              return (
+                <button
+                  key={type}
+                  className={`perk-card${perk === type ? ' perk-card-selected' : ''}`}
+                  onClick={() => setPerk(type)}
+                >
+                  <span className="perk-emoji">{def.emoji}</span>
+                  <span className="perk-label">{def.label}</span>
+                  <span className="perk-desc">{def.description}</span>
+                </button>
+              )
+            })}
+          </div>
+          <div className="menu-buttons">
+            <button className="primary-btn" onClick={handleLaunch}>В бой</button>
+            <button className="secondary-btn" onClick={() => setPendingMode(null)}>Назад</button>
+          </div>
         </div>
       </div>
     )
@@ -96,8 +145,8 @@ export default function HUD({ started, gameOver, netError, stats, log, onStart, 
             />
           </div>
           <div className="menu-buttons">
-            <button className="primary-btn" onClick={() => onStart('local', botCount, nickname)}>Играть</button>
-            <button className="secondary-btn" onClick={() => onStart('online', botCount, nickname)}>Multi Player</button>
+            <button className="primary-btn" onClick={() => setPendingMode('local')}>Играть</button>
+            <button className="secondary-btn" onClick={() => setPendingMode('online')}>Multi Player</button>
           </div>
         </div>
       </div>
