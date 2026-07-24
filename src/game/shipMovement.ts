@@ -7,6 +7,9 @@ import { angleOf, clamp, length, moveAngleTowards } from './vector'
 const TURN_SPEED = Math.PI * 6 // radians/sec for body rotation
 const SHIP_SHIP_PUSH = 0.5
 
+/** Speed reduction factor when moving on shallow water tiles */
+const SHALLOW_WATER_SPEED_MULT = 0.5
+
 export function updateShipMovement(ship: Ship, dt: number, world: World): void {
   decayEffects(ship, dt)
 
@@ -22,7 +25,12 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): void {
   else ship.boost = Math.min(1, ship.boost + dt / BOOST_RECOVER_TIME)
 
   if (moveLen > 0.01) {
-    const effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
+    let effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
+
+    // Check if the ship is on shallow water and apply speed reduction
+    const shallowWaterMult = getEffectMagnitude(ship, 'shallowWater', 1)
+    effectiveSpeed *= shallowWaterMult
+
     const dx = (ship.moveDir.x / moveLen) * effectiveSpeed * dt
     const dy = (ship.moveDir.y / moveLen) * effectiveSpeed * dt
     ship.pos.x += dx
@@ -35,6 +43,50 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): void {
 
   ship.pos.x = clamp(ship.pos.x, ship.radius, world.width - ship.radius)
   ship.pos.y = clamp(ship.pos.y, ship.radius, world.height - ship.radius)
+
+  // Check for shallow water effect on obstacles
+  let inShallowWater = false;
+  for (const obstacle of world.obstacles) {
+    if (obstacle.variant === 'island' && obstacle.islandShape) {
+      const sandRadius = obstacle.w / 2;
+
+      // Use the same approach as the renderer to determine if ship is in shallow water area
+      const dx = ship.pos.x - obstacle.pos.x;
+      const dy = ship.pos.y - obstacle.pos.y;
+      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
+
+      // The shallow water area is a ring around the island (defined as 30% further than sand radius)
+      const shallowWaterRadius = sandRadius * 2;
+
+      // We're in shallow water if we're between sand radius and shallow water radius
+      if (distanceFromCenter < shallowWaterRadius && distanceFromCenter > sandRadius) {
+        inShallowWater = true;
+        break;
+      }
+
+      // More precise check: if ship is close to the edge of shallow water area (within 20% of sand/shallow radius)
+      if (distanceFromCenter <= shallowWaterRadius * 1.1) {
+        const distanceToShallowEdge = Math.abs(distanceFromCenter - shallowWaterRadius);
+        const distanceToSandEdge = Math.abs(distanceFromCenter - sandRadius);
+
+        // If we're within a reasonable distance of either edge, consider it shallow water
+        if (distanceToShallowEdge < sandRadius * 0.2 || distanceToSandEdge < sandRadius * 0.2) {
+          inShallowWater = true;
+          break;
+        }
+      }
+    }
+  }
+
+  // Update shallow water effect on the ship
+  const shallowWaterEffectIndex = ship.effects.findIndex(e => e.type === 'shallowWater')
+  if (inShallowWater && shallowWaterEffectIndex === -1) {
+    // Add shallow water effect that reduces speed by 50%
+    ship.effects.push({ type: 'shallowWater', remaining: Infinity, magnitude: SHALLOW_WATER_SPEED_MULT })
+  } else if (!inShallowWater && shallowWaterEffectIndex !== -1) {
+    // Remove shallow water effect
+    ship.effects.splice(shallowWaterEffectIndex, 1)
+  }
 
   for (const obstacle of world.obstacles) {
     ship.pos = resolveObstacle(ship.pos, ship.radius, obstacle)

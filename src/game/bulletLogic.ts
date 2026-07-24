@@ -111,5 +111,7 @@ function applyDamage(world: World, ship: Ship, bullet: Bullet): void {
     world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
   } else {
     world.events.push({ kind: 'damage', attackerName, targetName: ship.name, amount: Math.round(mitigated) })
+    // Add damage number event for visual feedback
+    world.events.push({ kind: 'damageNumber', pos: { ...ship.pos }, amount: Math.round(mitigated), targetName: ship.name })
   }
 }

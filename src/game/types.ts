@@ -34,6 +34,7 @@ export type EffectType =
   | 'krakenJitter'
   | 'regen'
   | 'disguise'
+  | 'shallowWater'
 
 export interface ActiveEffect {
   type: EffectType
@@ -157,6 +158,7 @@ export type GameEvent =
   | { kind: 'shieldBlock'; shipName: string }
   | { kind: 'playerJoined'; shipName: string }
   | { kind: 'playerLeft'; shipName: string }
+  | { kind: 'damageNumber'; pos: Vec2; amount: number; targetName: string }
 
 export interface World {
   width: number

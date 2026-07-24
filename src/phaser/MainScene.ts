@@ -64,6 +64,7 @@ const EFFECT_EMOJI: Record<EffectType, string> = {
   krakenJitter: '🐙',
   regen: '🛠️',
   disguise: '🎭',
+  shallowWater: '🌊',
 }
 
 /** Overhead label. Marks AI ships so a human can tell them from other players at a glance —
@@ -390,6 +391,8 @@ export class MainScene extends Phaser.Scene {
         this.events.emit('log', { text: `⚓ ${ev.shipName} вошёл в бой`, kind: 'info' })
       } else if (ev.kind === 'playerLeft') {
         this.events.emit('log', { text: `🏳️ ${ev.shipName} покинул бой`, kind: 'info' })
+      } else if (ev.kind === 'damageNumber') {
+        this.spawnDamageNumber(ev.pos, ev.amount)
       }
     }
   }
@@ -399,6 +402,59 @@ export class MainScene extends Phaser.Scene {
     sprite.setScale(lethal ? 1.15 : 0.6)
     sprite.play('explode')
     sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => sprite.destroy())
+  }
+
+  private spawnDamageNumber(pos: { x: number; y: number }, amount: number): void {
+    // Create damage number text
+    const damageText = this.add
+      .text(pos.x, pos.y, `-${amount}`, {
+        fontSize: '24px',
+        color: '#ff5555',
+        stroke: '#000000',
+        strokeThickness: 4,
+        fontStyle: 'bold'
+      })
+      .setOrigin(0.5, 0.5)
+      .setDepth(30)
+
+    // Animate the damage number
+    const startY = pos.y
+    const endY = startY - 30
+    const duration = 800
+
+    // Move up and fade out
+    this.tweens.add({
+      targets: damageText,
+      y: endY,
+      alpha: 0,
+      duration: duration,
+      ease: 'Power2',
+      onComplete: () => {
+        damageText.destroy()
+      }
+    })
+
+    // Add slight random horizontal movement for visual effect
+    const startX = pos.x
+    const endX = startX + (Math.random() - 0.5) * 20
+
+    this.tweens.add({
+      targets: damageText,
+      x: endX,
+      duration: duration,
+      ease: 'Power1'
+    })
+
+    // Add scale animation for extra visual impact
+    this.tweens.add({
+      targets: damageText,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      duration: 200,
+      yoyo: true,
+      repeat: 0,
+      ease: 'Power1'
+    })
   }
 
   private createShipView(ship: Ship): ShipView {
