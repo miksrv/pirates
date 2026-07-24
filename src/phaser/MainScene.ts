@@ -1,0 +1,588 @@
+import Phaser from 'phaser'
+import { WORLD_H, WORLD_W } from '../game/constants'
+import {
+  ALL_IMAGE_KEYS,
+  CANNONBALL_KEY,
+  EXPLOSION_FRAME_KEYS,
+  GROUND_TILE_KEY,
+  IMG_BASE,
+  ISLAND_CANNON_KEY,
+  ISLAND_FORT_KEYS,
+  ISLAND_GRASS_KEY,
+  ISLAND_ROCK_KEYS,
+  ISLAND_TREE_KEYS,
+  OBSTACLE_KEY,
+  SFX,
+  SFX_BASE,
+  SHIP_CANNON_KEY,
+  SHIP_IMAGE_KEYS,
+  SHIPS_BASE,
+  shipHullKey,
+} from '../game/assetKeys'
+import type { IslandShape } from '../game/islandShape'
+import { PICKUP_DEFS } from '../game/pickupConfig'
+import { buildStats } from '../game/stats'
+import type { EffectType, Obstacle, Pickup, Ship, ShipHealthState, World } from '../game/types'
+import { createWorld, stepWorld } from '../game/world'
+import { clamp } from '../game/vector'
+
+function shipHealthState(ship: Ship): ShipHealthState {
+  if (!ship.alive) return 4
+  const frac = ship.hp / ship.maxHp
+  if (frac > 0.7) return 1
+  if (frac >= 0.4) return 2
+  return 3
+}
+
+/** Icon shown in a ship's buff row for each active effect type (independent of which pickup granted it). */
+const EFFECT_EMOJI: Record<EffectType, string> = {
+  speedBoost: '💨',
+  turnBoost: '🧭',
+  damageBoost: '🧨',
+  fireRateBoost: '🔥',
+  bulletSpeedBoost: '🎯',
+  krakenJitter: '🐙',
+  regen: '🛠️',
+}
+
+function buildBuffIconText(ship: Ship): string {
+  const icons = ship.effects.map((e) => EFFECT_EMOJI[e.type])
+  if (ship.shieldCharges > 0) icons.push('🛡️'.repeat(ship.shieldCharges))
+  return icons.join(' ')
+}
+
+interface ShipView {
+  container: Phaser.GameObjects.Container
+  hull: Phaser.GameObjects.Sprite
+  cannon: Phaser.GameObjects.Sprite
+  hpBarBg: Phaser.GameObjects.Rectangle
+  hpBarFg: Phaser.GameObjects.Rectangle
+  reloadBarBg: Phaser.GameObjects.Rectangle
+  reloadBarFg: Phaser.GameObjects.Rectangle
+  nameText: Phaser.GameObjects.Text
+  buffText: Phaser.GameObjects.Text
+  lastState: ShipHealthState
+  lastBuffText: string
+}
+
+interface ObstacleView {
+  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.TileSprite
+  grassOverlay?: Phaser.GameObjects.Sprite | Phaser.GameObjects.TileSprite
+  maskShape?: Phaser.GameObjects.Graphics
+  grassMaskShape?: Phaser.GameObjects.Graphics
+  decorations?: Phaser.GameObjects.Sprite[]
+  hpBarBg?: Phaser.GameObjects.Rectangle
+  hpBarFg?: Phaser.GameObjects.Rectangle
+}
+
+interface PickupView {
+  circle: Phaser.GameObjects.Arc
+  label: Phaser.GameObjects.Text
+}
+
+const hexToNumber = (hex: string): number => parseInt(hex.replace('#', ''), 16)
+
+/** Ship sprites face "down" (bow at the bottom of the image) by default, unlike a 0-rad = "right" world angle. */
+const SHIP_SPRITE_OFFSET = -Math.PI / 2
+/** The cannon sprite is drawn pointing right (bow-to-stern horizontal), which already matches a 0-rad world angle. */
+const CANNON_SPRITE_OFFSET = 0
+
+export class MainScene extends Phaser.Scene {
+  private world!: World
+  private playerId = ''
+  private gameOverEmitted = false
+  private statsAccum = 0
+
+  private shipViews = new Map<string, ShipView>()
+  private bulletViews = new Map<string, Phaser.GameObjects.Sprite>()
+  private obstacleViews = new Map<string, ObstacleView>()
+  private pickupViews = new Map<string, PickupView>()
+
+  private keys!: Record<'W' | 'A' | 'S' | 'D' | 'up' | 'down' | 'left' | 'right' | 'space', Phaser.Input.Keyboard.Key>
+
+  constructor() {
+    super('main')
+  }
+
+  preload(): void {
+    for (const key of ALL_IMAGE_KEYS) this.load.image(key, `${IMG_BASE}/${key}.png`)
+    for (const key of SHIP_IMAGE_KEYS) this.load.image(key, `${SHIPS_BASE}/${key}.png`)
+    for (const [key, file] of Object.entries(SFX)) this.load.audio(key, `${SFX_BASE}/${file}.ogg`)
+  }
+
+  create(): void {
+    this.add.tileSprite(0, 0, WORLD_W, WORLD_H, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
+
+    this.anims.create({
+      key: 'explode',
+      frames: EXPLOSION_FRAME_KEYS.map((key) => ({ key })),
+      frameRate: 12,
+      repeat: 0,
+    })
+
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,up,down,left,right,space') as unknown as typeof this.keys
+
+    this.input.keyboard!.on('keydown-R', () => {
+      if (this.gameOverEmitted) this.startNewWorld()
+    })
+
+    // Keep the camera viewport in sync when the browser window (and thus the canvas) resizes.
+    this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
+      this.cameras.main.setSize(gameSize.width, gameSize.height)
+    })
+
+    this.startNewWorld()
+  }
+
+  /** Public: called by the React shell to restart after game over. */
+  restart(): void {
+    this.startNewWorld()
+  }
+
+  private startNewWorld(): void {
+    for (const v of this.shipViews.values()) v.container.destroy()
+    this.shipViews.clear()
+    for (const s of this.bulletViews.values()) s.destroy()
+    this.bulletViews.clear()
+    for (const o of this.obstacleViews.values()) {
+      o.sprite.destroy()
+      o.grassOverlay?.destroy()
+      o.maskShape?.destroy()
+      o.grassMaskShape?.destroy()
+      o.decorations?.forEach((d) => d.destroy())
+      o.hpBarBg?.destroy()
+      o.hpBarFg?.destroy()
+    }
+    this.obstacleViews.clear()
+    for (const p of this.pickupViews.values()) {
+      p.circle.destroy()
+      p.label.destroy()
+    }
+    this.pickupViews.clear()
+
+    this.world = createWorld()
+    this.playerId = this.world.ships.find((t) => t.team === 'player')!.id
+    this.gameOverEmitted = false
+    this.statsAccum = 0
+
+    this.cameras.main.setBounds(0, 0, this.world.width, this.world.height)
+    this.events.emit('restarted')
+  }
+
+  update(_time: number, deltaMs: number): void {
+    if (!this.world) return
+    if (this.gameOverEmitted) return
+
+    const dt = Math.min(deltaMs / 1000, 0.05)
+    const player = this.world.ships.find((t) => t.id === this.playerId)
+
+    const moveDir = { x: 0, y: 0 }
+    if (this.keys.A.isDown || this.keys.left.isDown) moveDir.x -= 1
+    if (this.keys.D.isDown || this.keys.right.isDown) moveDir.x += 1
+    if (this.keys.W.isDown || this.keys.up.isDown) moveDir.y -= 1
+    if (this.keys.S.isDown || this.keys.down.isDown) moveDir.y += 1
+
+    let aimAngle = player?.cannonAngle ?? 0
+    if (player) {
+      const worldPoint = this.input.activePointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2
+      aimAngle = Math.atan2(worldPoint.y - player.pos.y, worldPoint.x - player.pos.x)
+    }
+
+    const firing = this.input.activePointer.leftButtonDown() || this.keys.space.isDown
+
+    stepWorld(this.world, dt, { moveDir, aimAngle, firing })
+    this.handleEvents()
+
+    this.syncObstacles()
+    this.syncPickups()
+    this.syncBullets()
+    this.syncShips()
+
+    if (player && !player.alive && !this.gameOverEmitted) {
+      this.gameOverEmitted = true
+      this.events.emit('game-over')
+      return
+    }
+
+    this.statsAccum -= dt
+    if (this.statsAccum <= 0 && player) {
+      this.statsAccum = 0.1
+      this.events.emit('stats', buildStats(this.world, player))
+    }
+  }
+
+  private handleEvents(): void {
+    for (const ev of this.world.events) {
+      if (ev.kind === 'shot') {
+        this.sound.play(SFX.shoot, { volume: 0.3 })
+      } else if (ev.kind === 'impact') {
+        this.spawnExplosionFx(ev.pos, ev.lethal)
+        this.sound.play(ev.lethal ? SFX.explosion : SFX.hit, { volume: ev.lethal ? 0.55 : 0.2 })
+        if (ev.lethal) this.cameras.main.shake(140, 0.006)
+      } else if (ev.kind === 'pickup') {
+        this.sound.play(SFX.pickup, { volume: 0.45 })
+        const def = PICKUP_DEFS[ev.pickupType]
+        this.events.emit('log', { text: `${def.emoji} ${ev.shipName} подобрал: ${def.label}`, kind: 'pickup' })
+      } else if (ev.kind === 'damage') {
+        this.events.emit('log', {
+          text: `⚔️ ${ev.attackerName} → ${ev.targetName}: -${ev.amount} HP`,
+          kind: 'damage',
+        })
+      } else if (ev.kind === 'kill') {
+        this.events.emit('log', { text: `💀 ${ev.attackerName} потопил ${ev.targetName}`, kind: 'kill' })
+      } else if (ev.kind === 'shieldBlock') {
+        this.events.emit('log', { text: `🛡️ ${ev.shipName} заблокировал удар`, kind: 'shield' })
+      }
+    }
+  }
+
+  private spawnExplosionFx(pos: { x: number; y: number }, lethal: boolean): void {
+    const sprite = this.add.sprite(pos.x, pos.y, EXPLOSION_FRAME_KEYS[0]).setDepth(20)
+    sprite.setScale(lethal ? 1.15 : 0.6)
+    sprite.play('explode')
+    sprite.once(Phaser.Animations.Events.ANIMATION_COMPLETE, () => sprite.destroy())
+  }
+
+  private createShipView(ship: Ship): ShipView {
+    const container = this.add.container(ship.pos.x, ship.pos.y).setDepth(10)
+
+    if (ship.team === 'player') {
+      const ring = this.add.circle(0, 0, ship.radius + 8)
+      ring.setStrokeStyle(2, 0x3ee06f, 0.5)
+      container.add(ring)
+    }
+
+    const hullHeight = ship.radius * 3.4
+    const hullWidth = hullHeight * (66 / 113)
+    const hull = this.add
+      .sprite(0, 0, shipHullKey(ship.variant, 1))
+      .setDisplaySize(hullWidth, hullHeight)
+
+    const cannonWidth = ship.radius * 1.5
+    const cannonHeight = cannonWidth * (16 / 29)
+    const cannon = this.add
+      .sprite(0, 0, SHIP_CANNON_KEY)
+      .setDisplaySize(cannonWidth, cannonHeight)
+      .setOrigin(0.15, 0.5)
+
+    container.add([hull, cannon])
+
+    const barW = ship.radius * 2.2
+    const barY = -hullHeight / 2 - 10
+    const hpBarBg = this.add.rectangle(0, barY, barW, 5, 0x000000, 0.6)
+    const hpBarFg = this.add.rectangle(-barW / 2, barY, barW, 5, 0x3ee06f, 1).setOrigin(0, 0.5)
+    const reloadBarY = barY + 7
+    const reloadBarBg = this.add.rectangle(0, reloadBarY, barW, 3, 0x000000, 0.6)
+    const reloadBarFg = this.add.rectangle(-barW / 2, reloadBarY, barW, 3, 0xffb84d, 1).setOrigin(0, 0.5)
+    const nameText = this.add
+      .text(0, barY - 12, ship.name, { fontSize: '12px', color: '#e8ecf1' })
+      .setOrigin(0.5, 0.5)
+    const buffText = this.add
+      .text(0, barY - 26, '', { fontSize: '20px', stroke: '#0b0e14', strokeThickness: 3 })
+      .setOrigin(0.5, 0.5)
+    container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, nameText, buffText])
+
+    if (ship.team === 'player') {
+      this.cameras.main.startFollow(container, true, 0.15, 0.15)
+    }
+
+    const view: ShipView = {
+      container,
+      hull,
+      cannon,
+      hpBarBg,
+      hpBarFg,
+      reloadBarBg,
+      reloadBarFg,
+      nameText,
+      buffText,
+      lastState: 1,
+      lastBuffText: '',
+    }
+    this.shipViews.set(ship.id, view)
+    return view
+  }
+
+  /** Ships never disappear when destroyed — they switch to the wrecked sprite and stay put
+   * as scenery, so every ship that has ever existed keeps a view for the rest of the match. */
+  private syncShips(): void {
+    for (const [id, view] of this.shipViews) {
+      if (!this.world.ships.some((t) => t.id === id)) {
+        view.container.destroy()
+        this.shipViews.delete(id)
+      }
+    }
+
+    for (const ship of this.world.ships) {
+      const view = this.shipViews.get(ship.id) ?? this.createShipView(ship)
+
+      view.container.setPosition(ship.pos.x, ship.pos.y)
+      view.hull.setRotation(ship.bodyAngle + SHIP_SPRITE_OFFSET)
+      view.cannon.setRotation(ship.cannonAngle + CANNON_SPRITE_OFFSET)
+
+      const state = shipHealthState(ship)
+      if (state !== view.lastState) {
+        view.hull.setTexture(shipHullKey(ship.variant, state))
+        view.lastState = state
+
+        const wrecked = state === 4
+        view.cannon.setVisible(!wrecked)
+        view.hpBarBg.setVisible(!wrecked)
+        view.hpBarFg.setVisible(!wrecked)
+        view.reloadBarBg.setVisible(!wrecked)
+        view.reloadBarFg.setVisible(!wrecked)
+        view.nameText.setVisible(!wrecked)
+        view.buffText.setVisible(!wrecked)
+        view.container.setAlpha(wrecked ? 0.75 : 1)
+      }
+
+      if (state === 4) continue
+
+      const frac = clamp(ship.hp / ship.maxHp, 0, 1)
+      view.hpBarFg.scaleX = frac
+      view.hpBarFg.fillColor = frac > 0.4 ? 0x3ee06f : 0xe05252
+
+      const reloadTime = 1 / ship.fireRate
+      const reloadFrac = reloadTime > 0 ? clamp(1 - ship.cooldown / reloadTime, 0, 1) : 1
+      view.reloadBarFg.scaleX = reloadFrac
+      view.reloadBarFg.fillColor = reloadFrac >= 1 ? 0x3ee06f : 0xffb84d
+
+      const buffText = buildBuffIconText(ship)
+      if (buffText !== view.lastBuffText) {
+        view.buffText.setText(buffText)
+        view.lastBuffText = buffText
+      }
+    }
+  }
+
+  private syncBullets(): void {
+    const currentIds = new Set(this.world.bullets.map((b) => b.id))
+    for (const [id, sprite] of this.bulletViews) {
+      if (!currentIds.has(id)) {
+        sprite.destroy()
+        this.bulletViews.delete(id)
+      }
+    }
+
+    for (const bullet of this.world.bullets) {
+      let sprite = this.bulletViews.get(bullet.id)
+      if (!sprite) {
+        sprite = this.add.sprite(bullet.pos.x, bullet.pos.y, CANNONBALL_KEY).setDepth(12)
+        this.bulletViews.set(bullet.id, sprite)
+      }
+      sprite.setPosition(bullet.pos.x, bullet.pos.y)
+    }
+  }
+
+  private syncObstacles(): void {
+    const currentIds = new Set(this.world.obstacles.map((o) => o.id))
+    for (const [id, view] of this.obstacleViews) {
+      if (!currentIds.has(id)) {
+        view.sprite.destroy()
+        view.grassOverlay?.destroy()
+        view.maskShape?.destroy()
+        view.grassMaskShape?.destroy()
+        view.decorations?.forEach((d) => d.destroy())
+        view.hpBarBg?.destroy()
+        view.hpBarFg?.destroy()
+        this.obstacleViews.delete(id)
+      }
+    }
+
+    for (const obstacle of this.world.obstacles) {
+      let view = this.obstacleViews.get(obstacle.id)
+      if (!view) view = this.createObstacleView(obstacle)
+
+      if (obstacle.destructible && view.hpBarFg && view.hpBarBg) {
+        const frac = clamp(obstacle.hp / obstacle.maxHp, 0, 1)
+        view.hpBarFg.scaleX = frac
+        const damaged = frac < 1
+        view.hpBarFg.visible = damaged
+        view.hpBarBg.visible = damaged
+      }
+    }
+  }
+
+  private createObstacleView(obstacle: Obstacle): ObstacleView {
+    if (obstacle.variant === 'island') return this.createIslandView(obstacle)
+
+    const sprite = this.add.sprite(obstacle.pos.x, obstacle.pos.y, OBSTACLE_KEY[obstacle.variant]).setDepth(5)
+    sprite.setDisplaySize(obstacle.w, obstacle.h)
+
+    let hpBarBg: Phaser.GameObjects.Rectangle | undefined
+    let hpBarFg: Phaser.GameObjects.Rectangle | undefined
+
+    if (obstacle.destructible) {
+      const barY = obstacle.pos.y - obstacle.h / 2 - 8
+      hpBarBg = this.add.rectangle(obstacle.pos.x, barY, obstacle.w, 4, 0x000000, 0.6).setDepth(6).setVisible(false)
+      hpBarFg = this.add
+        .rectangle(obstacle.pos.x - obstacle.w / 2, barY, obstacle.w, 4, 0xe0a952, 1)
+        .setOrigin(0, 0.5)
+        .setDepth(7)
+        .setVisible(false)
+    }
+
+    const view: ObstacleView = { sprite, hpBarBg, hpBarFg }
+    this.obstacleViews.set(obstacle.id, view)
+    return view
+  }
+
+  private drawIslandLobes(
+    g: Phaser.GameObjects.Graphics,
+    cx: number,
+    cy: number,
+    radius: number,
+    shape: IslandShape,
+  ): void {
+    const { lobes, stretchX, stretchY } = shape
+    g.fillEllipse(cx, cy, radius * 1.2 * stretchX, radius * 1.2 * stretchY)
+    for (const lobe of lobes) {
+      const dx = Math.cos(lobe.angle) * lobe.distFrac * radius * stretchX
+      const dy = Math.sin(lobe.angle) * lobe.distFrac * radius * stretchY
+      const lobeR = radius * lobe.radiusFrac
+      g.fillEllipse(cx + dx, cy + dy, lobeR * 2 * stretchX, lobeR * 2 * stretchY)
+    }
+  }
+
+  /**
+   * Islands get an organic (non-perfectly-round) coastline: a sand base and — for bigger
+   * ones — a smaller grass interior, both built from the island's stored shape recipe (the
+   * same recipe the physics layer used to build its collision circles, so a ship never sails
+   * through visible sand). Trees, shoreline rocks, and occasionally a cannon or small fort
+   * are scattered on top, matching the pack's sample scenes.
+   */
+  private createIslandView(obstacle: Obstacle): ObstacleView {
+    const { x: cx, y: cy } = obstacle.pos
+    const sandRadius = obstacle.w / 2
+    const shape = obstacle.islandShape!
+    const { stretchX, stretchY } = shape
+
+    const maskShape = this.make.graphics({ x: 0, y: 0 }, false)
+    maskShape.fillStyle(0xffffff)
+    this.drawIslandLobes(maskShape, cx, cy, sandRadius, shape)
+    const mask = maskShape.createGeometryMask()
+
+    const sandCover = sandRadius * 5
+    const sprite = this.add
+      .tileSprite(cx, cy, sandCover, sandCover, OBSTACLE_KEY.island)
+      .setDepth(4)
+      .setMask(mask)
+
+    let grassOverlay: Phaser.GameObjects.TileSprite | undefined
+    let grassMaskShape: Phaser.GameObjects.Graphics | undefined
+    const hasGrass = sandRadius >= 75
+
+    if (hasGrass) {
+      const grassRadius = sandRadius * 0.6
+      grassMaskShape = this.make.graphics({ x: 0, y: 0 }, false)
+      grassMaskShape.fillStyle(0xffffff)
+      this.drawIslandLobes(grassMaskShape, cx, cy, grassRadius, shape)
+
+      const grassCover = grassRadius * 5
+      grassOverlay = this.add
+        .tileSprite(cx, cy, grassCover, grassCover, ISLAND_GRASS_KEY)
+        .setDepth(4.5)
+        .setMask(grassMaskShape.createGeometryMask())
+    }
+
+    const decorations = this.scatterIslandProps(cx, cy, sandRadius, hasGrass, stretchX, stretchY)
+
+    const view: ObstacleView = { sprite, grassOverlay, maskShape, grassMaskShape, decorations }
+    this.obstacleViews.set(obstacle.id, view)
+    return view
+  }
+
+  private scatterIslandProps(
+    cx: number,
+    cy: number,
+    sandRadius: number,
+    hasGrass: boolean,
+    stretchX: number,
+    stretchY: number,
+  ): Phaser.GameObjects.Sprite[] {
+    const props: Phaser.GameObjects.Sprite[] = []
+    const at = (angle: number, dist: number) => ({
+      x: cx + Math.cos(angle) * dist * stretchX,
+      y: cy + Math.sin(angle) * dist * stretchY,
+    })
+
+    if (hasGrass) {
+      const treeCount = 2 + Math.floor(Math.random() * 3)
+      for (let i = 0; i < treeCount; i += 1) {
+        const p = at(Math.random() * Math.PI * 2, Math.random() * sandRadius * 0.42)
+        const key = ISLAND_TREE_KEYS[Math.floor(Math.random() * ISLAND_TREE_KEYS.length)]
+        const size = 26 + Math.random() * 16
+        const tree = this.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setDepth(6)
+        props.push(tree)
+      }
+    }
+
+    const rockCount = 1 + Math.floor(Math.random() * 3)
+    for (let i = 0; i < rockCount; i += 1) {
+      const angle = Math.random() * Math.PI * 2
+      const p = at(angle, sandRadius * (0.85 + Math.random() * 0.3))
+      const key = ISLAND_ROCK_KEYS[Math.floor(Math.random() * ISLAND_ROCK_KEYS.length)]
+      const size = 18 + Math.random() * 14
+      const rock = this.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setDepth(6)
+      props.push(rock)
+    }
+
+    if (sandRadius >= 75 && Math.random() < 0.3) {
+      const angle = Math.random() * Math.PI * 2
+      const p = at(angle, sandRadius * 0.92)
+      const cannon = this.add
+        .sprite(p.x, p.y, ISLAND_CANNON_KEY)
+        .setDisplaySize(34, 34 * (20 / 29))
+        .setOrigin(0.3, 0.5)
+        .setRotation(angle)
+        .setDepth(6)
+      props.push(cannon)
+    }
+
+    // Small fortification pieces sit squarely on the sand ring — never past the coast into
+    // open water, and never inland on the grass — so they always read as "part of this island".
+    if (hasGrass && Math.random() < 0.35) {
+      const p = at(Math.random() * Math.PI * 2, sandRadius * (0.6 + Math.random() * 0.22))
+      const key = ISLAND_FORT_KEYS[Math.floor(Math.random() * ISLAND_FORT_KEYS.length)]
+      const size = 32 + Math.random() * 14
+      const fort = this.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setDepth(6)
+      props.push(fort)
+    }
+
+    return props
+  }
+
+  private syncPickups(): void {
+    const currentIds = new Set(this.world.pickups.map((p) => p.id))
+    for (const [id, view] of this.pickupViews) {
+      if (!currentIds.has(id)) {
+        view.circle.destroy()
+        view.label.destroy()
+        this.pickupViews.delete(id)
+      }
+    }
+
+    for (const pickup of this.world.pickups) {
+      const view = this.pickupViews.get(pickup.id) ?? this.createPickupView(pickup)
+      const scale = 1 + Math.sin(pickup.pulse) * 0.12
+      view.circle.setScale(scale)
+      view.label.setScale(scale)
+    }
+  }
+
+  private createPickupView(pickup: Pickup): PickupView {
+    const def = PICKUP_DEFS[pickup.type]
+    const circle = this.add
+      .circle(pickup.pos.x, pickup.pos.y, pickup.radius, hexToNumber(def.color), 0.55)
+      .setStrokeStyle(2, 0xffffff, 0.8)
+      .setDepth(8)
+    const label = this.add
+      .text(pickup.pos.x, pickup.pos.y, def.emoji, { fontSize: '18px' })
+      .setOrigin(0.5, 0.5)
+      .setDepth(9)
+
+    const view: PickupView = { circle, label }
+    this.pickupViews.set(pickup.id, view)
+    return view
+  }
+}
