@@ -1,8 +1,10 @@
 name: Deploy
 
+# Временно отключено: автозапуск на push отключён из-за проблем с SSH-доступом
+# (пароль на приватном ключе + firewall сервера блокирует IP GitHub-раннеров).
+# Деплой выполняется вручную с локальной машины, см. CLAUDE.md.
 on:
-  push:
-    branches: [main]
+  workflow_dispatch: {}
 
 jobs:
   build-and-deploy:

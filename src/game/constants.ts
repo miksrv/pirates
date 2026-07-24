@@ -4,6 +4,10 @@ export const WORLD_H = 1600
 export const VIEW_W = 1000
 export const VIEW_H = 680
 
+export const MINIMAP_W = 220
+export const MINIMAP_H = 160 // matches WORLD_H / WORLD_W aspect ratio
+export const MINIMAP_MARGIN = 14
+
 export const SHIP_RADIUS = 20
 export const BULLET_RADIUS = 4
 export const BULLET_SPEED = 640

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../game/constants'
 import type { Stats } from '../game/stats'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
@@ -96,6 +97,11 @@ export default function HUD({ started, gameOver, stats, log, onStart, onRestart 
       </div>
 
       <EventLog log={log} />
+
+      <div
+        className="minimap-frame"
+        style={{ width: MINIMAP_W, height: MINIMAP_H, right: MINIMAP_MARGIN, bottom: MINIMAP_MARGIN }}
+      />
     </div>
   )
 }

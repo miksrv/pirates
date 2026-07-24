@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { WORLD_H, WORLD_W } from '../game/constants'
+import { MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W, WORLD_H, WORLD_W } from '../game/constants'
 import {
   ALL_IMAGE_KEYS,
   CANNONBALL_KEY,
@@ -93,6 +93,10 @@ export class MainScene extends Phaser.Scene {
   private gameOverEmitted = false
   private statsAccum = 0
 
+  private groundTile!: Phaser.GameObjects.TileSprite
+  private minimapCam!: Phaser.Cameras.Scene2D.Camera
+  private minimapMaskShape!: Phaser.GameObjects.Graphics
+
   private shipViews = new Map<string, ShipView>()
   private bulletViews = new Map<string, Phaser.GameObjects.Sprite>()
   private obstacleViews = new Map<string, ObstacleView>()
@@ -111,7 +115,22 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.add.tileSprite(0, 0, WORLD_W, WORLD_H, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
+    this.groundTile = this.add.tileSprite(0, 0, WORLD_W, WORLD_H, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
+
+    this.minimapCam = this.cameras
+      .add(0, 0, MINIMAP_W, MINIMAP_H)
+      .setName('minimap')
+      .setZoom(MINIMAP_W / WORLD_W)
+      .setBounds(0, 0, WORLD_W, WORLD_H)
+      .setBackgroundColor(0x0e2c40)
+      .centerOn(WORLD_W / 2, WORLD_H / 2)
+    this.minimapCam.ignore(this.groundTile)
+
+    // Rounds the minimap's rendered corners: the mask shape is drawn with scrollFactor 0, so
+    // (with the main camera's zoom always at 1) its coordinates line up with actual screen pixels.
+    this.minimapMaskShape = this.make.graphics({ x: 0, y: 0 }, false).setScrollFactor(0)
+    this.minimapCam.setMask(this.minimapMaskShape.createGeometryMask())
+    this.positionMinimap()
 
     this.anims.create({
       key: 'explode',
@@ -129,6 +148,7 @@ export class MainScene extends Phaser.Scene {
     // Keep the camera viewport in sync when the browser window (and thus the canvas) resizes.
     this.scale.on('resize', (gameSize: Phaser.Structs.Size) => {
       this.cameras.main.setSize(gameSize.width, gameSize.height)
+      this.positionMinimap()
     })
 
     this.startNewWorld()
@@ -137,6 +157,17 @@ export class MainScene extends Phaser.Scene {
   /** Public: called by the React shell to restart after game over. */
   restart(): void {
     this.startNewWorld()
+  }
+
+  /** Keeps the minimap pinned to the bottom-right corner of the (resizable) viewport. */
+  private positionMinimap(): void {
+    const x = this.scale.width - MINIMAP_W - MINIMAP_MARGIN
+    const y = this.scale.height - MINIMAP_H - MINIMAP_MARGIN
+    this.minimapCam.setPosition(x, y)
+
+    this.minimapMaskShape.clear()
+    this.minimapMaskShape.fillStyle(0xffffff)
+    this.minimapMaskShape.fillRoundedRect(x, y, MINIMAP_W, MINIMAP_H, 8)
   }
 
   private startNewWorld(): void {
@@ -282,6 +313,8 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5)
     container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, nameText, buffText])
 
+    this.minimapCam.ignore([cannon, hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, nameText, buffText])
+
     if (ship.team === 'player') {
       this.cameras.main.startFollow(container, true, 0.15, 0.15)
     }
@@ -420,6 +453,8 @@ export class MainScene extends Phaser.Scene {
         .setOrigin(0, 0.5)
         .setDepth(7)
         .setVisible(false)
+
+      this.minimapCam.ignore([hpBarBg, hpBarFg])
     }
 
     const view: ObstacleView = { sprite, hpBarBg, hpBarFg }
@@ -486,6 +521,7 @@ export class MainScene extends Phaser.Scene {
     }
 
     const decorations = this.scatterIslandProps(cx, cy, sandRadius, hasGrass, stretchX, stretchY)
+    this.minimapCam.ignore(decorations)
 
     const view: ObstacleView = { sprite, grassOverlay, maskShape, grassMaskShape, decorations }
     this.obstacleViews.set(obstacle.id, view)
@@ -580,6 +616,8 @@ export class MainScene extends Phaser.Scene {
       .text(pickup.pos.x, pickup.pos.y, def.emoji, { fontSize: '18px' })
       .setOrigin(0.5, 0.5)
       .setDepth(9)
+
+    this.minimapCam.ignore(label)
 
     const view: PickupView = { circle, label }
     this.pickupViews.set(pickup.id, view)
