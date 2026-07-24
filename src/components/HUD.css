@@ -111,6 +111,145 @@
   color: #ffd97a;
 }
 
+.event-log-mega {
+  color: #ff9df5;
+  background: rgba(255, 61, 240, 0.16);
+  font-weight: 700;
+}
+
+.admin-panel {
+  position: absolute;
+  top: 90px;
+  left: 14px;
+  width: 345px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  background: rgba(10, 13, 20, 0.92);
+  border: 1px solid #3ee06f;
+  border-radius: 10px;
+  padding: 10px 12px 12px;
+  pointer-events: auto;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.55);
+}
+
+.admin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #3ee06f;
+}
+
+.admin-close {
+  background: transparent;
+  border: none;
+  color: #9aa5b8;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.admin-close:hover {
+  color: #e8ecf1;
+}
+
+.admin-hint {
+  margin: 4px 0 10px;
+  font-size: 11px;
+  color: #9aa5b8;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.admin-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 7px;
+  background: #131824;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  color: #cfd6e3;
+  font-size: 11px;
+  text-align: left;
+  line-height: 1.2;
+}
+
+.admin-item:hover {
+  border-color: #3ee06f;
+  background: #18202e;
+}
+
+.admin-item-emoji {
+  font-size: 15px;
+}
+
+.admin-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mega-banner {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 28px;
+  border-radius: 12px;
+  background: rgba(28, 6, 30, 0.82);
+  border: 1px solid #ff3df0;
+  box-shadow: 0 0 26px rgba(255, 61, 240, 0.45);
+  text-align: center;
+  animation: mega-pop 0.35s ease-out, mega-glow 1.4s ease-in-out infinite 0.35s;
+}
+
+.mega-banner-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ff9df5;
+}
+
+.mega-banner-sub {
+  font-size: 13px;
+  color: #e8ecf1;
+}
+
+@keyframes mega-pop {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes mega-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 22px rgba(255, 61, 240, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(255, 61, 240, 0.7);
+  }
+}
+
 .perk-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

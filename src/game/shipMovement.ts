@@ -1,5 +1,16 @@
-import { BOOST_DRAIN_TIME, BOOST_RECOVER_TIME, BOOST_SPEED_MULT, BULLET_SPEED } from './constants'
-import { decayEffects, getEffectMagnitude } from './effects'
+import {
+  BOOST_DRAIN_TIME,
+  BOOST_RECOVER_TIME,
+  BOOST_SPEED_MULT,
+  BULLET_SPEED,
+  ESCORT_RADIUS,
+  INFERNO_DAMAGE,
+  MEGA_FIRE_RATE_MULT,
+  MEGA_SIZE_MULT,
+  MEGA_SPEED_MULT,
+  SHIP_RADIUS,
+} from './constants'
+import { decayEffects, getEffectMagnitude, hasEffect } from './effects'
 import { resolveObstacle } from './physics'
 import type { Ship, World } from './types'
 import { angleOf, clamp, length, moveAngleTowards } from './vector'
@@ -10,10 +21,18 @@ const SHIP_SHIP_PUSH = 0.5
 /** Speed reduction factor when moving on shallow water tiles */
 const SHALLOW_WATER_SPEED_MULT = 0.5
 
-export function updateShipMovement(ship: Ship, dt: number, world: World): void {
+/** Moves a ship and pushes it out of terrain. Returns true if it ran into something —
+ * harmless for a real hull, fatal for an escort (see stepWorld). */
+export function updateShipMovement(ship: Ship, dt: number, world: World): boolean {
   decayEffects(ship, dt)
 
-  const speedMult = getEffectMagnitude(ship, 'speedBoost', 1)
+  // Recomputed every frame rather than mutated on pickup/expiry: idempotent, so the hull (and
+  // its hitbox) can never get stuck oversized if an effect ends in an unusual way.
+  const mega = hasEffect(ship, 'megaBoost')
+  const baseRadius = ship.escortOf ? ESCORT_RADIUS : SHIP_RADIUS
+  ship.radius = baseRadius * (mega ? MEGA_SIZE_MULT : 1)
+
+  const speedMult = getEffectMagnitude(ship, 'speedBoost', 1) * (mega ? MEGA_SPEED_MULT : 1)
   const turnMult = getEffectMagnitude(ship, 'turnBoost', 1)
   const jitter = getEffectMagnitude(ship, 'krakenJitter', 0)
 
@@ -88,9 +107,13 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): void {
     ship.effects.splice(shallowWaterEffectIndex, 1)
   }
 
+  let hitObstacle = false
   for (const obstacle of world.obstacles) {
-    ship.pos = resolveObstacle(ship.pos, ship.radius, obstacle)
+    const corrected = resolveObstacle(ship.pos, ship.radius, obstacle)
+    if (corrected !== ship.pos) hitObstacle = true
+    ship.pos = corrected
   }
+  return hitObstacle
 }
 
 /** Softly separates overlapping ships so they don't stack on top of each other. */
@@ -119,17 +142,25 @@ export function resolveShipCollisions(world: World): void {
   }
 }
 
-export function tryFireCannon(ship: Ship): { angle: number; damage: number; bulletSpeed: number } | null {
+export function tryFireCannon(
+  ship: Ship,
+): { angle: number; damage: number; bulletSpeed: number; inferno: boolean } | null {
   if (ship.cooldown > 0) return null
 
-  const fireRateMult = getEffectMagnitude(ship, 'fireRateBoost', 1)
+  // A loaded Hellfire round goes out instead of the normal shot and is spent doing so.
+  const inferno = ship.infernoShots > 0
+  if (inferno) ship.infernoShots -= 1
+
+  const fireRateMult =
+    getEffectMagnitude(ship, 'fireRateBoost', 1) * (hasEffect(ship, 'megaBoost') ? MEGA_FIRE_RATE_MULT : 1)
   const damageMult = getEffectMagnitude(ship, 'damageBoost', 1)
   const bulletSpeedMult = getEffectMagnitude(ship, 'bulletSpeedBoost', 1)
 
   ship.cooldown = 1 / (ship.fireRate * fireRateMult)
   return {
     angle: ship.cannonAngle,
-    damage: ship.damage * damageMult,
+    damage: inferno ? INFERNO_DAMAGE : ship.damage * damageMult,
     bulletSpeed: BULLET_SPEED * bulletSpeedMult,
+    inferno,
   }
 }

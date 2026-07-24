@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W, WORLD_H, WORLD_W } from '../game/constants'
+import { MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W, SHIP_RADIUS, WORLD_H, WORLD_W } from '../game/constants'
 import {
   ALL_IMAGE_KEYS,
   CANNONBALL_KEY,
@@ -29,6 +29,7 @@ import type {
   GameEvent,
   Obstacle,
   PerkType,
+  PickupType,
   Pickup,
   Ship,
   ShipHealthState,
@@ -65,6 +66,7 @@ const EFFECT_EMOJI: Record<EffectType, string> = {
   regen: '🛠️',
   disguise: '🎭',
   shallowWater: '🌊',
+  megaBoost: '🔱',
 }
 
 /** Overhead label. Marks AI ships so a human can tell them from other players at a glance —
@@ -76,6 +78,7 @@ function shipLabel(ship: Ship): string {
 function buildBuffIconText(ship: Ship): string {
   const icons = ship.effects.map((e) => EFFECT_EMOJI[e.type])
   if (ship.shieldCharges > 0) icons.push('🛡️'.repeat(ship.shieldCharges))
+  if (ship.infernoShots > 0) icons.push('🔥'.repeat(ship.infernoShots))
   return icons.join(' ')
 }
 
@@ -91,6 +94,8 @@ interface ShipView {
   boostBarFg: Phaser.GameObjects.Rectangle
   nameText: Phaser.GameObjects.Text
   buffText: Phaser.GameObjects.Text
+  /** Fire on the muzzle while a Hellfire round is loaded; hidden otherwise. */
+  cannonFlame: Phaser.GameObjects.Sprite
   lastState: ShipHealthState
   lastBuffText: string
   lastOverheadHidden: boolean
@@ -108,9 +113,18 @@ interface ObstacleView {
   hpBarFg?: Phaser.GameObjects.Rectangle
 }
 
+interface BulletView {
+  sprite: Phaser.GameObjects.Sprite
+  /** Hellfire rounds only: the looping fire wreathing the ball. */
+  flame?: Phaser.GameObjects.Sprite
+}
+
 interface PickupView {
   circle: Phaser.GameObjects.Arc
   label: Phaser.GameObjects.Text
+  /** Leviathan only: an oversized ring drawn for the minimap camera alone, since a 22px
+   * pickup would be a fifth of a pixel at minimap zoom. */
+  minimapMarker?: Phaser.GameObjects.Arc
 }
 
 const hexToNumber = (hex: string): number => parseInt(hex.replace('#', ''), 16)
@@ -138,7 +152,7 @@ export class MainScene extends Phaser.Scene {
   private minimapMaskShape!: Phaser.GameObjects.Graphics
 
   private shipViews = new Map<string, ShipView>()
-  private bulletViews = new Map<string, Phaser.GameObjects.Sprite>()
+  private bulletViews = new Map<string, BulletView>()
   private obstacleViews = new Map<string, ObstacleView>()
   private pickupViews = new Map<string, PickupView>()
 
@@ -182,6 +196,15 @@ export class MainScene extends Phaser.Scene {
       repeat: 0,
     })
 
+    // Looping flame built from the explosion frames (the pack ships no dedicated fire sprite):
+    // played on Hellfire rounds in flight and on a cannon that has one loaded.
+    this.anims.create({
+      key: 'flames',
+      frames: [...EXPLOSION_FRAME_KEYS, EXPLOSION_FRAME_KEYS[1]].map((key) => ({ key })),
+      frameRate: 14,
+      repeat: -1,
+    })
+
     this.keys = this.input.keyboard!.addKeys('W,A,S,D,up,down,left,right,space,SHIFT') as unknown as typeof this.keys
 
     this.input.keyboard!.on('keydown-R', () => {
@@ -208,6 +231,22 @@ export class MainScene extends Phaser.Scene {
   /** Public: called by the React shell to restart after game over (local mode only). */
   restart(): void {
     if (this.mode === 'local') this.startNewWorld()
+  }
+
+  /**
+   * Debug hook for the iddqd panel: grants the player a pickup on the spot. Single-player only —
+   * in an online match the server owns the world, so a client granting itself loot would either
+   * be overwritten by the next snapshot or amount to cheating. Returns false when refused.
+   */
+  grantDebugPickup(type: PickupType): boolean {
+    if (this.mode !== 'local' || !this.world) return false
+    const player = this.world.ships.find((s) => s.id === this.playerId)
+    if (!player || !player.alive) return false
+
+    PICKUP_DEFS[type].apply(player, this.world)
+    const def = PICKUP_DEFS[type]
+    this.events.emit('log', { text: `🛠 [debug] выдано: ${def.emoji} ${def.label}`, kind: 'info' })
+    return true
   }
 
   private connectOnline(url: string, nickname?: string): void {
@@ -242,7 +281,10 @@ export class MainScene extends Phaser.Scene {
   private clearViews(): void {
     for (const v of this.shipViews.values()) v.container.destroy()
     this.shipViews.clear()
-    for (const s of this.bulletViews.values()) s.destroy()
+    for (const b of this.bulletViews.values()) {
+      b.sprite.destroy()
+      b.flame?.destroy()
+    }
     this.bulletViews.clear()
     for (const o of this.obstacleViews.values()) {
       o.sprite.destroy()
@@ -259,6 +301,7 @@ export class MainScene extends Phaser.Scene {
     for (const p of this.pickupViews.values()) {
       p.circle.destroy()
       p.label.destroy()
+      p.minimapMarker?.destroy()
     }
     this.pickupViews.clear()
   }
@@ -393,6 +436,14 @@ export class MainScene extends Phaser.Scene {
         this.events.emit('log', { text: `🏳️ ${ev.shipName} покинул бой`, kind: 'info' })
       } else if (ev.kind === 'damageNumber') {
         this.spawnDamageNumber(ev.pos, ev.amount)
+      } else if (ev.kind === 'megaSpawned') {
+        this.sound.play(SFX.pickup, { volume: 0.6 })
+        this.cameras.main.flash(400, 90, 0, 80)
+        this.events.emit('log', {
+          text: '🔱 ЯРОСТЬ ЛЕВИАФАНА поднялась из глубин! Ищите метку на миникарте',
+          kind: 'mega',
+        })
+        this.events.emit('mega-announce')
       }
     }
   }
@@ -479,7 +530,17 @@ export class MainScene extends Phaser.Scene {
       .setDisplaySize(cannonWidth, cannonHeight)
       .setOrigin(0.15, 0.5)
 
-    container.add([hull, cannon])
+    // Sits at the muzzle end and inherits the cannon's rotation below, so the fire always
+    // licks out of the barrel whichever way the gun is trained.
+    const cannonFlame = this.add
+      .sprite(0, 0, EXPLOSION_FRAME_KEYS[0])
+      .setDisplaySize(ship.radius * 1.5, ship.radius * 1.5)
+      .setBlendMode(Phaser.BlendModes.ADD)
+      .setAlpha(0.95)
+      .setVisible(false)
+    cannonFlame.play('flames')
+
+    container.add([hull, cannon, cannonFlame])
 
     const barW = ship.radius * 2.2
     const barY = -hullHeight / 2 - 10
@@ -499,7 +560,18 @@ export class MainScene extends Phaser.Scene {
       .setOrigin(0.5, 0.5)
     container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, boostBarBg, boostBarFg, nameText, buffText])
 
-    this.minimapCam.ignore([cannon, hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, boostBarBg, boostBarFg, nameText, buffText])
+    this.minimapCam.ignore([
+      cannon,
+      cannonFlame,
+      hpBarBg,
+      hpBarFg,
+      reloadBarBg,
+      reloadBarFg,
+      boostBarBg,
+      boostBarFg,
+      nameText,
+      buffText,
+    ])
 
     if (ship.id === this.playerId) {
       this.cameras.main.startFollow(container, true, 0.15, 0.15)
@@ -517,6 +589,7 @@ export class MainScene extends Phaser.Scene {
       boostBarFg,
       nameText,
       buffText,
+      cannonFlame,
       lastState: 1,
       lastBuffText: '',
       lastOverheadHidden: false,
@@ -544,8 +617,24 @@ export class MainScene extends Phaser.Scene {
       if (Number.isFinite(ship.pos.x) && Number.isFinite(ship.pos.y)) {
         view.container.setPosition(ship.pos.x, ship.pos.y)
       }
+
+      // The Leviathan's hull growth is a hitbox change, so the sprite has to match it — scale
+      // the whole container off the sim's radius rather than tracking the effect separately.
+      const hullScale = ship.radius / SHIP_RADIUS
+      if (view.container.scaleX !== hullScale) view.container.setScale(hullScale)
+
+      // Escorts fade out as they sink instead of leaving a wreck on the water.
+      if (ship.escortOf && view.container.alpha !== 0.9) view.container.setAlpha(0.9)
       view.hull.setRotation(ship.bodyAngle + SHIP_SPRITE_OFFSET)
       view.cannon.setRotation(ship.cannonAngle + CANNON_SPRITE_OFFSET)
+
+      const loaded = ship.infernoShots > 0 && ship.alive
+      if (view.cannonFlame.visible !== loaded) view.cannonFlame.setVisible(loaded)
+      if (loaded) {
+        const muzzle = ship.radius * 1.15
+        view.cannonFlame.setPosition(Math.cos(ship.cannonAngle) * muzzle, Math.sin(ship.cannonAngle) * muzzle)
+        view.cannonFlame.rotation += 0.25
+      }
 
       const state = shipHealthState(ship)
       if (state !== view.lastState) {
@@ -557,10 +646,11 @@ export class MainScene extends Phaser.Scene {
         view.container.setAlpha(wrecked ? 0.75 : 1)
       }
 
-      // Overhead UI (name, hp/reload/boost bars, buffs) hides for wrecks and for disguised
-      // ships — but a disguised captain still sees their own.
+      // Overhead UI (name, hp/reload/boost bars, buffs) hides for wrecks, for disguised ships
+      // (though a disguised captain still sees their own), and always for escorts — they carry
+      // no bars of their own.
       const disguised = ship.id !== this.playerId && ship.effects.some((e) => e.type === 'disguise')
-      const overheadHidden = state === 4 || disguised
+      const overheadHidden = state === 4 || disguised || ship.escortOf !== null
       if (overheadHidden !== view.lastOverheadHidden) {
         view.lastOverheadHidden = overheadHidden
         const visible = !overheadHidden
@@ -598,20 +688,42 @@ export class MainScene extends Phaser.Scene {
   private syncBullets(): void {
     const world = this.world!
     const currentIds = new Set(world.bullets.map((b) => b.id))
-    for (const [id, sprite] of this.bulletViews) {
+    for (const [id, view] of this.bulletViews) {
       if (!currentIds.has(id)) {
-        sprite.destroy()
+        view.sprite.destroy()
+        view.flame?.destroy()
         this.bulletViews.delete(id)
       }
     }
 
     for (const bullet of world.bullets) {
-      let sprite = this.bulletViews.get(bullet.id)
-      if (!sprite) {
-        sprite = this.add.sprite(bullet.pos.x, bullet.pos.y, CANNONBALL_KEY).setDepth(12)
-        this.bulletViews.set(bullet.id, sprite)
+      let view = this.bulletViews.get(bullet.id)
+      if (!view) {
+        const sprite = this.add.sprite(bullet.pos.x, bullet.pos.y, CANNONBALL_KEY).setDepth(12)
+        let flame: Phaser.GameObjects.Sprite | undefined
+
+        if (bullet.inferno) {
+          const size = bullet.radius * 2
+          sprite.setDisplaySize(size, size).setTint(0xff7a2f)
+          flame = this.add
+            .sprite(bullet.pos.x, bullet.pos.y, EXPLOSION_FRAME_KEYS[0])
+            .setDepth(11)
+            .setDisplaySize(size * 2.6, size * 2.6)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setAlpha(0.9)
+          flame.play('flames')
+          this.minimapCam.ignore(flame)
+        }
+
+        view = { sprite, flame }
+        this.bulletViews.set(bullet.id, view)
       }
-      sprite.setPosition(bullet.pos.x, bullet.pos.y)
+      view.sprite.setPosition(bullet.pos.x, bullet.pos.y)
+      if (view.flame) {
+        view.flame.setPosition(bullet.pos.x, bullet.pos.y)
+        // Spin the fire so a fast-moving round never looks like a static decal.
+        view.flame.rotation += 0.35
+      }
     }
   }
 
@@ -827,6 +939,7 @@ export class MainScene extends Phaser.Scene {
       if (!currentIds.has(id)) {
         view.circle.destroy()
         view.label.destroy()
+        view.minimapMarker?.destroy()
         this.pickupViews.delete(id)
       }
     }
@@ -836,6 +949,8 @@ export class MainScene extends Phaser.Scene {
       const scale = 1 + Math.sin(pickup.pulse) * 0.12
       view.circle.setScale(scale)
       view.label.setScale(scale)
+      // The minimap blip throbs harder than the world sprite so it reads at a glance.
+      view.minimapMarker?.setScale(1 + Math.sin(pickup.pulse) * 0.35)
     }
   }
 
@@ -852,7 +967,17 @@ export class MainScene extends Phaser.Scene {
 
     this.minimapCam.ignore(label)
 
-    const view: PickupView = { circle, label }
+    let minimapMarker: Phaser.GameObjects.Arc | undefined
+    if (pickup.type === 'leviathan') {
+      // Sized in world units so that, at minimap zoom, it lands around a dozen screen pixels.
+      minimapMarker = this.add
+        .circle(pickup.pos.x, pickup.pos.y, 70, hexToNumber(def.color), 0.95)
+        .setStrokeStyle(26, 0xffffff, 0.9)
+        .setDepth(9)
+      this.cameras.main.ignore(minimapMarker) // minimap only — it would swamp the play view
+    }
+
+    const view: PickupView = { circle, label, minimapMarker }
     this.pickupViews.set(pickup.id, view)
     return view
   }

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { BOT_COUNT, MAX_BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../game/constants'
 import { isPerkType, PERK_DEFS, PERK_TYPES } from '../game/perks'
+import { PICKUP_DEFS, PICKUP_TYPES } from '../game/pickupConfig'
 import type { Stats } from '../game/stats'
-import type { PerkType } from '../game/types'
+import type { PerkType, PickupType } from '../game/types'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
 
@@ -10,6 +11,11 @@ interface HUDProps {
   started: boolean
   gameOver: boolean
   netError: string | null
+  megaAnnounce: boolean
+  /** iddqd debug panel — single-player only, wired up in PhaserGame. */
+  adminOpen: boolean
+  onAdminPickup: (type: PickupType) => void
+  onAdminClose: () => void
   stats: Stats | null
   log: LogEntry[]
   onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => void
@@ -41,7 +47,19 @@ function EventLog({ log }: { log: LogEntry[] }) {
   )
 }
 
-export default function HUD({ started, gameOver, netError, stats, log, onStart, onRestart }: HUDProps) {
+export default function HUD({
+  started,
+  gameOver,
+  netError,
+  megaAnnounce,
+  adminOpen,
+  onAdminPickup,
+  onAdminClose,
+  stats,
+  log,
+  onStart,
+  onRestart,
+}: HUDProps) {
   const [botCount, setBotCount] = useState(BOT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
   /** Set once the player picks a mode — switches the menu to the perk step. */
@@ -194,6 +212,41 @@ export default function HUD({ started, gameOver, netError, stats, log, onStart, 
         <span title="Броня">🛡 {stats.armor}%</span>
         <span title="Перезарядка пушки">🔁 {stats.reloadSeconds}с</span>
       </div>
+
+      {adminOpen && (
+        <div className="admin-panel">
+          <div className="admin-head">
+            <span className="admin-title">🛠 iddqd — тестовая панель</span>
+            <button className="admin-close" onClick={onAdminClose} title="Закрыть (iddqd)">
+              ✕
+            </button>
+          </div>
+          <p className="admin-hint">Выдать бонус своему кораблю (только одиночная игра)</p>
+          <div className="admin-grid">
+            {PICKUP_TYPES.map((type) => {
+              const def = PICKUP_DEFS[type]
+              return (
+                <button
+                  key={type}
+                  className="admin-item"
+                  title={def.description}
+                  onClick={() => onAdminPickup(type)}
+                >
+                  <span className="admin-item-emoji">{def.emoji}</span>
+                  <span className="admin-item-label">{def.label}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {megaAnnounce && (
+        <div className="mega-banner">
+          <span className="mega-banner-title">🔱 ЯРОСТЬ ЛЕВИАФАНА</span>
+          <span className="mega-banner-sub">Появилась на карте — смотрите метку на миникарте!</span>
+        </div>
+      )}
 
       <EventLog log={log} />
 

@@ -25,11 +25,11 @@ import {
   BOT_HEAL_SEEK_RANGE,
   BOT_LEAD_JITTER_MAX,
   BOT_LEAD_JITTER_MIN,
+  BOT_LEVIATHAN_SEEK_RANGE,
   BOT_LOS_STEP,
   BOT_MISS_CHANCE,
   BOT_MISS_FLUB_SPREAD,
   BOT_MOVE_TURN_RATE,
-  BOT_OBSTACLE_AVOID_RANGE,
   BOT_OBSTACLE_AVOID_WEIGHT,
   BOT_PICKUP_SEEK_RANGE,
   BOT_RETARGET_INTERVAL,
@@ -46,7 +46,8 @@ import {
   BULLET_SPEED,
 } from './constants'
 import { getEffectMagnitude } from './effects'
-import { closestPointOnRect } from './physics'
+import { sameFleet } from './escort'
+import { obstacleAvoidance } from './steering'
 import { obstacleOverlap } from './physics'
 import type { BotAI, Pickup, PickupType, Ship, World } from './types'
 import {
@@ -86,40 +87,6 @@ function boundaryAvoidance(ship: Ship, world: World): Vec2 {
   return { x: px, y: py }
 }
 
-/** Repulsion away from any island/rock/crate the hull is about to brush against, so bots steer
- * around obstacles instead of grinding along their coastlines. */
-function obstacleAvoidance(ship: Ship, world: World): Vec2 {
-  let ax = 0
-  let ay = 0
-
-  for (const obstacle of world.obstacles) {
-    // Cheap broad-phase reject: obstacle.w bounds both the rect and the island circle cluster.
-    if (distance(ship.pos, obstacle.pos) > obstacle.w + BOT_OBSTACLE_AVOID_RANGE + ship.radius) continue
-
-    if (obstacle.collisionCircles) {
-      for (const c of obstacle.collisionCircles) {
-        const center = { x: obstacle.pos.x + c.dx, y: obstacle.pos.y + c.dy }
-        const gap = distance(ship.pos, center) - c.radius - ship.radius
-        if (gap >= BOT_OBSTACLE_AVOID_RANGE) continue
-        const away = normalize(sub(ship.pos, center))
-        const strength = 1 - Math.max(gap, 0) / BOT_OBSTACLE_AVOID_RANGE
-        ax += away.x * strength
-        ay += away.y * strength
-      }
-    } else {
-      const closest = closestPointOnRect(ship.pos, obstacle)
-      const gap = distance(ship.pos, closest) - ship.radius
-      if (gap >= BOT_OBSTACLE_AVOID_RANGE) continue
-      const away = normalize(sub(ship.pos, closest))
-      if (away.x === 0 && away.y === 0) continue
-      const strength = 1 - Math.max(gap, 0) / BOT_OBSTACLE_AVOID_RANGE
-      ax += away.x * strength
-      ay += away.y * strength
-    }
-  }
-
-  return { x: ax, y: ay }
-}
 
 /**
  * Sidestep force for enemy bullets predicted to pass within a hull's width. The escape vector
@@ -238,7 +205,8 @@ function selectTarget(ship: Ship, world: World, ai: BotAI): Ship | null {
   let currentScore = Infinity
 
   for (const other of world.ships) {
-    if (other.id === ship.id || !other.alive) continue
+    // Never pick a fight with your own escorts.
+    if (other.id === ship.id || !other.alive || sameFleet(ship, other)) continue
     const isCurrent = other.id === ai.targetShipId
     const d = distance(ship.pos, other.pos)
     if (d > (isCurrent ? BOT_SIGHT_RANGE * 1.3 : BOT_SIGHT_RANGE)) continue
@@ -393,6 +361,17 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
           )
       if (pickup) {
         ship.moveDir = normalize(sub(pickup.pos, ship.pos))
+        desiredAim = ship.bodyAngle
+        break
+      }
+
+      // The Leviathan is worth crossing the map for, so it outranks both the wander waypoint
+      // and ordinary loot — bots race the player for it instead of stumbling across it.
+      const leviathan = disengaging
+        ? null
+        : findNearestPickup(ship, world, BOT_LEVIATHAN_SEEK_RANGE, (p) => p.type === 'leviathan')
+      if (leviathan) {
+        ship.moveDir = normalize(sub(leviathan.pos, ship.pos))
         desiredAim = ship.bodyAngle
         break
       }

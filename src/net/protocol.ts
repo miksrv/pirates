@@ -1,4 +1,4 @@
-import { PICKUP_SPAWN_INTERVAL } from '../game/constants'
+import { MEGA_SPAWN_INTERVAL, PICKUP_SPAWN_INTERVAL } from '../game/constants'
 import type { Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, World } from '../game/types'
 
 /**
@@ -96,6 +96,8 @@ export function wireToWorld(wire: WireWorld): World {
     pickups: wire.pickups,
     events: [],
     pickupSpawnTimer: PICKUP_SPAWN_INTERVAL,
+    // Client-side copies are display-only; the server owns both spawn clocks.
+    megaSpawnTimer: MEGA_SPAWN_INTERVAL,
     respawnEnabled: true,
   }
 }

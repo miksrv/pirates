@@ -28,9 +28,12 @@ export const MAX_HP_CAP = 320
 export const BOT_COUNT = 5
 export const ISLAND_COUNT = 10
 export const SCATTER_ROCK_COUNT = 12
-export const PICKUP_MAX_ON_MAP = 12
-export const PICKUP_SPAWN_INTERVAL = 3.5 // seconds between periodic spawns
-export const PICKUP_INITIAL_COUNT = 7
+// Pickup density, dialled up 1.5x. The spawn interval is the lever that actually binds —
+// bots clear the map faster than the cap is ever reached — so the cap is raised alongside it
+// purely to stay out of the way.
+export const PICKUP_MAX_ON_MAP = 18
+export const PICKUP_SPAWN_INTERVAL = 7 / 3 // ≈2.33s: 1.5x the old 3.5s spawn rate
+export const PICKUP_INITIAL_COUNT = 11
 export const PICKUP_DROP_CHANCE = 0.45 // chance a destroyed crate drops a pickup
 
 export const BOT_SIGHT_RANGE = 460
@@ -74,6 +77,37 @@ export const BOT_LEAD_JITTER_MIN = 0.7 // bots under-lead down to 70% of the per
 export const BOT_LEAD_JITTER_MAX = 1.15 // ...or over-lead up to 115% of it
 
 export const SHIP_SHIP_PUSH = 0.5
+
+// --- Ярость Левиафана: the map-wide mega pickup -------------------------------------------
+export const MEGA_SPAWN_INTERVAL = 60 // seconds between Leviathan spawns
+export const MEGA_DURATION = 20 // seconds the buff lasts once collected
+export const MEGA_SIZE_MULT = 1.5 // hull (and hitbox) scale while empowered
+export const MEGA_SPEED_MULT = 2
+export const MEGA_FIRE_RATE_MULT = 2
+export const MEGA_PICKUP_RADIUS = 22 // physically bigger than a normal crate, easier to grab
+export const BOT_LEVIATHAN_SEEK_RANGE = 1100 // bots break off patrol and race for it from this far
+
+// --- Эскадра: escort ships that sail in your wedge ------------------------------------------
+export const ESCORT_FIRST_PICKUP = 2 // escorts granted the first time
+export const ESCORT_NEXT_PICKUP = 3 // granted by each later pickup
+export const ESCORT_MAX = 5 // hard cap on a captain's wedge
+export const ESCORT_HP = 1 // any single hit sinks an escort
+export const ESCORT_RADIUS = 15 // slightly smaller hull than a captain's
+export const ESCORT_DAMAGE = 8 // weaker guns than a captain's 14
+export const ESCORT_SLOT_BACK = 46 // wedge spacing astern, per rank
+export const ESCORT_SLOT_SIDE = 42 // wedge spacing abeam, per rank
+export const ESCORT_CATCHUP_SPEED = 1.35 // top speed multiplier while out of position
+export const ESCORT_IN_POSITION = 26 // close enough to the slot to stop when the captain is hove to
+export const ESCORT_SLOT_BLEND = 110 // gap over which station-keeping blends into matching the captain's course
+export const ESCORT_TURN_RATE = 6 // rad/s cap on heading changes — stops the wedge shaking
+export const ESCORT_ATTACK_RANGE = 340 // escorts open fire on enemies this close
+export const ESCORT_AVOID_RANGE = 90 // terrain stand-off distance — contact is fatal for them
+export const ESCORT_AVOID_WEIGHT = 3 // strongly overrides station-keeping; the rocks don't forgive
+
+// --- Адское ядро: the single-use one-hit-kill round ----------------------------------------
+export const INFERNO_BULLET_SCALE = 3 // cannonball radius multiplier
+export const INFERNO_DAMAGE = 100000 // dwarfs any HP pool, but stays a finite (JSON-safe) number
+export const INFERNO_MAX_CHARGES = 1 // one loaded round at a time — the flaming cannon says so
 
 export const BOOST_SPEED_MULT = 1.6 // shift-boost speed multiplier
 export const BOT_BOOST_MIN_START = 0.35 // bots only start boosting with at least this much meter

@@ -1,9 +1,10 @@
 import { PICKUP_DROP_CHANCE, RESPAWN_TIME } from './constants'
 import { nextId } from './id'
 import { spawnPickupAt } from './map'
+import { fleetRootId } from './escort'
 import { obstacleOverlap } from './physics'
 import type { Bullet, Ship, World } from './types'
-import { BULLET_MAX_LIFE, BULLET_RADIUS, BULLET_SPEED } from './constants'
+import { BULLET_MAX_LIFE, BULLET_RADIUS, BULLET_SPEED, INFERNO_BULLET_SCALE } from './constants'
 import { clamp, fromAngle } from './vector'
 
 export function spawnBullet(
@@ -12,9 +13,11 @@ export function spawnBullet(
   angle: number,
   damage: number,
   bulletSpeed: number = BULLET_SPEED,
+  inferno = false,
 ): void {
   const dir = fromAngle(angle)
-  const spawnDist = ship.radius + 10
+  const radius = inferno ? BULLET_RADIUS * INFERNO_BULLET_SCALE : BULLET_RADIUS
+  const spawnDist = ship.radius + 10 + (inferno ? radius : 0)
   const bullet: Bullet = {
     id: nextId('bullet'),
     pos: {
@@ -22,9 +25,11 @@ export function spawnBullet(
       y: ship.pos.y + dir.y * spawnDist,
     },
     vel: { x: dir.x * bulletSpeed, y: dir.y * bulletSpeed },
-    radius: BULLET_RADIUS,
+    radius,
+    inferno,
     damage,
     ownerId: ship.id,
+    ownerFleetId: fleetRootId(ship),
     ownerTeam: ship.team,
     ownerVariant: ship.variant,
     life: 0,
@@ -71,7 +76,8 @@ export function updateBullets(world: World, dt: number): void {
     if (consumed) continue
 
     for (const ship of world.ships) {
-      if (!ship.alive || ship.id === bullet.ownerId) continue
+      // A fleet never shoots itself: escorts sail directly in their captain's line of fire.
+      if (!ship.alive || fleetRootId(ship) === bullet.ownerFleetId) continue
       const dx = ship.pos.x - bullet.pos.x
       const dy = ship.pos.y - bullet.pos.y
       const rr = ship.radius + bullet.radius
@@ -104,11 +110,20 @@ function applyDamage(world: World, ship: Ship, bullet: Bullet): void {
   const mitigated = bullet.damage * (1 - ship.armor)
   ship.hp = clamp(ship.hp - mitigated, 0, ship.maxHp)
 
+  if (ship.escortOf) {
+    // Escorts don't take chip damage — the lightest graze sinks them.
+    ship.hp = 0
+  }
+
   if (ship.hp <= 0 && ship.alive) {
     ship.alive = false
     ship.respawnTimer = RESPAWN_TIME
-    if (attacker) attacker.kills += 1
-    world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
+    // Escorts are fodder: sinking one scores nothing and stays out of the kill feed, which a
+    // five-strong wedge would otherwise flood.
+    if (!ship.escortOf) {
+      if (attacker) attacker.kills += 1
+      world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
+    }
   } else {
     world.events.push({ kind: 'damage', attackerName, targetName: ship.name, amount: Math.round(mitigated) })
     // Add damage number event for visual feedback

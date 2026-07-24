@@ -1,4 +1,5 @@
 import { applyTemporaryEffect } from './effects'
+import { grantFleet } from './escort'
 import { findFreeSpawnPoint } from './map'
 import type { PickupType, Ship, World } from './types'
 import {
@@ -7,6 +8,8 @@ import {
   MAX_FIRE_RATE_CAP,
   MAX_HP_CAP,
   MAX_SPEED_CAP,
+  MEGA_DURATION,
+  INFERNO_MAX_CHARGES,
 } from './constants'
 import { clamp } from './vector'
 
@@ -70,6 +73,36 @@ export const PICKUP_DEFS: Record<PickupType, PickupDef> = {
     description: 'Блокирует следующий удар целиком',
     apply: (ship) => {
       ship.shieldCharges = clamp(ship.shieldCharges + 1, 0, 3)
+    },
+  },
+  fleet: {
+    type: 'fleet',
+    label: 'Эскадра',
+    emoji: '⛵',
+    color: '#7ad7ff',
+    description: 'Корабли сопровождения идут за вами клином (до 5)',
+    apply: (ship, world) => {
+      grantFleet(world, ship)
+    },
+  },
+  infernoShot: {
+    type: 'infernoShot',
+    label: 'Адское ядро',
+    emoji: '🔥',
+    color: '#ff4b1f',
+    description: 'Один выстрел: ядро втрое больше, топит с одного попадания',
+    apply: (ship) => {
+      ship.infernoShots = clamp(ship.infernoShots + 1, 0, INFERNO_MAX_CHARGES)
+    },
+  },
+  leviathan: {
+    type: 'leviathan',
+    label: 'Ярость Левиафана',
+    emoji: '🔱',
+    color: '#ff3df0',
+    description: 'Корабль крупнее, вдвое быстрее и стреляет вдвое чаще — 20 сек',
+    apply: (ship) => {
+      applyTemporaryEffect(ship, 'megaBoost', MEGA_DURATION, 1)
     },
   },
   disguise: {
@@ -195,3 +228,7 @@ export const PICKUP_DEFS: Record<PickupType, PickupDef> = {
 }
 
 export const PICKUP_TYPES: PickupType[] = Object.keys(PICKUP_DEFS) as PickupType[]
+
+/** Everything the ordinary spawner may roll. The Leviathan is excluded: it only ever appears
+ * on its own once-a-minute timer, so it stays an event rather than background loot. */
+export const RANDOM_PICKUP_TYPES: PickupType[] = PICKUP_TYPES.filter((t) => t !== 'leviathan')

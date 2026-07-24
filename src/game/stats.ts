@@ -13,7 +13,7 @@ export interface Stats {
 }
 
 export function buildStats(world: World, player: Ship): Stats {
-  const bots = world.ships.filter((t) => t.team === 'bot')
+  const bots = world.ships.filter((t) => t.team === 'bot' && !t.escortOf)
   return {
     hp: Math.round(player.hp),
     maxHp: Math.round(player.maxHp),

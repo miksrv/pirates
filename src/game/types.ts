@@ -23,6 +23,9 @@ export type PickupType =
   | 'shield'
   | 'carpenter'
   | 'disguise'
+  | 'leviathan'
+  | 'infernoShot'
+  | 'fleet'
 
 /** Timed buffs/debuffs layered on top of a ship's base stats — see src/game/effects.ts. */
 export type EffectType =
@@ -34,7 +37,11 @@ export type EffectType =
   | 'krakenJitter'
   | 'regen'
   | 'disguise'
+  /** Applied while a hull is over an island's shallow-water ring: halves speed. */
   | 'shallowWater'
+  /** The Leviathan's Fury mega-buff: bigger hull, double speed, double rate of fire.
+   * Its own type so ordinary speed/fire-rate pickups can't overwrite (and downgrade) it. */
+  | 'megaBoost'
 
 export interface ActiveEffect {
   type: EffectType
@@ -100,8 +107,14 @@ export interface Ship {
   ai: BotAI | null
   effects: ActiveEffect[]
   shieldCharges: number
+  /** Loaded Hellfire rounds: the next shot fired is an oversized, one-hit-kill cannonball. */
+  infernoShots: number
   /** Pre-match loadout choice; re-applied on respawn. */
   perk: PerkType | null
+  /** Escort ships only: the id of the captain they sail with. Null for a real captain. */
+  escortOf: string | null
+  /** Escort ships only: which wedge slot they hold behind their captain. */
+  escortSlot: number
 }
 
 export interface Bullet {
@@ -111,9 +124,13 @@ export interface Bullet {
   radius: number
   damage: number
   ownerId: string
+  /** Captain's id for a fleet's shots (escorts share their captain's), so a fleet can't shoot itself. */
+  ownerFleetId: string
   ownerTeam: Team
   ownerVariant: ShipVariant
   life: number
+  /** Hellfire round: drawn wreathed in flame, and lethal on contact. */
+  inferno: boolean
 }
 
 export type ObstacleKind = 'crate' | 'rock'
@@ -159,6 +176,7 @@ export type GameEvent =
   | { kind: 'playerJoined'; shipName: string }
   | { kind: 'playerLeft'; shipName: string }
   | { kind: 'damageNumber'; pos: Vec2; amount: number; targetName: string }
+  | { kind: 'megaSpawned'; pos: Vec2 }
 
 export interface World {
   width: number
@@ -170,6 +188,8 @@ export interface World {
   events: GameEvent[]
   time: number
   pickupSpawnTimer: number
+  /** Countdown to the next Leviathan's Fury spawn (see MEGA_SPAWN_INTERVAL). */
+  megaSpawnTimer: number
   /** Multiplayer arenas respawn sunk ships (stats reset to base); single-player leaves wrecks. */
   respawnEnabled: boolean
 }

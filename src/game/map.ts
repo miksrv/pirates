@@ -1,7 +1,8 @@
 import { nextId } from './id'
 import { generateIslandShape, islandShapeToCollisionCircles } from './islandShape'
-import { PICKUP_TYPES } from './pickupConfig'
-import type { Obstacle, ObstacleKind, ObstacleVariant, Pickup, World } from './types'
+import { MEGA_PICKUP_RADIUS } from './constants'
+import { RANDOM_PICKUP_TYPES } from './pickupConfig'
+import type { Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
 import { distance } from './vector'
 
 const SAFE_ZONE_RADIUS = 260
@@ -181,19 +182,33 @@ export function findFreeSpawnPoint(world: World, radius: number): { x: number; y
   return { x: world.width / 2, y: world.height / 2 }
 }
 
-export function spawnPickupAt(world: World, pos: { x: number; y: number }): void {
-  const type = PICKUP_TYPES[Math.floor(Math.random() * PICKUP_TYPES.length)]
+export function spawnPickupAt(world: World, pos: { x: number; y: number }, type?: PickupType): Pickup {
+  const chosen = type ?? RANDOM_PICKUP_TYPES[Math.floor(Math.random() * RANDOM_PICKUP_TYPES.length)]
   const pickup: Pickup = {
     id: nextId('pickup'),
     pos: { ...pos },
-    radius: 14,
-    type,
+    radius: chosen === 'leviathan' ? MEGA_PICKUP_RADIUS : 14,
+    type: chosen,
     pulse: Math.random() * Math.PI * 2,
   }
   world.pickups.push(pickup)
+  return pickup
 }
 
 export function spawnRandomPickup(world: World): void {
   const pos = findFreeSpawnPoint(world, 14)
   spawnPickupAt(world, pos)
+}
+
+/** Drops the Leviathan somewhere in open water — deliberately away from the map edges so
+ * reaching it is a real contest rather than a corner camp. */
+export function spawnLeviathan(world: World): Pickup {
+  const margin = 260
+  for (let i = 0; i < 30; i += 1) {
+    const pos = findFreeSpawnPoint(world, MEGA_PICKUP_RADIUS)
+    const inset =
+      pos.x > margin && pos.x < world.width - margin && pos.y > margin && pos.y < world.height - margin
+    if (inset) return spawnPickupAt(world, pos, 'leviathan')
+  }
+  return spawnPickupAt(world, findFreeSpawnPoint(world, MEGA_PICKUP_RADIUS), 'leviathan')
 }

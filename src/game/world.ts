@@ -8,17 +8,20 @@ import {
   BASE_SPEED,
   BOT_COUNT,
   ISLAND_COUNT,
+  MEGA_SPAWN_INTERVAL,
   PICKUP_INITIAL_COUNT,
   PICKUP_MAX_ON_MAP,
   PICKUP_SPAWN_INTERVAL,
   SCATTER_ROCK_COUNT,
+  SHIP_RADIUS,
   WORLD_H,
   WORLD_W,
 } from './constants'
-import { findFreeSpawnPoint, generateObstacles, spawnRandomPickup } from './map'
+import { findFreeSpawnPoint, generateObstacles, spawnLeviathan, spawnRandomPickup } from './map'
 import { PICKUP_DEFS } from './pickupConfig'
 import { createShip, PLAYER_VARIANTS } from './shipFactory'
 import { resolveShipCollisions, tryFireCannon, updateShipMovement } from './shipMovement'
+import { sameFleet, updateEscort } from './escort'
 import { applyPerk } from './perks'
 import type { PerkType, Pickup, PlayerInputs, Ship, World } from './types'
 import { circlesOverlap } from './physics'
@@ -46,6 +49,7 @@ export function createWorld(options: WorldOptions = {}): World {
     events: [],
     time: 0,
     pickupSpawnTimer: PICKUP_SPAWN_INTERVAL,
+    megaSpawnTimer: MEGA_SPAWN_INTERVAL,
     respawnEnabled: options.respawnEnabled ?? false,
   }
 
@@ -102,7 +106,9 @@ function respawnShip(world: World, ship: Ship): void {
   applyPerk(ship) // pickup upgrades are lost on death, the chosen loadout is not
   ship.cooldown = 0
   ship.effects = []
+  ship.radius = SHIP_RADIUS // in case they went down while empowered by the Leviathan
   ship.shieldCharges = 0
+  ship.infernoShots = 0
   ship.moveDir = { x: 0, y: 0 }
   ship.boost = 1
   ship.boosting = false
@@ -118,22 +124,43 @@ function respawnShip(world: World, ship: Ship): void {
   }
 }
 
+/** Breaks up an escort where it stands, with the same bang a cannonball kill produces.
+ * The wreck itself is swept from world.ships later in the same step. */
+function sinkEscort(world: World, escort: Ship): void {
+  if (!escort.alive) return
+  escort.hp = 0
+  escort.alive = false
+  world.events.push({ kind: 'impact', pos: { ...escort.pos }, lethal: true })
+}
+
 export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void {
   world.time += dt
   world.events = []
 
-  for (const ship of world.ships) {
+  /** Captains who got a shot away this step — their escorts answer with the same volley. */
+  const firedFleets = new Set<string>()
+
+  const stepShip = (ship: Ship): void => {
     if (!ship.alive) {
-      if (world.respawnEnabled) {
+      // Sunk escorts are cleared below instead of respawning — a lost fleet stays lost.
+      if (world.respawnEnabled && !ship.escortOf) {
         ship.respawnTimer -= dt
         if (ship.respawnTimer <= 0) respawnShip(world, ship)
       }
-      continue
+      return
     }
     ship.cooldown = Math.max(0, ship.cooldown - dt)
 
     let wantsToFire = false
-    if (ship.ai) {
+    if (ship.escortOf) {
+      const captain = world.ships.find((s) => s.id === ship.escortOf)
+      // Captain gone or sunk: the escort is disbanded in the sweep below, so just coast.
+      if (captain && captain.alive) {
+        updateEscort(ship, world, captain, dt)
+        // Escorts don't pick their own moments — they fire when their captain does.
+        wantsToFire = firedFleets.has(captain.id)
+      }
+    } else if (ship.ai) {
       wantsToFire = updateBotAI(ship, world, dt)
     } else {
       const input = inputs[ship.id]
@@ -148,13 +175,37 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
       }
     }
 
-    updateShipMovement(ship, dt, world)
+    const hitObstacle = updateShipMovement(ship, dt, world)
+    // Escorts are flimsy: running aground on an island or reef breaks one up.
+    if (hitObstacle && ship.escortOf) {
+      sinkEscort(world, ship)
+      return
+    }
 
     if (wantsToFire) {
       const shot = tryFireCannon(ship)
       if (shot) {
-        spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed)
+        spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed, shot.inferno)
         world.events.push({ kind: 'shot', pos: { ...ship.pos }, team: ship.team })
+        if (!ship.escortOf) firedFleets.add(ship.id)
+      }
+    }
+  }
+
+  // Captains first, then escorts: the volley flag has to be set before the fleet reads it,
+  // whatever order the ships happen to sit in the array.
+  for (const ship of world.ships) if (!ship.escortOf) stepShip(ship)
+  for (const ship of world.ships) if (ship.escortOf) stepShip(ship)
+
+  // Ramming: checked before the separation pass, while the overlap still exists. An escort
+  // that touches any hull outside its own fleet is destroyed by the impact.
+  for (const ship of world.ships) {
+    if (!ship.escortOf || !ship.alive) continue
+    for (const other of world.ships) {
+      if (!other.alive || other.id === ship.id || sameFleet(ship, other)) continue
+      if (circlesOverlap(ship.pos, ship.radius, other.pos, other.radius)) {
+        sinkEscort(world, ship)
+        break
       }
     }
   }
@@ -162,13 +213,21 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
   resolveShipCollisions(world)
   updateBullets(world, dt)
 
+  // Escorts leave no wrecks: drop the sunk ones, and disband any wedge whose captain has gone
+  // down or left the match.
+  if (world.ships.some((s) => s.escortOf)) {
+    const captains = new Set(world.ships.filter((s) => !s.escortOf && s.alive).map((s) => s.id))
+    world.ships = world.ships.filter((s) => !s.escortOf || (s.alive && captains.has(s.escortOf)))
+  }
+
   for (const pickup of world.pickups) pickup.pulse += dt * 4
 
   const remainingPickups: Pickup[] = []
   for (const pickup of world.pickups) {
     let collected = false
     for (const ship of world.ships) {
-      if (!ship.alive) continue
+      // Only captains collect: an escort hoovering up loot would quietly rob its own fleet.
+      if (!ship.alive || ship.escortOf) continue
       if (circlesOverlap(ship.pos, ship.radius, pickup.pos, pickup.radius)) {
         PICKUP_DEFS[pickup.type].apply(ship, world)
         world.events.push({ kind: 'pickup', pos: { ...pickup.pos }, pickupType: pickup.type, shipName: ship.name })
@@ -184,5 +243,16 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
   if (world.pickupSpawnTimer <= 0) {
     world.pickupSpawnTimer = PICKUP_SPAWN_INTERVAL
     if (world.pickups.length < PICKUP_MAX_ON_MAP) spawnRandomPickup(world)
+  }
+
+  // The Leviathan: one per minute, and never a second one while the first is still floating —
+  // the whole point is a single prize the whole map converges on.
+  world.megaSpawnTimer -= dt
+  if (world.megaSpawnTimer <= 0) {
+    world.megaSpawnTimer = MEGA_SPAWN_INTERVAL
+    if (!world.pickups.some((p) => p.type === 'leviathan')) {
+      const mega = spawnLeviathan(world)
+      world.events.push({ kind: 'megaSpawned', pos: { ...mega.pos } })
+    }
   }
 }

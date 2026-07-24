@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../game/stats'
-import type { PerkType } from '../game/types'
+import type { PerkType, PickupType } from '../game/types'
 import { defaultServerUrl } from '../net/config'
 import { MainScene, type LaunchConfig } from '../phaser/MainScene'
 import HUD from './HUD'
@@ -18,6 +18,10 @@ export default function PhaserGame() {
   const [started, setStarted] = useState(false)
   const [gameOver, setGameOver] = useState(false)
   const [netError, setNetError] = useState<string | null>(null)
+  const [megaAnnounce, setMegaAnnounce] = useState(false)
+  const megaTimerRef = useRef<number | undefined>(undefined)
+  const [mode, setMode] = useState<'local' | 'online' | null>(null)
+  const [adminOpen, setAdminOpen] = useState(false)
   const [stats, setStats] = useState<Stats | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
 
@@ -60,6 +64,11 @@ export default function PhaserGame() {
       scene.events.on('stats', (next: Stats) => setStats(next))
       scene.events.on('game-over', () => setGameOver(true))
       scene.events.on('net-error', (message: string) => setNetError(message))
+      scene.events.on('mega-announce', () => {
+        setMegaAnnounce(true)
+        window.clearTimeout(megaTimerRef.current)
+        megaTimerRef.current = window.setTimeout(() => setMegaAnnounce(false), 5000)
+      })
       scene.events.on('restarted', () => {
         setGameOver(false)
         setStats(null)
@@ -72,7 +81,31 @@ export default function PhaserGame() {
       })
     })
 
+    setMode(mode)
     setStarted(true)
+  }, [])
+
+  // iddqd: opens the debug panel, and only ever in single-player — an online match is run by
+  // the server, so handing yourself pickups there would be cheating rather than testing.
+  useEffect(() => {
+    if (mode !== 'local') return
+
+    let typed = ''
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key.length !== 1) return
+      typed = (typed + e.key.toLowerCase()).slice(-8)
+      if (typed.endsWith('iddqd')) {
+        typed = ''
+        setAdminOpen((open) => !open)
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [mode])
+
+  const handleAdminPickup = useCallback((type: PickupType) => {
+    sceneRef.current?.grantDebugPickup(type)
   }, [])
 
   const handleRestart = useCallback(() => {
@@ -81,6 +114,7 @@ export default function PhaserGame() {
 
   useEffect(() => {
     return () => {
+      window.clearTimeout(megaTimerRef.current)
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
@@ -93,6 +127,10 @@ export default function PhaserGame() {
         started={started}
         gameOver={gameOver}
         netError={netError}
+        megaAnnounce={megaAnnounce}
+        adminOpen={adminOpen}
+        onAdminPickup={handleAdminPickup}
+        onAdminClose={() => setAdminOpen(false)}
         stats={stats}
         log={log}
         onStart={handleStart}
