@@ -1,8 +1,8 @@
-import { nextId } from './id'
-import { applyPerk } from './perks'
-import type { PerkType, Ship, ShipVariant, Team } from './types'
-import type { Vec2 } from './vector'
-import { BASE_ARMOR, BASE_DAMAGE, BASE_FIRE_RATE, BASE_MAX_HP, BASE_SPEED, SHIP_RADIUS } from './constants'
+import { nextId } from '../id'
+import { applyPerk } from '../perks'
+import type { PerkType, Ship, ShipVariant, Team } from '../types'
+import type { Vec2 } from '../vector'
+import { BASE_ARMOR, BASE_DAMAGE, BASE_FIRE_RATE, BASE_MAX_HP, BASE_SPEED, SHIP_RADIUS } from '../constants'
 
 const BOT_NAMES = [
   'Чёрная Жемчужина',

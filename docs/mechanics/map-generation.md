@@ -1,6 +1,6 @@
 # Map Generation
 
-Code: `src/game/map.ts`, `src/game/islandShape.ts` · Render: `src/phaser/MainScene.ts` (`createIslandView`) · Tuning: `ISLAND_COUNT`, `SCATTER_ROCK_COUNT` in `src/game/constants.ts`
+Code: `shared/game/map.ts`, `shared/game/islandShape.ts` · Render: `client/src/phaser/views/obstacleView.ts` (`createIslandView`) · Tuning: `ISLAND_COUNT`, `SCATTER_ROCK_COUNT` in `shared/game/constants.ts`
 
 ## World
 - No tile grid — continuous coordinates over one big water `TileSprite` (`tile_water`, `GROUND_TILE_KEY`).

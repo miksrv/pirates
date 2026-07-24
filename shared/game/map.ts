@@ -1,7 +1,7 @@
 import { nextId } from './id'
 import { generateIslandShape, islandShapeToCollisionCircles } from './islandShape'
 import { MEGA_PICKUP_RADIUS } from './constants'
-import { RANDOM_PICKUP_TYPES } from './pickupConfig'
+import { RANDOM_PICKUP_TYPES } from './pickups'
 import type { Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
 import { distance } from './vector'
 

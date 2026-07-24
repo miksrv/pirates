@@ -1,6 +1,6 @@
 # Boosts (pickups)
 
-Source: `src/game/pickupConfig.ts` · Spawning: ≤18 on map, +1 every ~2.33s, 11 at start; destroyed crates drop one with 45% chance. Bots collect them too (skip repair kits at full HP). Measured steady state with 5 bots: ~11.7 on map, ~23 spawned/min.
+Source: `shared/game/pickups/` (`permanentStats.ts`, `boosts.ts`, `special.ts`) · Spawning: ≤18 on map, +1 every ~2.33s, 11 at start; destroyed crates drop one with 45% chance. Bots collect them too (skip repair kits at full HP). Measured steady state with 5 bots: ~11.7 on map, ~23 spawned/min.
 
 ## 🔱 Ярость Левиафана (mega, timed event)
 - Spawns **once a minute** in open water, announced with an on-screen banner + event-log line, and marked by a pulsing blip on the minimap.
@@ -24,7 +24,7 @@ Source: `src/game/pickupConfig.ts` · Spawning: ≤18 on map, +1 every ~2.33s, 1
 - Only counter: 🛡️ Капитанский щит blocks it. Lost on respawn; bots use it too.
 
 ## 💣 Бомбы (mines)
-- Source: `src/game/bombs.ts`. On pickup, queues 3 mines; one drops astern every 1s (so all 3 are down ~3s after pickup).
+- Source: `shared/game/bombs.ts`. On pickup, queues 3 mines; one drops astern every 1s (so all 3 are down ~3s after pickup).
 - Each mine is dropped just behind the ship's current heading and then sits still — no timer, no fuse, lasts for the rest of the round or until something sets it off.
 - **Any hull** that touches a mine detonates it for 35 damage (direct contact only, no splash) — including the ship that laid it, and including other mines' owners. Shield charges block it like any other hit.
 - Bots collect and lay this pickup the same as players; they don't specifically avoid mines lying on the water.

@@ -19,9 +19,10 @@ import {
   WORLD_W,
 } from './constants'
 import { findFreeSpawnPoint, generateObstacles, spawnLeviathan, spawnRandomPickup } from './map'
-import { PICKUP_DEFS } from './pickupConfig'
-import { createShip, PLAYER_VARIANTS } from './shipFactory'
-import { resolveShipCollisions, tryFireCannon, updateShipMovement } from './shipMovement'
+import { PICKUP_DEFS } from './pickups'
+import { createShip, PLAYER_VARIANTS } from './ship/shipFactory'
+import { tryFireCannon } from './ship/cannon'
+import { resolveShipCollisions, updateShipMovement } from './ship/shipMovement'
 import { sameFleet, updateEscort } from './escort'
 import { applyPerk } from './perks'
 import type { PerkType, Pickup, PlayerInputs, Ship, World } from './types'

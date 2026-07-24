@@ -1,6 +1,6 @@
-import type { GameEvent, PerkType, PlayerInput, World } from '../game/types'
-import { angleDiff } from '../game/vector'
-import { wireToWorld, type ClientMsg, type ServerMsg, type SnapshotMsg } from './protocol'
+import type { GameEvent, PerkType, PlayerInput, World } from '../../../shared/game/types'
+import { angleDiff } from '../../../shared/game/vector'
+import { wireToWorld, type ClientMsg, type ServerMsg, type SnapshotMsg } from '../../../shared/net/protocol'
 
 /** How far in the past remote state is rendered — buys one snapshot of jitter headroom. */
 const INTERP_DELAY_MS = 120

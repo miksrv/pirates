@@ -1,5 +1,5 @@
-import type { ActiveEffect, EffectType, Ship } from './types'
-import { clamp } from './vector'
+import type { ActiveEffect, EffectType, Ship } from '../types'
+import { clamp } from '../vector'
 
 /** Adds a timed buff, or refreshes an existing one of the same type instead of stacking it. */
 export function applyTemporaryEffect(ship: Ship, type: EffectType, duration: number, magnitude: number): void {

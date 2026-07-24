@@ -1,19 +1,10 @@
-import {
-  BOOST_DRAIN_TIME,
-  BOOST_RECOVER_TIME,
-  BOOST_SPEED_MULT,
-  BULLET_SPEED,
-  ESCORT_RADIUS,
-  INFERNO_DAMAGE,
-  MEGA_FIRE_RATE_MULT,
-  MEGA_SIZE_MULT,
-  MEGA_SPEED_MULT,
-  SHIP_RADIUS,
-} from './constants'
-import { decayEffects, getEffectMagnitude, hasEffect } from './effects'
-import { resolveObstacle } from './physics'
-import type { Ship, World } from './types'
-import { angleOf, clamp, length, moveAngleTowards } from './vector'
+import { updateBoostMeter } from '../boosts/boostMeter'
+import { decayEffects, getEffectMagnitude, hasEffect } from '../boosts/effects'
+import { BOOST_SPEED_MULT, ESCORT_RADIUS, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHIP_RADIUS } from '../constants'
+import { resolveObstacle } from '../physics'
+import type { Ship, World } from '../types'
+import { angleOf, clamp, length, moveAngleTowards } from '../vector'
+import { isInShallowWater } from './shallowWater'
 
 const TURN_SPEED = Math.PI * 6 // radians/sec for body rotation
 const SHIP_SHIP_PUSH = 0.5
@@ -37,11 +28,7 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   const jitter = getEffectMagnitude(ship, 'krakenJitter', 0)
 
   const moveLen = length(ship.moveDir)
-
-  // Boost only burns while actually underway; the meter refills any time it isn't burning.
-  const boostActive = ship.boosting && ship.boost > 0 && moveLen > 0.01
-  if (boostActive) ship.boost = Math.max(0, ship.boost - dt / BOOST_DRAIN_TIME)
-  else ship.boost = Math.min(1, ship.boost + dt / BOOST_RECOVER_TIME)
+  const boostActive = updateBoostMeter(ship, dt, moveLen)
 
   if (moveLen > 0.01) {
     let effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
@@ -63,42 +50,9 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   ship.pos.x = clamp(ship.pos.x, ship.radius, world.width - ship.radius)
   ship.pos.y = clamp(ship.pos.y, ship.radius, world.height - ship.radius)
 
-  // Check for shallow water effect on obstacles
-  let inShallowWater = false;
-  for (const obstacle of world.obstacles) {
-    if (obstacle.variant === 'island' && obstacle.islandShape) {
-      const sandRadius = obstacle.w / 2;
-
-      // Use the same approach as the renderer to determine if ship is in shallow water area
-      const dx = ship.pos.x - obstacle.pos.x;
-      const dy = ship.pos.y - obstacle.pos.y;
-      const distanceFromCenter = Math.sqrt(dx * dx + dy * dy);
-
-      // The shallow water area is a ring around the island (defined as 30% further than sand radius)
-      const shallowWaterRadius = sandRadius * 2;
-
-      // We're in shallow water if we're between sand radius and shallow water radius
-      if (distanceFromCenter < shallowWaterRadius && distanceFromCenter > sandRadius) {
-        inShallowWater = true;
-        break;
-      }
-
-      // More precise check: if ship is close to the edge of shallow water area (within 20% of sand/shallow radius)
-      if (distanceFromCenter <= shallowWaterRadius * 1.1) {
-        const distanceToShallowEdge = Math.abs(distanceFromCenter - shallowWaterRadius);
-        const distanceToSandEdge = Math.abs(distanceFromCenter - sandRadius);
-
-        // If we're within a reasonable distance of either edge, consider it shallow water
-        if (distanceToShallowEdge < sandRadius * 0.2 || distanceToSandEdge < sandRadius * 0.2) {
-          inShallowWater = true;
-          break;
-        }
-      }
-    }
-  }
-
   // Update shallow water effect on the ship
-  const shallowWaterEffectIndex = ship.effects.findIndex(e => e.type === 'shallowWater')
+  const inShallowWater = isInShallowWater(ship, world)
+  const shallowWaterEffectIndex = ship.effects.findIndex((e) => e.type === 'shallowWater')
   if (inShallowWater && shallowWaterEffectIndex === -1) {
     // Add shallow water effect that reduces speed by 50%
     ship.effects.push({ type: 'shallowWater', remaining: Infinity, magnitude: SHALLOW_WATER_SPEED_MULT })
@@ -139,28 +93,5 @@ export function resolveShipCollisions(world: World): void {
         b.pos.y += ny * overlap
       }
     }
-  }
-}
-
-export function tryFireCannon(
-  ship: Ship,
-): { angle: number; damage: number; bulletSpeed: number; inferno: boolean } | null {
-  if (ship.cooldown > 0) return null
-
-  // A loaded Hellfire round goes out instead of the normal shot and is spent doing so.
-  const inferno = ship.infernoShots > 0
-  if (inferno) ship.infernoShots -= 1
-
-  const fireRateMult =
-    getEffectMagnitude(ship, 'fireRateBoost', 1) * (hasEffect(ship, 'megaBoost') ? MEGA_FIRE_RATE_MULT : 1)
-  const damageMult = getEffectMagnitude(ship, 'damageBoost', 1)
-  const bulletSpeedMult = getEffectMagnitude(ship, 'bulletSpeedBoost', 1)
-
-  ship.cooldown = 1 / (ship.fireRate * fireRateMult)
-  return {
-    angle: ship.cannonAngle,
-    damage: inferno ? INFERNO_DAMAGE : ship.damage * damageMult,
-    bulletSpeed: BULLET_SPEED * bulletSpeedMult,
-    inferno,
   }
 }

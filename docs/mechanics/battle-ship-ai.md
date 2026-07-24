@@ -1,6 +1,6 @@
 # Battle Ship AI (bots)
 
-Code: `src/game/ai.ts` · Tuning: `BOT_*` in `src/game/constants.ts`
+Code: `shared/game/ai/` (`index.ts` state machine, `targeting.ts`, `threats.ts`) · Tuning: `BOT_*` in `shared/game/constants.ts`
 
 ## States
 - **Patrol** — no enemy within sight (460px). Wanders between waypoints, detours for pickups within 300px (skips repair pickups at full HP).

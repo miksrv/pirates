@@ -16,7 +16,7 @@ import {
   ESCORT_TURN_RATE,
 } from './constants'
 import { obstacleOverlap } from './physics'
-import { createShip } from './shipFactory'
+import { createShip } from './ship/shipFactory'
 import { obstacleAvoidance } from './steering'
 import type { Ship, World } from './types'
 import { angleOf, distance, fromAngle, length, moveAngleTowards, normalize, scale, sub, type Vec2 } from './vector'

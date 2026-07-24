@@ -1,6 +1,6 @@
 # Perks (pre-match loadout)
 
-Source: `src/game/perks.ts` · Chosen on the "Выберите перк" screen after picking Играть / Multi Player.
+Source: `shared/game/perks.ts` · Chosen on the "Выберите перк" screen after picking Играть / Multi Player.
 
 - ⛵ **Быстрые паруса** — +25% speed (187.5 → 234)
 - ⏱️ **Скорая перезарядка** — +25% reload speed (3s → 2.4s)
