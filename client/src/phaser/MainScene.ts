@@ -137,7 +137,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private connectOnline(url: string, nickname?: string): void {
-    this.net = new NetClient(url, this.botCount, nickname, this.perk)
+    this.net = new NetClient(url, nickname, this.perk)
     this.net.onReady = () => {
       const net = this.net!
       this.clearViews()
