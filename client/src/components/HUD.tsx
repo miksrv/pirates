@@ -4,8 +4,11 @@ import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
+import { fetchServerStatus, type ServerStatus } from '../net/status'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
+
+const SERVER_STATUS_POLL_MS = 5000
 
 interface HUDProps {
   started: boolean
@@ -68,6 +71,33 @@ export default function HUD({
     const saved = localStorage.getItem(PERK_LS_KEY)
     return isPerkType(saved) ? saved : 'swiftSails'
   })
+  const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null)
+  const [serverUnreachable, setServerUnreachable] = useState(false)
+
+  // Polled only while the mode-select screen is up — no point pinging the server mid-match.
+  useEffect(() => {
+    if (started) return
+    let cancelled = false
+    const poll = () => {
+      fetchServerStatus()
+        .then((status) => {
+          if (cancelled) return
+          setServerStatus(status)
+          setServerUnreachable(false)
+        })
+        .catch(() => {
+          if (cancelled) return
+          setServerStatus(null)
+          setServerUnreachable(true)
+        })
+    }
+    poll()
+    const id = window.setInterval(poll, SERVER_STATUS_POLL_MS)
+    return () => {
+      cancelled = true
+      window.clearInterval(id)
+    }
+  }, [started])
 
   const handleNickname = (value: string) => {
     setNickname(value)
@@ -140,7 +170,7 @@ export default function HUD({
             <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
           </ul>
           <div className="menu-setting">
-            <label htmlFor="bot-count">Ботов: <b>{botCount}</b></label>
+            <label htmlFor="bot-count">Ботов (одиночная игра): <b>{botCount}</b></label>
             <input
               id="bot-count"
               type="range"
@@ -162,9 +192,24 @@ export default function HUD({
               onChange={(e) => handleNickname(e.target.value)}
             />
           </div>
+          <p className={`server-status${serverUnreachable ? ' server-status-offline' : ''}${serverStatus?.full ? ' server-status-full' : ''}`}>
+            {serverUnreachable && 'Сервер недоступен'}
+            {!serverUnreachable && !serverStatus && 'Проверка сервера...'}
+            {!serverUnreachable && serverStatus && (
+              serverStatus.full
+                ? `Сервер полон (${serverStatus.players}/${serverStatus.maxPlayers})`
+                : `Сервер: ${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots}`
+            )}
+          </p>
           <div className="menu-buttons">
             <button className="primary-btn" onClick={() => setPendingMode('local')}>Играть</button>
-            <button className="secondary-btn" onClick={() => setPendingMode('online')}>Multi Player</button>
+            <button
+              className="secondary-btn"
+              disabled={serverStatus?.full}
+              onClick={() => setPendingMode('online')}
+            >
+              Multi Player
+            </button>
           </div>
         </div>
       </div>

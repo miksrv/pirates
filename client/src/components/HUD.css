@@ -71,6 +71,31 @@
   transform: translateY(-1px);
 }
 
+.secondary-btn:disabled {
+  color: #5a6478;
+  border-color: #3a4256;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.secondary-btn:disabled:hover {
+  background: transparent;
+}
+
+.server-status {
+  font-size: 13px;
+  color: #9aa5b8;
+  margin: -6px 0 20px;
+}
+
+.server-status-full {
+  color: #ffb15f;
+}
+
+.server-status-offline {
+  color: #e08a8a;
+}
+
 .menu-buttons {
   display: flex;
   gap: 12px;
