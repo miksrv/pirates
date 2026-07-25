@@ -1,6 +1,14 @@
 import type { GameEvent, PerkType, PlayerInput, World } from '../../../shared/game/types'
 import { angleDiff } from '../../../shared/game/vector'
-import { wireToWorld, type ClientMsg, type ServerMsg, type SnapshotMsg } from '../../../shared/net/protocol'
+import {
+  wireToWorld,
+  type ClientMsg,
+  type LeaderboardEntry,
+  type RoundStatus,
+  type ServerMsg,
+  type SnapshotMsg,
+} from '../../../shared/net/protocol'
+import { getPlayerId } from './playerId'
 
 /** How far in the past remote state is rendered — buys one snapshot of jitter headroom. */
 const INTERP_DELAY_MS = 120
@@ -46,13 +54,16 @@ export class NetClient {
 
   world: World | null = null
   shipId = ''
+  /** Server-authoritative round clock + per-ship kill table; null until the first snapshot arrives. */
+  round: RoundStatus | null = null
+  leaderboard: LeaderboardEntry[] = []
 
   onReady: (() => void) | null = null
   onError: ((message: string) => void) | null = null
 
   constructor(url: string, name?: string, perk?: PerkType | null) {
     this.ws = new WebSocket(url)
-    this.ws.onopen = () => this.send({ type: 'join', name, perk })
+    this.ws.onopen = () => this.send({ type: 'join', name, perk, playerId: getPlayerId() })
     this.ws.onmessage = (ev) => {
       try {
         this.handleMessage(JSON.parse(String(ev.data)) as ServerMsg)
@@ -89,6 +100,8 @@ export class NetClient {
       this.snapshots.push({ at: performance.now(), snap: msg })
       if (this.snapshots.length > SNAPSHOT_BUFFER_LIMIT) this.snapshots.shift()
       this.pendingEvents.push(...msg.events)
+      this.round = msg.round
+      this.leaderboard = msg.leaderboard
     } else {
       this.fail(msg.message)
     }

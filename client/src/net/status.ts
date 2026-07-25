@@ -1,10 +1,25 @@
 import { defaultServerUrl } from './config'
 
+export interface TopPlayerEntry {
+  playerId: string
+  name: string
+  kills: number
+  deaths: number
+  wins: number
+  losses: number
+  /** 0..1 share of shots fired that connected. */
+  accuracy: number
+  playTimeSeconds: number
+  /** ISO timestamp of this player's last activity. */
+  updatedAt: string
+}
+
 export interface ServerStatus {
   players: number
   maxPlayers: number
   bots: number
   full: boolean
+  leaderboard: TopPlayerEntry[]
 }
 
 /** The status endpoint is served over plain HTTP(S) on the same host/port as the WebSocket. */
