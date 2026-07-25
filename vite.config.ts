@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   root: 'client',
-  base: '/pirates/',
+  base: '/',
   plugins: [react()],
   build: {
     outDir: '../dist',

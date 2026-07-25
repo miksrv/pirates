@@ -74,3 +74,8 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 - `docs/mechanics/` holds the rules and mechanics of the game — one short `.md` file per game area (e.g. `battle-ship-ai.md`).
 - ALWAYS update the matching file in `docs/mechanics/` when changing core mechanics or rules; add a new file when a new area appears.
 - Keep these docs concise and skimmable: short bullets, numbers over prose. Humans must read fast and understand quick — never write lengthy texts there.
+
+## 7. End-of-task doc check
+
+- After finishing a task (reworking something, adding a feature, changing behavior), explicitly decide whether any `.md` docs need updating (`docs/mechanics/`, `README.md`, etc.) — don't just silently skip this step.
+- If yes, update them as part of the task. If no, say briefly why not.
