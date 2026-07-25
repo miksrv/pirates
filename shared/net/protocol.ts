@@ -24,8 +24,6 @@ export interface WireWorld {
 
 export interface JoinMsg {
   type: 'join'
-  /** Used only when this join creates the arena (first player in). */
-  botCount: number
   /** Desired ship name; server sanitizes and falls back to "Игрок N". */
   name?: string
   /** Chosen loadout perk; server validates against PERK_DEFS. */

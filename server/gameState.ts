@@ -1,12 +1,15 @@
 import type { WebSocket } from 'ws'
 import { BOT_COUNT, MAX_BOT_COUNT } from '../shared/game/constants'
+import { findFreeSpawnPoint } from '../shared/game/map'
+import { createShip } from '../shared/game/ship/shipFactory'
 import type { GameEvent, PlayerInput, PlayerInputs, World } from '../shared/game/types'
-import { createWorld, stepWorld } from '../shared/game/world'
+import { createWorld, removeShip, stepWorld } from '../shared/game/world'
 import { shipToWire, type ServerMsg, type SnapshotMsg } from '../shared/net/protocol'
 
 const TICK_RATE = 30
 const SNAPSHOT_EVERY = 2 // broadcast at 15Hz
-export const MAX_PLAYERS = 8
+/** Total ship slots per arena (humans + bots); humans always get priority over bots. */
+export const MAX_PLAYERS = 10
 
 export interface Client {
   socket: WebSocket
@@ -89,21 +92,60 @@ export function stopLoopAndReset(): void {
   pendingEvents = []
 }
 
-/** Multiplayer arenas always get bots: the BOTS env var wins (may be 0 for pure PvP), else the
- * first joiner's request when it's ≥1, else the default — a 0/garbage request never empties the map. */
-function resolveBotCount(requested: number): number {
+/** Bot baseline for a fresh arena: the BOTS env var wins (may be 0 for pure PvP), else BOT_COUNT. */
+function baselineBotCount(): number {
   const env = Number(process.env.BOTS)
   if (Number.isFinite(env)) return Math.max(0, Math.min(MAX_BOT_COUNT, Math.floor(env)))
-  const n = Math.floor(requested)
-  if (!Number.isFinite(n) || n < 1) return BOT_COUNT
-  return Math.min(MAX_BOT_COUNT, n)
+  return BOT_COUNT
+}
+
+/** Bots make way for humans: as players join past MAX_PLAYERS - baseline, bots leave one by one
+ * so players + bots never exceeds MAX_PLAYERS; they return if players leave again. */
+function desiredBotCount(playerCount: number): number {
+  return Math.max(0, Math.min(baselineBotCount(), MAX_PLAYERS - playerCount))
 }
 
 /** Returns the running arena, creating one (and starting its tick loop) on the first join. */
-export function ensureWorld(requestedBotCount: number): World {
+export function ensureWorld(): World {
   if (!world) {
-    world = createWorld({ botCount: resolveBotCount(requestedBotCount), withPlayer: false, respawnEnabled: true })
+    world = createWorld({ botCount: baselineBotCount(), withPlayer: false, respawnEnabled: true })
     startLoop()
   }
   return world
+}
+
+/** Adds/removes bot ships so the live bot count matches `desiredBotCount(clients.size)`.
+ * Call after every join/leave. Escorts don't count as bots and aren't touched directly —
+ * removing their captain sweeps them too (see the escort cleanup in stepWorld). */
+export function syncBotCount(): void {
+  if (!world) return
+  const desired = desiredBotCount(clients.size)
+  const bots = world.ships.filter((s) => s.team === 'bot' && !s.escortOf)
+  if (bots.length > desired) {
+    for (const bot of bots.slice(0, bots.length - desired)) removeShip(world, bot.id)
+  } else {
+    for (let i = bots.length; i < desired; i += 1) {
+      world.ships.push(createShip('bot', findFreeSpawnPoint(world, 40), i))
+    }
+  }
+}
+
+export interface ServerStatus {
+  players: number
+  maxPlayers: number
+  bots: number
+  full: boolean
+}
+
+/** Public server status for the client's server-select screen — no auth, read-only counts. */
+export function getStatus(): ServerStatus {
+  // No arena yet (nobody's joined): report the baseline that will spawn on the first join,
+  // rather than 0 — the "always 5 bots" promise should hold even for an idle server.
+  const bots = world ? world.ships.filter((s) => s.team === 'bot' && !s.escortOf).length : baselineBotCount()
+  return {
+    players: clients.size,
+    maxPlayers: MAX_PLAYERS,
+    bots,
+    full: clients.size >= MAX_PLAYERS,
+  }
 }

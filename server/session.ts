@@ -2,7 +2,7 @@ import type { WebSocket } from 'ws'
 import type { PerkType, PlayerInput } from '../shared/game/types'
 import { addPlayerShip } from '../shared/game/world'
 import { worldToWire } from '../shared/net/protocol'
-import { MAX_PLAYERS, clients, ensureWorld, idleInput, nextJoinIndex, pushEvent, sendTo } from './gameState'
+import { MAX_PLAYERS, clients, ensureWorld, idleInput, nextJoinIndex, pushEvent, sendTo, syncBotCount } from './gameState'
 
 /** Clamps every number a client can send us — never trust remote floats. */
 export function sanitizeInput(raw: unknown): PlayerInput {
@@ -26,16 +26,17 @@ export function sanitizeName(raw: unknown): string | undefined {
   return name.length > 0 ? name : undefined
 }
 
-export function handleJoin(socket: WebSocket, botCount: number, name?: string, perk?: PerkType | null): void {
+export function handleJoin(socket: WebSocket, name?: string, perk?: PerkType | null): void {
   if (clients.size >= MAX_PLAYERS) {
     sendTo(socket, { type: 'error', message: 'Арена заполнена, попробуйте позже' })
     socket.close()
     return
   }
 
-  const world = ensureWorld(botCount)
+  const world = ensureWorld()
   const ship = addPlayerShip(world, nextJoinIndex(), name, perk)
   clients.set(socket, { socket, shipId: ship.id, shipName: ship.name, input: idleInput() })
+  syncBotCount()
   sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world) })
   pushEvent({ kind: 'playerJoined', shipName: ship.name })
   console.log(`[join] ${ship.name} (${ship.id}); players: ${clients.size}`)
