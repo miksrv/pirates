@@ -96,6 +96,64 @@
   color: #e08a8a;
 }
 
+.leaderboard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  margin: 4px 0 4px;
+}
+
+.leaderboard-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  background: #0f131c;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  color: #e8ecf1;
+  font-size: 13px;
+}
+
+.leaderboard-row-dead {
+  color: #5a6478;
+  opacity: 0.7;
+}
+
+.leaderboard-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leaderboard-kills {
+  white-space: nowrap;
+  color: #ffb15f;
+  font-weight: 700;
+}
+
+.top-players {
+  margin: 4px 0 20px;
+  text-align: left;
+}
+
+.top-players-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #9aa5b8;
+  margin: 0 0 8px;
+}
+
+.leaderboard-rank {
+  display: inline-block;
+  min-width: 22px;
+  color: #5fd0ff;
+  font-weight: 700;
+}
+
 .menu-buttons {
   display: flex;
   gap: 12px;

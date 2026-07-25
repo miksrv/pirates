@@ -4,11 +4,17 @@ import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
+import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
 
 const SERVER_STATUS_POLL_MS = 5000
+
+function formatLastSeen(iso: string): string {
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleString()
+}
 
 interface HUDProps {
   started: boolean
@@ -21,8 +27,19 @@ interface HUDProps {
   onAdminClose: () => void
   stats: Stats | null
   log: LogEntry[]
+  /** Server-authoritative round clock — null in single-player, where there's no round concept. */
+  roundStatus: RoundStatus | null
+  leaderboard: LeaderboardEntry[]
   onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => void
   onRestart: () => void
+}
+
+/** mm:ss, rounded up so it counts down to 0 instead of skipping past it. */
+function formatRoundTime(seconds: number): string {
+  const total = Math.max(0, Math.ceil(seconds))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 const NICKNAME_LS_KEY = 'pirates.nickname'
@@ -60,6 +77,8 @@ export default function HUD({
   onAdminClose,
   stats,
   log,
+  roundStatus,
+  leaderboard,
   onStart,
   onRestart,
 }: HUDProps) {
@@ -211,6 +230,27 @@ export default function HUD({
               Multi Player
             </button>
           </div>
+
+          {serverStatus && serverStatus.leaderboard.length > 0 && (
+            <div className="top-players">
+              <div className="top-players-title">🏆 Топ-10 игроков</div>
+              <div className="leaderboard">
+                {serverStatus.leaderboard.map((entry, i) => (
+                  <div key={entry.playerId} className="leaderboard-row">
+                    <span className="leaderboard-name">
+                      <span className="leaderboard-rank">#{i + 1}</span> {entry.name}
+                    </span>
+                    <span
+                      className="leaderboard-kills"
+                      title={`Побед: ${entry.wins} · Поражений: ${entry.losses} · Точность: ${Math.round(entry.accuracy * 100)}% · Последний вход: ${formatLastSeen(entry.updatedAt)}`}
+                    >
+                      💀 {entry.kills}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -249,6 +289,9 @@ export default function HUD({
         </div>
         <div className="hud-badge">Убийства: {stats.kills}</div>
         <div className="hud-badge">Кораблей на плаву: {stats.botsAlive} / {stats.botsTotal}</div>
+        {roundStatus && roundStatus.phase === 'playing' && (
+          <div className="hud-badge">⏱ {formatRoundTime(roundStatus.timeRemaining)}</div>
+        )}
       </div>
 
       <div className="hud-stats">
@@ -299,6 +342,29 @@ export default function HUD({
         className="minimap-frame"
         style={{ width: MINIMAP_W, height: MINIMAP_H, right: MINIMAP_MARGIN, bottom: MINIMAP_MARGIN }}
       />
+
+      {roundStatus && roundStatus.phase === 'ended' && (
+        <div className="overlay">
+          <div className="panel">
+            <h1>Раунд завершён</h1>
+            <p className="subtitle">Новый раунд через {Math.ceil(roundStatus.timeRemaining)} с</p>
+            <div className="leaderboard">
+              {leaderboard.map((entry) => (
+                <div
+                  key={entry.shipId}
+                  className={`leaderboard-row${entry.alive ? '' : ' leaderboard-row-dead'}`}
+                >
+                  <span className="leaderboard-name">
+                    {entry.team === 'bot' ? '🤖 ' : '⚓ '}
+                    {entry.name}
+                  </span>
+                  <span className="leaderboard-kills">💀 {entry.kills} · ⚰️ {entry.deaths}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

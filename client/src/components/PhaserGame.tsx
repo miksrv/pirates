@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
+import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
 import { defaultServerUrl } from '../net/config'
 import { MainScene, type LaunchConfig } from '../phaser/MainScene'
 import HUD from './HUD'
@@ -24,6 +25,8 @@ export default function PhaserGame() {
   const [adminOpen, setAdminOpen] = useState(false)
   const [stats, setStats] = useState<Stats | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
+  const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null)
+  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
 
   const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => {
     if (gameRef.current) return
@@ -73,11 +76,17 @@ export default function PhaserGame() {
         setGameOver(false)
         setStats(null)
         setLog([])
+        setRoundStatus(null)
+        setLeaderboard([])
       })
       scene.events.on('log', (entry: { text: string; kind: LogEntryKind }) => {
         logIdRef.current += 1
         const id = logIdRef.current
         setLog((prev) => [...prev.slice(-(LOG_LIMIT - 1)), { id, ...entry }])
+      })
+      scene.events.on('round-status', ({ round, leaderboard }: { round: RoundStatus; leaderboard: LeaderboardEntry[] }) => {
+        setRoundStatus(round)
+        setLeaderboard(leaderboard)
       })
     })
 
@@ -133,6 +142,8 @@ export default function PhaserGame() {
         onAdminClose={() => setAdminOpen(false)}
         stats={stats}
         log={log}
+        roundStatus={roundStatus}
+        leaderboard={leaderboard}
         onStart={handleStart}
         onRestart={handleRestart}
       />
