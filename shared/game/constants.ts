@@ -123,3 +123,7 @@ export const BOMB_DROP_COUNT = 3 // mines laid per pickup
 export const BOMB_DROP_INTERVAL = 1 // seconds between each drop
 export const BOMB_RADIUS = 12
 export const BOMB_DAMAGE = 35 // a hefty direct-contact hit, no splash
+
+// --- Rounds: multiplayer arenas run on a timer, then auto-reset ----------------------------
+export const ROUND_DURATION = 240 // seconds (4 min) per round
+export const ROUND_RESTART_DELAY = 15 // seconds of "round over" countdown before the arena resets

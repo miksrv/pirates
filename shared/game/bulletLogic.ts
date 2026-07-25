@@ -85,6 +85,8 @@ export function updateBullets(world: World, dt: number): void {
 
       consumed = true
       const wasAlive = ship.alive
+      const owner = world.ships.find((s) => s.id === bullet.ownerId)
+      if (owner && !owner.escortOf) owner.hits += 1
       applyDamage(world, ship, bullet.damage, bullet.ownerId)
       world.events.push({ kind: 'impact', pos: { ...bullet.pos }, lethal: wasAlive && !ship.alive })
       break
@@ -122,6 +124,7 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
     // Escorts are fodder: sinking one scores nothing and stays out of the kill feed, which a
     // five-strong wedge would otherwise flood.
     if (!ship.escortOf) {
+      ship.deaths += 1
       if (attacker) attacker.kills += 1
       world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
     }

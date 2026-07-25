@@ -192,7 +192,10 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
       if (shot) {
         spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed, shot.inferno)
         world.events.push({ kind: 'shot', pos: { ...ship.pos }, team: ship.team })
-        if (!ship.escortOf) firedFleets.add(ship.id)
+        if (!ship.escortOf) {
+          firedFleets.add(ship.id)
+          ship.shotsFired += 1
+        }
       }
     }
   }

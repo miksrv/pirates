@@ -1,5 +1,5 @@
 import { MEGA_SPAWN_INTERVAL, PICKUP_SPAWN_INTERVAL } from '../game/constants'
-import type { Bomb, Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, World } from '../game/types'
+import type { Bomb, Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, Team, World } from '../game/types'
 
 /**
  * Wire format shared by the WebSocket server and the browser client. Everything is plain JSON;
@@ -28,6 +28,8 @@ export interface JoinMsg {
   name?: string
   /** Chosen loadout perk; server validates against PERK_DEFS. */
   perk?: PerkType | null
+  /** Persistent client-generated id (localStorage) — the stats DB key, since names can collide. */
+  playerId?: string
 }
 
 export interface InputMsg {
@@ -43,6 +45,24 @@ export interface WelcomeMsg {
   world: WireWorld
 }
 
+export type RoundPhase = 'playing' | 'ended'
+
+export interface RoundStatus {
+  phase: RoundPhase
+  /** Seconds left in the current phase: round countdown while 'playing', restart countdown while 'ended'. */
+  timeRemaining: number
+}
+
+/** One row per captain (player or bot) — escorts don't get their own row. */
+export interface LeaderboardEntry {
+  shipId: string
+  name: string
+  team: Team
+  kills: number
+  deaths: number
+  alive: boolean
+}
+
 export interface SnapshotMsg {
   type: 'snapshot'
   time: number
@@ -53,6 +73,8 @@ export interface SnapshotMsg {
   /** Surviving destructible obstacles; a destructible absent from this list was destroyed. */
   obstacles: { id: string; hp: number }[]
   events: GameEvent[]
+  round: RoundStatus
+  leaderboard: LeaderboardEntry[]
 }
 
 export interface ErrorMsg {

@@ -77,6 +77,10 @@ export interface Ship {
   cooldown: number
   alive: boolean
   kills: number
+  deaths: number
+  /** Cannon shots fired and of those, how many connected with a ship — for accuracy tracking. */
+  shotsFired: number
+  hits: number
   respawnTimer: number
   /** Boost meter, 0..1: drains while boosting, refills while not. */
   boost: number
