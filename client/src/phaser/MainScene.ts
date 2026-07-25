@@ -244,9 +244,12 @@ export class MainScene extends Phaser.Scene {
     }
 
     this.statsAccum -= dt
-    if (this.statsAccum <= 0 && player) {
+    if (this.statsAccum <= 0) {
       this.statsAccum = 0.1
-      this.events.emit('stats', buildStats(this.world, player))
+      if (player) this.events.emit('stats', buildStats(this.world, player))
+      if (this.mode === 'online' && this.net?.round) {
+        this.events.emit('round-status', { round: this.net.round, leaderboard: this.net.leaderboard })
+      }
     }
 
     this.watchdogAccum -= dt
