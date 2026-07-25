@@ -50,9 +50,9 @@ export class NetClient {
   onReady: (() => void) | null = null
   onError: ((message: string) => void) | null = null
 
-  constructor(url: string, botCount: number, name?: string, perk?: PerkType | null) {
+  constructor(url: string, name?: string, perk?: PerkType | null) {
     this.ws = new WebSocket(url)
-    this.ws.onopen = () => this.send({ type: 'join', botCount, name, perk })
+    this.ws.onopen = () => this.send({ type: 'join', name, perk })
     this.ws.onmessage = (ev) => {
       try {
         this.handleMessage(JSON.parse(String(ev.data)) as ServerMsg)
