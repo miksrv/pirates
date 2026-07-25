@@ -1,10 +1,20 @@
 import type { WebSocket } from 'ws'
-import { BOT_COUNT, MAX_BOT_COUNT } from '../shared/game/constants'
+import { BOT_COUNT, MAX_BOT_COUNT, ROUND_DURATION, ROUND_RESTART_DELAY } from '../shared/game/constants'
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
-import type { GameEvent, PlayerInput, PlayerInputs, World } from '../shared/game/types'
-import { createWorld, removeShip, stepWorld } from '../shared/game/world'
-import { shipToWire, type ServerMsg, type SnapshotMsg } from '../shared/net/protocol'
+import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World } from '../shared/game/types'
+import { addPlayerShip, createWorld, removeShip, stepWorld } from '../shared/game/world'
+import { getTopPlayers, type TopPlayerEntry } from './db'
+import {
+  shipToWire,
+  worldToWire,
+  type LeaderboardEntry,
+  type RoundPhase,
+  type RoundStatus,
+  type ServerMsg,
+  type SnapshotMsg,
+} from '../shared/net/protocol'
+import { flushPlayerStats } from './stats'
 
 const TICK_RATE = 30
 const SNAPSHOT_EVERY = 2 // broadcast at 15Hz
@@ -15,6 +25,11 @@ export interface Client {
   socket: WebSocket
   shipId: string
   shipName: string
+  perk: PerkType | null
+  /** Persistent, client-generated identity (localStorage) — the DB key, since names collide. */
+  playerId: string
+  /** ms timestamp of the last stats flush (join, or last round reset) — play time is measured since. */
+  joinedAt: number
   input: PlayerInput
 }
 
@@ -24,6 +39,9 @@ let loop: NodeJS.Timeout | null = null
 let tick = 0
 let joinCounter = 0
 let pendingEvents: GameEvent[] = []
+/** 'playing' counts down world.time to ROUND_DURATION; 'ended' counts down restartTimer instead. */
+let roundPhase: RoundPhase = 'playing'
+let restartTimer = 0
 export const clients = new Map<WebSocket, Client>()
 
 export function getWorld(): World | null {
@@ -56,31 +74,93 @@ export function idleInput(): PlayerInput {
   return { moveDir: { x: 0, y: 0 }, aimAngle: 0, firing: false, boosting: false }
 }
 
+function roundStatus(): RoundStatus {
+  if (roundPhase === 'playing') {
+    return { phase: 'playing', timeRemaining: Math.max(0, ROUND_DURATION - (world?.time ?? 0)) }
+  }
+  return { phase: 'ended', timeRemaining: Math.max(0, restartTimer) }
+}
+
+/** One row per captain (player or bot); escorts don't get their own row. */
+function buildLeaderboard(): LeaderboardEntry[] {
+  if (!world) return []
+  return world.ships
+    .filter((s) => !s.escortOf)
+    .map((s) => ({ shipId: s.id, name: s.name, team: s.team, kills: s.kills, deaths: s.deaths, alive: s.alive }))
+    .sort((a, b) => b.kills - a.kills)
+}
+
+function buildSnapshot(): SnapshotMsg {
+  const w = world!
+  const snapshot: SnapshotMsg = {
+    type: 'snapshot',
+    time: w.time,
+    ships: w.ships.map(shipToWire),
+    bullets: w.bullets,
+    pickups: w.pickups,
+    bombs: w.bombs,
+    obstacles: w.obstacles.filter((o) => o.destructible).map((o) => ({ id: o.id, hp: o.hp })),
+    events: pendingEvents,
+    round: roundStatus(),
+    leaderboard: buildLeaderboard(),
+  }
+  pendingEvents = []
+  return snapshot
+}
+
+/** Round over: freezes the sim (ships/bullets hold their last position) and starts the restart
+ * countdown. Bullets are cleared so nothing is left hanging mid-flight during the freeze. */
+function endRound(): void {
+  if (world) world.bullets = []
+  roundPhase = 'ended'
+  restartTimer = ROUND_RESTART_DELAY
+}
+
+/** Round restart: flushes every connected player's round stats to the DB (most kills = win, the
+ * rest = loss — ties all win), then builds a fresh arena and gives each client a new ship (same
+ * name/perk) via a fresh `welcome` — reusing the join flow so the client resets its view exactly
+ * like a join. */
+function resetRound(): void {
+  if (world) {
+    const maxKills = Math.max(0, ...world.ships.filter((s) => !s.escortOf).map((s) => s.kills))
+    for (const client of clients.values()) {
+      const ship = world.ships.find((s) => s.id === client.shipId)
+      flushPlayerStats(client, ship, ship ? (ship.kills >= maxKills ? 'win' : 'loss') : null)
+    }
+  }
+
+  world = createWorld({ botCount: baselineBotCount(), withPlayer: false, respawnEnabled: true })
+  for (const client of clients.values()) {
+    const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
+    client.shipId = ship.id
+    sendTo(client.socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world) })
+  }
+  syncBotCount()
+  roundPhase = 'playing'
+  restartTimer = 0
+  pendingEvents = []
+}
+
 function startLoop(): void {
   if (loop) return
   loop = setInterval(() => {
     if (!world) return
-    const inputs: PlayerInputs = {}
-    for (const client of clients.values()) inputs[client.shipId] = client.input
+    const dt = 1 / TICK_RATE
 
-    stepWorld(world, 1 / TICK_RATE, inputs)
-    pendingEvents.push(...world.events)
+    if (roundPhase === 'playing') {
+      const inputs: PlayerInputs = {}
+      for (const client of clients.values()) inputs[client.shipId] = client.input
+
+      stepWorld(world, dt, inputs)
+      pendingEvents.push(...world.events)
+      if (world.time >= ROUND_DURATION) endRound()
+    } else {
+      restartTimer -= dt
+      if (restartTimer <= 0) resetRound()
+    }
 
     tick += 1
-    if (tick % SNAPSHOT_EVERY === 0) {
-      const snapshot: SnapshotMsg = {
-        type: 'snapshot',
-        time: world.time,
-        ships: world.ships.map(shipToWire),
-        bullets: world.bullets,
-        pickups: world.pickups,
-        bombs: world.bombs,
-        obstacles: world.obstacles.filter((o) => o.destructible).map((o) => ({ id: o.id, hp: o.hp })),
-        events: pendingEvents,
-      }
-      pendingEvents = []
-      broadcast(snapshot)
-    }
+    if (tick % SNAPSHOT_EVERY === 0) broadcast(buildSnapshot())
   }, 1000 / TICK_RATE)
 }
 
@@ -90,6 +170,8 @@ export function stopLoopAndReset(): void {
   world = null
   tick = 0
   pendingEvents = []
+  roundPhase = 'playing'
+  restartTimer = 0
 }
 
 /** Bot baseline for a fresh arena: the BOTS env var wins (may be 0 for pure PvP), else BOT_COUNT. */
@@ -135,6 +217,8 @@ export interface ServerStatus {
   maxPlayers: number
   bots: number
   full: boolean
+  /** Top 10 players by lifetime kills — shown on the client's main menu, server reachability permitting. */
+  leaderboard: TopPlayerEntry[]
 }
 
 /** Public server status for the client's server-select screen — no auth, read-only counts. */
@@ -147,5 +231,6 @@ export function getStatus(): ServerStatus {
     maxPlayers: MAX_PLAYERS,
     bots,
     full: clients.size >= MAX_PLAYERS,
+    leaderboard: getTopPlayers(),
   }
 }

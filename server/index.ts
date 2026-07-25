@@ -4,7 +4,8 @@ import { isPerkType } from '../shared/game/perks'
 import { removeShip } from '../shared/game/world'
 import type { ClientMsg } from '../shared/net/protocol'
 import { clients, getStatus, getWorld, pushEvent, stopLoopAndReset, syncBotCount } from './gameState'
-import { handleJoin, sanitizeInput, sanitizeName } from './session'
+import { handleJoin, sanitizeInput, sanitizeName, sanitizePlayerId } from './session'
+import { flushPlayerStats } from './stats'
 
 const PORT = Number(process.env.PORT ?? 8081)
 
@@ -26,7 +27,7 @@ wss.on('connection', (socket: WebSocket) => {
     }
 
     if (msg.type === 'join' && !clients.has(socket)) {
-      handleJoin(socket, sanitizeName(msg.name), isPerkType(msg.perk) ? msg.perk : null)
+      handleJoin(socket, sanitizeName(msg.name), isPerkType(msg.perk) ? msg.perk : null, sanitizePlayerId(msg.playerId))
     } else if (msg.type === 'input') {
       const client = clients.get(socket)
       if (client) client.input = sanitizeInput(msg.input)
@@ -38,6 +39,7 @@ wss.on('connection', (socket: WebSocket) => {
     if (!client) return
     clients.delete(socket)
     const world = getWorld()
+    flushPlayerStats(client, world?.ships.find((s) => s.id === client.shipId), null)
     if (world) removeShip(world, client.shipId)
     pushEvent({ kind: 'playerLeft', shipName: client.shipName })
     console.log(`[leave] ${client.shipName} (${client.shipId}); players: ${clients.size}`)

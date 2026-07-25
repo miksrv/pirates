@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { WebSocket } from 'ws'
 import type { PerkType, PlayerInput } from '../shared/game/types'
 import { addPlayerShip } from '../shared/game/world'
@@ -26,7 +27,14 @@ export function sanitizeName(raw: unknown): string | undefined {
   return name.length > 0 ? name : undefined
 }
 
-export function handleJoin(socket: WebSocket, name?: string, perk?: PerkType | null): void {
+/** A valid client-generated id, or a fresh one — a malformed/missing id just means this
+ * connection's stats won't merge with any previous session's, nothing more. */
+export function sanitizePlayerId(raw: unknown): string {
+  if (typeof raw === 'string' && /^[a-zA-Z0-9-]{8,64}$/.test(raw)) return raw
+  return randomUUID()
+}
+
+export function handleJoin(socket: WebSocket, name: string | undefined, perk: PerkType | null, playerId: string): void {
   if (clients.size >= MAX_PLAYERS) {
     sendTo(socket, { type: 'error', message: 'Арена заполнена, попробуйте позже' })
     socket.close()
@@ -35,7 +43,15 @@ export function handleJoin(socket: WebSocket, name?: string, perk?: PerkType | n
 
   const world = ensureWorld()
   const ship = addPlayerShip(world, nextJoinIndex(), name, perk)
-  clients.set(socket, { socket, shipId: ship.id, shipName: ship.name, input: idleInput() })
+  clients.set(socket, {
+    socket,
+    shipId: ship.id,
+    shipName: ship.name,
+    perk: perk ?? null,
+    playerId,
+    joinedAt: Date.now(),
+    input: idleInput(),
+  })
   syncBotCount()
   sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world) })
   pushEvent({ kind: 'playerJoined', shipName: ship.name })
