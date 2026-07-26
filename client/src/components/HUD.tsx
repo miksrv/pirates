@@ -92,6 +92,7 @@ export default function HUD({
   })
   const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null)
   const [serverUnreachable, setServerUnreachable] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   // Polled only while the mode-select screen is up — no point pinging the server mid-match.
   useEffect(() => {
@@ -150,6 +151,19 @@ export default function HUD({
             {pendingMode === 'online' ? 'Мультиплеер' : 'Одиночная игра'} — бонус действует весь бой
             {pendingMode === 'online' ? ' и сохраняется после возрождения' : ''}
           </p>
+          {pendingMode === 'local' && (
+            <div className="menu-setting">
+              <label htmlFor="bot-count">Ботов: <b>{botCount}</b></label>
+              <input
+                id="bot-count"
+                type="range"
+                min={0}
+                max={MAX_BOT_COUNT}
+                value={botCount}
+                onChange={(e) => setBotCount(Number(e.target.value))}
+              />
+            </div>
+          )}
           <div className="perk-grid">
             {PERK_TYPES.map((type) => {
               const def = PERK_DEFS[type]
@@ -178,62 +192,48 @@ export default function HUD({
   if (!started) {
     return (
       <div className="overlay">
-        <div className="panel">
-          <h1>Pirates Arena</h1>
-          <p className="subtitle">Морской бой: вражеские корабли, острова и апгрейды из сундуков</p>
-          <ul className="rules">
-            <li><b>WASD / стрелки</b> — управление кораблём</li>
-            <li><b>Мышь</b> — прицеливание пушкой</li>
-            <li><b>ЛКМ / пробел</b> — огонь</li>
-            <li><b>Shift</b> — ускорение; голубая полоска под кораблём тратится и восстанавливается</li>
-            <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
-          </ul>
-          <div className="menu-setting">
-            <label htmlFor="bot-count">Ботов (одиночная игра): <b>{botCount}</b></label>
+        <div className="menu-columns">
+          <div className="panel menu-panel">
+            <button className="help-fab" onClick={() => setHelpOpen(true)} title="Как играть">❓</button>
+
+            <h1>Pirates Arena</h1>
+            <p className="subtitle">Морской бой на выживание — потопите все корабли на арене</p>
+
             <input
-              id="bot-count"
-              type="range"
-              min={0}
-              max={MAX_BOT_COUNT}
-              value={botCount}
-              onChange={(e) => setBotCount(Number(e.target.value))}
-            />
-          </div>
-          <div className="menu-setting">
-            <label htmlFor="nickname">Ник:</label>
-            <input
-              id="nickname"
-              className="nickname-input"
+              className="nickname-input nickname-input-big"
               type="text"
               maxLength={16}
-              placeholder="для Multi Player"
+              placeholder="Ваш ник"
               value={nickname}
               onChange={(e) => handleNickname(e.target.value)}
+              autoFocus
             />
-          </div>
-          <p className={`server-status${serverUnreachable ? ' server-status-offline' : ''}${serverStatus?.full ? ' server-status-full' : ''}`}>
-            {serverUnreachable && 'Сервер недоступен'}
-            {!serverUnreachable && !serverStatus && 'Проверка сервера...'}
-            {!serverUnreachable && serverStatus && (
-              serverStatus.full
-                ? `Сервер полон (${serverStatus.players}/${serverStatus.maxPlayers})`
-                : `Сервер: ${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots}`
-            )}
-          </p>
-          <div className="menu-buttons">
-            <button className="primary-btn" onClick={() => setPendingMode('local')}>Играть</button>
+
             <button
-              className="secondary-btn"
+              className="primary-btn primary-btn-big"
               disabled={serverStatus?.full}
               onClick={() => setPendingMode('online')}
             >
-              Multi Player
+              ⚓ Играть онлайн
+            </button>
+            <p className={`server-status${serverUnreachable ? ' server-status-offline' : ''}${serverStatus?.full ? ' server-status-full' : ''}`}>
+              {serverUnreachable && 'Сервер недоступен — попробуйте одиночную игру'}
+              {!serverUnreachable && !serverStatus && 'Проверка сервера...'}
+              {!serverUnreachable && serverStatus && (
+                serverStatus.full
+                  ? `Сервер полон (${serverStatus.players}/${serverStatus.maxPlayers})`
+                  : `Сервер: ${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots}`
+              )}
+            </p>
+
+            <button className="secondary-btn secondary-btn-block" onClick={() => setPendingMode('local')}>
+              🏝 Играть с ботами
             </button>
           </div>
 
-          {serverStatus && serverStatus.leaderboard.length > 0 && (
-            <div className="top-players">
-              <div className="top-players-title">🏆 Топ-10 игроков</div>
+          <div className="side-panel leaderboard-panel">
+            <div className="side-panel-title">🏆 Топ-10 игроков</div>
+            {serverStatus && serverStatus.leaderboard.length > 0 ? (
               <div className="leaderboard">
                 {serverStatus.leaderboard.map((entry, i) => (
                   <div key={entry.playerId} className="leaderboard-row">
@@ -249,9 +249,44 @@ export default function HUD({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="subtitle">Пока нет данных</p>
+            )}
+          </div>
         </div>
+
+        {helpOpen && (
+          <div className="help-overlay" onClick={() => setHelpOpen(false)}>
+            <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="help-modal-head">
+                <span className="side-panel-title">Как играть</span>
+                <button className="admin-close" onClick={() => setHelpOpen(false)}>✕</button>
+              </div>
+              <ul className="rules">
+                <li><b>WASD / стрелки</b> — управление кораблём</li>
+                <li><b>Мышь</b> — прицеливание пушкой</li>
+                <li><b>ЛКМ / пробел</b> — огонь</li>
+                <li><b>Shift</b> — ускорение</li>
+                <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
+              </ul>
+              <div className="side-panel-title">🎁 Бусты</div>
+              <div className="boosts-list">
+                {PICKUP_TYPES.map((type) => {
+                  const def = PICKUP_DEFS[type]
+                  return (
+                    <div key={type} className="boost-item">
+                      <span className="boost-item-emoji">{def.emoji}</span>
+                      <div className="boost-item-text">
+                        <span className="boost-item-label">{def.label}</span>
+                        <span className="boost-item-desc">{def.description}</span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

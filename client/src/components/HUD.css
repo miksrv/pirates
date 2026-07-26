@@ -135,16 +135,70 @@
   font-weight: 700;
 }
 
-.top-players {
-  margin: 4px 0 20px;
-  text-align: left;
+.menu-columns {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
 }
 
-.top-players-title {
-  font-size: 13px;
+.menu-panel {
+  position: relative;
+  width: 340px;
+  max-width: none;
+}
+
+.side-panel {
+  background: #161b26;
+  border: 1px solid #2a3142;
+  border-radius: 12px;
+  padding: 20px 22px;
+  width: 340px;
+  height: auto;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.side-panel-title {
+  font-size: 14px;
   font-weight: 700;
   color: #9aa5b8;
-  margin: 0 0 8px;
+  margin: 0 0 12px;
+}
+
+.boosts-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 16px;
+}
+
+.boost-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.boost-item-emoji {
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.boost-item-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.boost-item-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: #e8ecf1;
+}
+
+.boost-item-desc {
+  font-size: 11px;
+  line-height: 1.35;
+  color: #9aa5b8;
 }
 
 .leaderboard-rank {
@@ -188,6 +242,87 @@
 .nickname-input:focus {
   outline: none;
   border-color: #3ee06f;
+}
+
+.nickname-input-big {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  font-size: 16px;
+  text-align: center;
+  margin: 4px 0 14px;
+}
+
+.primary-btn-big {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  font-size: 18px;
+  margin: 0 0 8px;
+}
+
+.secondary-btn-block {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+}
+
+.help-fab {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 30px;
+  height: 30px;
+  background: #0f131c;
+  border: 1px solid #2a3142;
+  border-radius: 50%;
+  color: #9aa5b8;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.help-fab:hover {
+  border-color: #5fd0ff;
+  color: #5fd0ff;
+}
+
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 12, 0.72);
+  backdrop-filter: blur(2px);
+}
+
+.help-modal {
+  width: 560px;
+  max-width: calc(100vw - 40px);
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+  background: #161b26;
+  border: 1px solid #2a3142;
+  border-radius: 12px;
+  padding: 20px 24px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.help-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 14px;
+}
+
+.help-modal .rules {
+  margin-bottom: 20px;
 }
 
 .event-log-info {
