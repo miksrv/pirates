@@ -1,8 +1,6 @@
 name: Deploy
 
-# Временно отключено: автозапуск на push отключён из-за проблем с SSH-доступом
-# (пароль на приватном ключе + firewall сервера блокирует IP GitHub-раннеров).
-# Деплой выполняется вручную с локальной машины, см. CLAUDE.md.
+# Автодеплой на push отключён: деплой запускается вручную из вкладки Actions.
 on:
   workflow_dispatch: {}
 
@@ -22,28 +20,54 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      - name: Build client
+        env:
+          VITE_SERVER_URL: ${{ secrets.VITE_SERVER_URL }}
         run: npm run build
 
-      - name: Upload build to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          source: 'dist,ecosystem.config.js'
-          target: ${{ secrets.DEPLOY_PATH }}
-          overwrite: true
+      - name: Configure SSH
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh/
+          echo "$SSH_KEY" > ~/.ssh/deploy
+          chmod 400 ~/.ssh/deploy
+          cat >>~/.ssh/config <<END
+          Host vps
+            HostName $SSH_HOST
+            Port $SSH_PORT
+            User $SSH_USER
+            IdentityFile ~/.ssh/deploy
+            StrictHostKeyChecking no
+          END
 
-      - name: Restart pm2
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT || 22 }}
-          script: |
-            cd ${{ secrets.DEPLOY_PATH }}
-            pm2 startOrReload ecosystem.config.js --update-env
-            pm2 save
+      - name: Send client build
+        env:
+          SSH_PATH: ${{ secrets.SSH_PATH }}
+        run: |
+          ssh vps "mkdir -p $SSH_PATH && rm -rf $SSH_PATH/dist"
+          rsync -avz -e ssh dist/ vps:$SSH_PATH/dist
+
+      # server/data (SQLite stats) is gitignored and stays out of this sync, so it survives redeploys.
+      - name: Send server + shared source
+        env:
+          SSH_PATH: ${{ secrets.SSH_PATH }}
+        run: |
+          rsync -avz -e ssh --exclude 'data' server/ vps:$SSH_PATH/server
+          rsync -avz -e ssh shared/ vps:$SSH_PATH/shared
+          rsync -avz -e ssh package.json package-lock.json tsconfig.json ecosystem.config.js vps:$SSH_PATH/
+
+      # better-sqlite3 has native bindings, so deps are installed on the VPS itself rather than
+      # shipped from the runner (matching architecture/Node ABI).
+      - name: Install server dependencies on VPS
+        env:
+          SSH_PATH: ${{ secrets.SSH_PATH }}
+        run: ssh vps "cd $SSH_PATH && npm ci"
+
+      - name: Restart PM2
+        env:
+          SSH_PATH: ${{ secrets.SSH_PATH }}
+        run: ssh vps "cd $SSH_PATH && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
