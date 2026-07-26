@@ -63,7 +63,7 @@ See [Game Mechanics Docs](#game-mechanics-docs) for the full rules.
 │   ├── game/                # Simulation: ships, AI, pickups, physics, map
 │   └── net/protocol.ts      # WebSocket message protocol
 ├── docs/mechanics/          # Short reference docs per game system
-├── ecosystem.config.js      # PM2 config for production (serves dist/)
+├── ecosystem.config.js      # PM2 config for production (client + WS server)
 └── vite.config.ts           # Vite config (root: client, outDir: ../dist)
 ```
 
@@ -135,18 +135,27 @@ This type-checks the project and outputs a static bundle to `dist/`. Serve `dist
 
 ## Deployment
 
-CI/CD is defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) but is currently **manual-dispatch only** (auto-deploy on push is disabled due to SSH access restrictions on the target server). To deploy manually:
+CI/CD is defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) and is **manual-dispatch only** (auto-deploy on push is disabled due to SSH access restrictions on the target server). Both the client and the WebSocket server are deployed together, run as two PM2 processes on the same VPS (see [`ecosystem.config.js`](ecosystem.config.js)):
+
+- `pirates-client` — static client via `serve -s dist -l 3010`.
+- `pirates-server` — the WS/game server via `tsx server/index.ts` (`PORT` defaults to 8081).
+
+To deploy:
 
 1. Trigger the `Deploy` workflow from the GitHub Actions tab (`workflow_dispatch`), **or** run the equivalent steps locally:
    ```bash
    npm ci
-   npm run build
-   scp -r dist ecosystem.config.js <user>@<host>:<deploy-path>
-   ssh <user>@<host> "cd <deploy-path> && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
+   VITE_SERVER_URL=wss://<host>/path/to/server npm run build
+   rsync -avz dist/ <user>@<host>:<deploy-path>/dist
+   rsync -avz --exclude 'data' server/ <user>@<host>:<deploy-path>/server
+   rsync -avz shared/ <user>@<host>:<deploy-path>/shared
+   rsync -avz package.json package-lock.json tsconfig.json ecosystem.config.js <user>@<host>:<deploy-path>/
+   ssh <user>@<host> "cd <deploy-path> && npm ci && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
    ```
-2. The static client is served via `serve -s dist -l 3010` under PM2 (see [`ecosystem.config.js`](ecosystem.config.js)).
-3. The WebSocket server must be run/managed separately (e.g. its own PM2 process) and be reachable at the URL configured via `VITE_SERVER_URL` at build time; a reverse proxy must forward the WebSocket upgrade.
-4. The server writes its player-stats database to `server/data/` (or `DB_PATH`) next to wherever it runs — back this path up / keep it out of any "redeploy from scratch" step, or player stats reset.
+2. The workflow ships only source files, not `node_modules` — `npm ci` runs on the VPS itself so `better-sqlite3`'s native binding is built for the target machine's Node/OS instead of the CI runner's.
+3. `server/data/` (the SQLite stats DB) is gitignored and excluded from the sync, so it survives redeploys.
+4. Required GitHub secrets: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, `SSH_PATH` (deploy directory on the VPS), and `VITE_SERVER_URL` (the production WS URL baked into the client build).
+5. Prerequisites on the VPS: Node.js, `pm2`, and `serve` (`npm i -g serve`) installed globally, and a reverse proxy forwarding the WebSocket upgrade to `pirates-server`'s port.
 
 ## Game Mechanics Docs
 
@@ -159,6 +168,7 @@ Concise, skimmable reference docs for each game system live in [`docs/mechanics/
 - [`map-generation.md`](docs/mechanics/map-generation.md) — procedural island generation
 - [`multiplayer.md`](docs/mechanics/multiplayer.md) — networking model and server rules
 - [`debug-panel.md`](docs/mechanics/debug-panel.md) — the `iddqd` cheat panel
+- [`roadmap-ideas.md`](docs/mechanics/roadmap-ideas.md) — proposed future mechanics (not implemented)
 
 ## Assets & Credits
 
