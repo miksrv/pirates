@@ -15,7 +15,6 @@ import {
   ISLAND_SAND_EDGE_NATIVE_KEYS,
   ISLAND_SAND_FILL_INNER_SHADOW_KEYS,
   ISLAND_SAND_FILL_KEYS,
-  ISLAND_SAND_FILL_RARE_KEYS,
   ISLAND_SHALLOW_WATER_KEY,
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
@@ -131,8 +130,7 @@ function sandTileFor(cell: IslandGridCell): { key: string; rotation: number } {
   if (cell.role === 'fill') {
     if (cell.grassTransition) return grassTransitionTileFor(cell.grassTransition)
     if (cell.innerShadowCorner) return { key: pickRandom(ISLAND_SAND_FILL_INNER_SHADOW_KEYS[cell.innerShadowCorner]), rotation: 0 }
-    const key = Math.random() < 0.06 ? pickRandom(ISLAND_SAND_FILL_RARE_KEYS) : pickRandom(ISLAND_SAND_FILL_KEYS)
-    return { key, rotation: 0 }
+    return { key: pickRandom(ISLAND_SAND_FILL_KEYS), rotation: 0 }
   }
   if (cell.role === 'edge') {
     const edgeRotation = cell.edgeRotation ?? 0

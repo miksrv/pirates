@@ -50,9 +50,11 @@ export const ISLAND_SHALLOW_WATER_KEY = 'tile_shallow_water_1'
  * originally filed here turned out to have a colored grass corner/edge painted in (moved to the
  * grass-transition sets below), a genuine small water bite on one side (moved to
  * ISLAND_SAND_EDGE_NATIVE_KEYS), or a ~10%-area darkened corner (moved to
- * ISLAND_SAND_FILL_INNER_SHADOW_KEYS below — only truly flat art stays a candidate here). */
-export const ISLAND_SAND_FILL_KEYS = ['tile_sand_fill_plain_1']
-export const ISLAND_SAND_FILL_RARE_KEYS = ['tile_sand_fill_sparkle_1', 'tile_sand_fill_sparkle_2']
+ * ISLAND_SAND_FILL_INNER_SHADOW_KEYS below — only truly flat art stays a candidate here).
+ * `tile_sand_fill_plain_1` alone reads as an obvious flat block once it covers a whole interior —
+ * a single identical texture repeated over many cells always does, regardless of tone — so the
+ * sparkle variants are mixed in at equal weight for texture variety, not treated as a rare extra. */
+export const ISLAND_SAND_FILL_KEYS = ['tile_sand_fill_sparkle_1', 'tile_sand_fill_sparkle_2']
 type CornerName = 'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr'
 /** A fill cell can have no orthogonal water neighbor yet still sit diagonally next to open water
  * (a concave notch just past a coastline corner) — this bakes a soft shadow into the matching
@@ -159,7 +161,6 @@ export const ALL_IMAGE_KEYS: string[] = [
   ...Object.values(OBSTACLE_KEY),
   ISLAND_SHALLOW_WATER_KEY,
   ...ISLAND_SAND_FILL_KEYS,
-  ...ISLAND_SAND_FILL_RARE_KEYS,
   ...Object.values(ISLAND_SAND_FILL_INNER_SHADOW_KEYS).flat(),
   ...Object.values(ISLAND_SAND_CORNER_KEYS).flat(),
   ...Object.values(ISLAND_SAND_CORNER_GRASSTIP_KEYS).flat(),
