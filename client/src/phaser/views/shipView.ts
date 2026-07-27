@@ -8,6 +8,8 @@ export interface ShipView {
   container: Phaser.GameObjects.Container
   hull: Phaser.GameObjects.Sprite
   cannon: Phaser.GameObjects.Sprite
+  /** Extra cannon sprites (front, back) — created lazily as extraCannons grows. */
+  extraCannons: Phaser.GameObjects.Sprite[]
   hpBarBg: Phaser.GameObjects.Rectangle
   hpBarFg: Phaser.GameObjects.Rectangle
   reloadBarBg: Phaser.GameObjects.Rectangle
@@ -28,18 +30,15 @@ const SHIP_SPRITE_OFFSET = -Math.PI / 2
 /** The cannon sprite is drawn pointing right (bow-to-stern horizontal), which already matches a 0-rad world angle. */
 const CANNON_SPRITE_OFFSET = 0
 
-/** Icon shown in a ship's buff row for each active effect type (independent of which pickup granted it). */
-const EFFECT_EMOJI: Record<EffectType, string> = {
+/** Icon shown in a ship's buff row for each active effect type — only temporary-category effects display. */
+const EFFECT_EMOJI: Partial<Record<EffectType, string>> = {
   speedBoost: '💨',
   turnBoost: '🧭',
   damageBoost: '🧨',
   fireRateBoost: '🔥',
   bulletSpeedBoost: '🎯',
   krakenJitter: '🐙',
-  regen: '🛠️',
   disguise: '🎭',
-  shallowWater: '🌊',
-  megaBoost: '🔱',
 }
 
 function shipHealthState(ship: Ship): ShipHealthState {
@@ -57,9 +56,10 @@ function shipLabel(ship: Ship): string {
 }
 
 function buildBuffIconText(ship: Ship): string {
-  const icons = ship.effects.map((e) => EFFECT_EMOJI[e.type])
+  const icons = ship.effects
+    .map((e) => EFFECT_EMOJI[e.type])
+    .filter((e): e is string => !!e)
   if (ship.shieldCharges > 0) icons.push('🛡️'.repeat(ship.shieldCharges))
-  if (ship.infernoShots > 0) icons.push('🔥'.repeat(ship.infernoShots))
   return icons.join(' ')
 }
 
@@ -81,7 +81,7 @@ export function createShipView(
   const hullWidth = hullHeight * (66 / 113)
   const hull = scene.add.sprite(0, 0, shipHullKey(ship.variant, 1)).setDisplaySize(hullWidth, hullHeight)
 
-  const cannonWidth = ship.radius * 1.5
+  const cannonWidth = ship.radius * 0.9
   const cannonHeight = cannonWidth * (16 / 29)
   const cannon = scene.add
     .sprite(0, 0, SHIP_CANNON_KEY)
@@ -139,6 +139,7 @@ export function createShipView(
     container,
     hull,
     cannon,
+    extraCannons: [],
     hpBarBg,
     hpBarFg,
     reloadBarBg,
@@ -192,6 +193,32 @@ export function syncShips(
     if (ship.escortOf && view.container.alpha !== 0.9) view.container.setAlpha(0.9)
     view.hull.setRotation(ship.bodyAngle + SHIP_SPRITE_OFFSET)
     view.cannon.setRotation(ship.cannonAngle + CANNON_SPRITE_OFFSET)
+
+    // Extra cannons: create lazily, show/hide based on ship.extraCannons
+    const EXTRA_BODY_OFFSETS = [1.2, -1.2] // front, back (multiplied by radius)
+    while (view.extraCannons.length < ship.extraCannons) {
+      const cw = ship.radius * 0.9
+      const ch = cw * (16 / 29)
+      const ec = scene.add
+        .sprite(0, 0, SHIP_CANNON_KEY)
+        .setDisplaySize(cw, ch)
+        .setOrigin(0.15, 0.5)
+      view.container.add(ec)
+      view.container.moveBelow(ec, view.cannonFlame)
+      minimapCam.ignore(ec)
+      view.extraCannons.push(ec)
+    }
+    // Update positions and rotations for extra cannons — they aim at cannonAngle (cursor)
+    for (let i = 0; i < view.extraCannons.length; i++) {
+      const ec = view.extraCannons[i]
+      const visible = i < ship.extraCannons && ship.alive
+      if (ec.visible !== visible) ec.setVisible(visible)
+      if (visible) {
+        const dist = EXTRA_BODY_OFFSETS[i] * ship.radius
+        ec.setPosition(Math.cos(ship.bodyAngle) * dist, Math.sin(ship.bodyAngle) * dist)
+        ec.setRotation(ship.cannonAngle + CANNON_SPRITE_OFFSET)
+      }
+    }
 
     const loaded = ship.infernoShots > 0 && ship.alive
     if (view.cannonFlame.visible !== loaded) view.cannonFlame.setVisible(loaded)

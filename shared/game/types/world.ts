@@ -1,10 +1,19 @@
-import type { CollisionCircle, IslandShape } from '../islandShape'
+import type { CollisionTile, IslandShape } from '../islandShape'
 import type { Vec2 } from '../vector'
 import type { Bomb, Bullet } from './combat'
 import type { Ship, Team } from './ship'
 
 export type ObstacleKind = 'crate' | 'rock'
 export type ObstacleVariant = 'island' | 'reef' | 'driftBarrel' | 'rockyShore'
+
+/** A decorative prop (rock or bush) placed on/around an island — blocks cannonballs. */
+export interface IslandProp {
+  /** Offset from the island's center. */
+  dx: number
+  dy: number
+  radius: number
+  kind: 'rock' | 'bush'
+}
 
 export interface Obstacle {
   id: string
@@ -18,8 +27,14 @@ export interface Obstacle {
   variant: ObstacleVariant
   /** Only for 'island': the organic coastline recipe, shared by the renderer and physics so they always agree. */
   islandShape?: IslandShape
-  /** Only for 'island': precomputed collision circles derived from islandShape (see islandShapeToCollisionCircles). */
-  collisionCircles?: CollisionCircle[]
+  /** Only for 'island': precomputed land-tile centers (relative to pos) used for collision — matches exactly the rendered tiles. */
+  collisionTiles?: CollisionTile[]
+  /** Only for 'island': shallow-water tile centers (relative to pos) — ships on these tiles are slowed. */
+  shallowTiles?: CollisionTile[]
+  /** Tile size used for collision tile rects (defaults to MAP_TILE_SIZE). */
+  collisionTileSize?: number
+  /** Only for 'island': rocks and bushes that block cannonballs. */
+  props?: IslandProp[]
 }
 
 export type PickupType =
@@ -43,6 +58,7 @@ export type PickupType =
   | 'infernoShot'
   | 'fleet'
   | 'bomb'
+  | 'extraCannon'
 
 export interface Pickup {
   id: string
@@ -89,7 +105,8 @@ export interface World {
 }
 
 export interface PlayerInput {
-  moveDir: Vec2
+  throttle: number
+  turnDir: number
   aimAngle: number
   firing: boolean
   boosting: boolean

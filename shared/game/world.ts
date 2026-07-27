@@ -2,21 +2,21 @@ import { updateBotAI } from './ai'
 import { spawnBullet, updateBullets } from './bulletLogic'
 import { updateBombLayers, updateBombs } from './bombs'
 import {
-  BASE_ARMOR,
-  BASE_DAMAGE,
-  BASE_FIRE_RATE,
-  BASE_MAX_HP,
-  BASE_SPEED,
-  BOT_COUNT,
-  ISLAND_COUNT,
+  MAP_HEIGHT,
+  MAP_ISLAND_COUNT,
+  MAP_ROCK_COUNT,
+  MAP_WIDTH,
   MEGA_SPAWN_INTERVAL,
   PICKUP_INITIAL_COUNT,
   PICKUP_MAX_ON_MAP,
   PICKUP_SPAWN_INTERVAL,
-  SCATTER_ROCK_COUNT,
+  SHIP_BASE_ARMOR,
+  SHIP_BASE_DAMAGE,
+  SHIP_BASE_FIRE_RATE,
+  SHIP_BASE_HP,
+  SHIP_BASE_SPEED,
   SHIP_RADIUS,
-  WORLD_H,
-  WORLD_W,
+  BOT_DEFAULT_COUNT,
 } from './constants'
 import { findFreeSpawnPoint, generateObstacles, spawnLeviathan, spawnRandomPickup } from './map'
 import { PICKUP_DEFS } from './pickups'
@@ -38,12 +38,12 @@ export interface WorldOptions {
 }
 
 export function createWorld(options: WorldOptions = {}): World {
-  const botCount = options.botCount ?? BOT_COUNT
+  const botCount = options.botCount ?? BOT_DEFAULT_COUNT
   const withPlayer = options.withPlayer ?? true
 
   const world: World = {
-    width: WORLD_W,
-    height: WORLD_H,
+    width: MAP_WIDTH,
+    height: MAP_HEIGHT,
     ships: [],
     bullets: [],
     obstacles: [],
@@ -56,7 +56,7 @@ export function createWorld(options: WorldOptions = {}): World {
     respawnEnabled: options.respawnEnabled ?? false,
   }
 
-  const center = { x: WORLD_W / 2, y: WORLD_H / 2 }
+  const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
   if (withPlayer) world.ships.push(createShip('player', center, 0, { perk: options.playerPerk ?? null }))
 
   const botSpawns: { x: number; y: number }[] = []
@@ -64,12 +64,12 @@ export function createWorld(options: WorldOptions = {}): World {
     const angle = (i / Math.max(botCount, 1)) * Math.PI * 2
     const dist = 600 + Math.random() * 400
     botSpawns.push({
-      x: Math.max(60, Math.min(WORLD_W - 60, center.x + Math.cos(angle) * dist)),
-      y: Math.max(60, Math.min(WORLD_H - 60, center.y + Math.sin(angle) * dist)),
+      x: Math.max(60, Math.min(MAP_WIDTH - 60, center.x + Math.cos(angle) * dist)),
+      y: Math.max(60, Math.min(MAP_HEIGHT - 60, center.y + Math.sin(angle) * dist)),
     })
   }
 
-  world.obstacles = generateObstacles(world, ISLAND_COUNT, SCATTER_ROCK_COUNT, [center, ...botSpawns])
+  world.obstacles = generateObstacles(world, MAP_ISLAND_COUNT, MAP_ROCK_COUNT, [center, ...botSpawns])
 
   botSpawns.forEach((pos, i) => {
     world.ships.push(createShip('bot', pos, i))
@@ -100,12 +100,12 @@ export function removeShip(world: World, shipId: string): void {
 function respawnShip(world: World, ship: Ship): void {
   const pos = findFreeSpawnPoint(world, 40)
   ship.pos = { x: pos.x, y: pos.y }
-  ship.hp = BASE_MAX_HP
-  ship.maxHp = BASE_MAX_HP
-  ship.speed = BASE_SPEED
-  ship.damage = BASE_DAMAGE
-  ship.armor = BASE_ARMOR
-  ship.fireRate = BASE_FIRE_RATE
+  ship.hp = SHIP_BASE_HP
+  ship.maxHp = SHIP_BASE_HP
+  ship.speed = SHIP_BASE_SPEED
+  ship.damage = SHIP_BASE_DAMAGE
+  ship.armor = SHIP_BASE_ARMOR
+  ship.fireRate = SHIP_BASE_FIRE_RATE
   applyPerk(ship) // pickup upgrades are lost on death, the chosen loadout is not
   ship.cooldown = 0
   ship.effects = []
@@ -114,7 +114,12 @@ function respawnShip(world: World, ship: Ship): void {
   ship.infernoShots = 0
   ship.bombsToDrop = 0
   ship.bombDropTimer = 0
+  ship.extraCannons = 0
+  ship.collectedPermaBoosts = []
   ship.moveDir = { x: 0, y: 0 }
+  ship.currentSpeed = 0
+  ship.throttle = 0
+  ship.turnDir = 0
   ship.boost = 1
   ship.boosting = false
   ship.alive = true
@@ -170,12 +175,14 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
     } else {
       const input = inputs[ship.id]
       if (input) {
-        ship.moveDir = input.moveDir
+        ship.throttle = input.throttle
+        ship.turnDir = input.turnDir
         ship.cannonAngle = input.aimAngle
         ship.boosting = input.boosting === true
         wantsToFire = input.firing
       } else {
-        ship.moveDir = { x: 0, y: 0 }
+        ship.throttle = 0
+        ship.turnDir = 0
         ship.boosting = false
       }
     }
@@ -188,9 +195,11 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
     }
 
     if (wantsToFire) {
-      const shot = tryFireCannon(ship)
-      if (shot) {
-        spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed, shot.inferno)
+      const shots = tryFireCannon(ship)
+      if (shots) {
+        for (const shot of shots) {
+          spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed, shot.inferno, shot.offset)
+        }
         world.events.push({ kind: 'shot', pos: { ...ship.pos }, team: ship.team })
         if (!ship.escortOf) {
           firedFleets.add(ship.id)
@@ -240,6 +249,9 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
       if (!ship.alive || ship.escortOf) continue
       if (circlesOverlap(ship.pos, ship.radius, pickup.pos, pickup.radius)) {
         PICKUP_DEFS[pickup.type].apply(ship, world)
+        if (PICKUP_DEFS[pickup.type].category === 'permanent') {
+          ship.collectedPermaBoosts.push(pickup.type)
+        }
         world.events.push({ kind: 'pickup', pos: { ...pickup.pos }, pickupType: pickup.type, shipName: ship.name })
         collected = true
         break

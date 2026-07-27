@@ -1,13 +1,23 @@
 import { getEffectMagnitude, hasEffect } from '../boosts/effects'
 import { BULLET_SPEED, INFERNO_DAMAGE, MEGA_FIRE_RATE_MULT } from '../constants'
 import type { Ship } from '../types'
+import type { Vec2 } from '../vector'
 
-export function tryFireCannon(
-  ship: Ship,
-): { angle: number; damage: number; bulletSpeed: number; inferno: boolean } | null {
+/** Position offsets for extra cannons relative to ship center (along body axis): front, back. */
+const EXTRA_CANNON_BODY_OFFSETS = [1.2, -1.2] // multiplied by ship.radius
+
+export interface ShotInfo {
+  angle: number
+  damage: number
+  bulletSpeed: number
+  inferno: boolean
+  /** Spawn position offset from ship center (world coords). */
+  offset: Vec2
+}
+
+export function tryFireCannon(ship: Ship): ShotInfo[] | null {
   if (ship.cooldown > 0) return null
 
-  // A loaded Hellfire round goes out instead of the normal shot and is spent doing so.
   const inferno = ship.infernoShots > 0
   if (inferno) ship.infernoShots -= 1
 
@@ -17,10 +27,21 @@ export function tryFireCannon(
   const bulletSpeedMult = getEffectMagnitude(ship, 'bulletSpeedBoost', 1)
 
   ship.cooldown = 1 / (ship.fireRate * fireRateMult)
-  return {
-    angle: ship.cannonAngle,
-    damage: inferno ? INFERNO_DAMAGE : ship.damage * damageMult,
-    bulletSpeed: BULLET_SPEED * bulletSpeedMult,
-    inferno,
+
+  const damage = inferno ? INFERNO_DAMAGE : ship.damage * damageMult
+  const bulletSpeed = BULLET_SPEED * bulletSpeedMult
+
+  // All cannons fire at cannonAngle (towards cursor)
+  const shots: ShotInfo[] = [{ angle: ship.cannonAngle, damage, bulletSpeed, inferno, offset: { x: 0, y: 0 } }]
+
+  for (let i = 0; i < ship.extraCannons; i++) {
+    const dist = EXTRA_CANNON_BODY_OFFSETS[i] * ship.radius
+    const offset: Vec2 = {
+      x: Math.cos(ship.bodyAngle) * dist,
+      y: Math.sin(ship.bodyAngle) * dist,
+    }
+    shots.push({ angle: ship.cannonAngle, damage, bulletSpeed, inferno, offset })
   }
+
+  return shots
 }

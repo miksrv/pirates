@@ -1,11 +1,12 @@
-import { PICKUP_DROP_CHANCE, RESPAWN_TIME } from './constants'
+import { GAMEPLAY_RESPAWN_TIME, PERMA_BOOST_DROP_CHANCE, PICKUP_DROP_CHANCE } from './constants'
 import { nextId } from './id'
 import { spawnPickupAt } from './map'
 import { fleetRootId } from './escort'
-import { obstacleOverlap } from './physics'
+import { bulletBlockerOverlap } from './physics'
 import type { Bullet, Ship, World } from './types'
 import { BULLET_MAX_LIFE, BULLET_RADIUS, BULLET_SPEED, INFERNO_BULLET_SCALE } from './constants'
 import { clamp, fromAngle } from './vector'
+import type { Vec2 } from './vector'
 
 export function spawnBullet(
   world: World,
@@ -14,6 +15,7 @@ export function spawnBullet(
   damage: number,
   bulletSpeed: number = BULLET_SPEED,
   inferno = false,
+  offset: Vec2 = { x: 0, y: 0 },
 ): void {
   const dir = fromAngle(angle)
   const radius = inferno ? BULLET_RADIUS * INFERNO_BULLET_SCALE : BULLET_RADIUS
@@ -21,8 +23,8 @@ export function spawnBullet(
   const bullet: Bullet = {
     id: nextId('bullet'),
     pos: {
-      x: ship.pos.x + dir.x * spawnDist,
-      y: ship.pos.y + dir.y * spawnDist,
+      x: ship.pos.x + offset.x + dir.x * spawnDist,
+      y: ship.pos.y + offset.y + dir.y * spawnDist,
     },
     vel: { x: dir.x * bulletSpeed, y: dir.y * bulletSpeed },
     radius,
@@ -57,20 +59,19 @@ export function updateBullets(world: World, dt: number): void {
 
     let consumed = false
 
-    for (const obstacle of world.obstacles) {
-      if (!obstacleOverlap(bullet.pos, bullet.radius, obstacle)) continue
+    const hitObstacle = bulletBlockerOverlap(bullet.pos, bullet.radius, world)
+    if (hitObstacle) {
       consumed = true
       world.events.push({ kind: 'impact', pos: { ...bullet.pos }, lethal: false })
-      if (obstacle.destructible) {
-        obstacle.hp -= bullet.damage
-        if (obstacle.hp <= 0) {
-          obstacle.hp = 0
+      if (hitObstacle.destructible) {
+        hitObstacle.hp -= bullet.damage
+        if (hitObstacle.hp <= 0) {
+          hitObstacle.hp = 0
           if (Math.random() < PICKUP_DROP_CHANCE) {
-            spawnPickupAt(world, obstacle.pos)
+            spawnPickupAt(world, hitObstacle.pos)
           }
         }
       }
-      break
     }
 
     if (consumed) continue
@@ -120,13 +121,15 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
 
   if (ship.hp <= 0 && ship.alive) {
     ship.alive = false
-    ship.respawnTimer = RESPAWN_TIME
+    ship.respawnTimer = GAMEPLAY_RESPAWN_TIME
     // Escorts are fodder: sinking one scores nothing and stays out of the kill feed, which a
     // five-strong wedge would otherwise flood.
     if (!ship.escortOf) {
       ship.deaths += 1
       if (attacker) attacker.kills += 1
       world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
+      // Drop collected permanent boosts as pickups around the wreck.
+      dropPermaBoosts(world, ship)
     }
   } else {
     world.events.push({ kind: 'damage', attackerName, targetName: ship.name, amount: Math.round(mitigated) })
@@ -134,3 +137,24 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
     world.events.push({ kind: 'damageNumber', pos: { ...ship.pos }, amount: Math.round(mitigated), targetName: ship.name })
   }
 }
+
+/** Drops each collected permanent boost as a pickup around the wreck, spaced in a ring. */
+function dropPermaBoosts(world: World, ship: Ship): void {
+  const boosts = ship.collectedPermaBoosts
+  if (boosts.length === 0) return
+
+  const dropDist = 30 // distance from wreck center
+  let dropped = 0
+  for (let i = 0; i < boosts.length; i++) {
+    if (Math.random() > PERMA_BOOST_DROP_CHANCE) continue
+    const angle = (dropped / Math.max(boosts.length, 1)) * Math.PI * 2
+    const pos = {
+      x: ship.pos.x + Math.cos(angle) * dropDist,
+      y: ship.pos.y + Math.sin(angle) * dropDist,
+    }
+    spawnPickupAt(world, pos, boosts[i] as any)
+    dropped++
+  }
+  ship.collectedPermaBoosts = []
+}
+

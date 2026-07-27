@@ -2,7 +2,7 @@ import { nextId } from '../id'
 import { applyPerk } from '../perks'
 import type { PerkType, Ship, ShipVariant, Team } from '../types'
 import type { Vec2 } from '../vector'
-import { BASE_ARMOR, BASE_DAMAGE, BASE_FIRE_RATE, BASE_MAX_HP, BASE_SPEED, SHIP_RADIUS } from '../constants'
+import { SHIP_BASE_ARMOR, SHIP_BASE_DAMAGE, SHIP_BASE_FIRE_RATE, SHIP_BASE_HP, SHIP_BASE_SPEED, SHIP_RADIUS } from '../constants'
 
 const BOT_NAMES = [
   'Чёрная Жемчужина',
@@ -45,13 +45,16 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     bodyAngle: 0,
     cannonAngle: 0,
     moveDir: { x: 0, y: 0 },
+    currentSpeed: 0,
+    throttle: 0,
+    turnDir: 0,
     radius: SHIP_RADIUS,
-    hp: BASE_MAX_HP,
-    maxHp: BASE_MAX_HP,
-    speed: BASE_SPEED,
-    damage: BASE_DAMAGE,
-    armor: BASE_ARMOR,
-    fireRate: BASE_FIRE_RATE,
+    hp: SHIP_BASE_HP,
+    maxHp: SHIP_BASE_HP,
+    speed: SHIP_BASE_SPEED,
+    damage: SHIP_BASE_DAMAGE,
+    armor: SHIP_BASE_ARMOR,
+    fireRate: SHIP_BASE_FIRE_RATE,
     cooldown: 0,
     alive: true,
     kills: 0,
@@ -86,6 +89,8 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     escortSlot: 0,
     bombsToDrop: 0,
     bombDropTimer: 0,
+    extraCannons: 0,
+    collectedPermaBoosts: [],
   }
 
   applyPerk(ship)

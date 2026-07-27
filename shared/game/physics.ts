@@ -1,4 +1,4 @@
-import type { Obstacle } from './types'
+import type { Obstacle, World } from './types'
 import type { Vec2 } from './vector'
 import { clamp } from './vector'
 
@@ -68,28 +68,56 @@ export function resolveCircleCircle(p: Vec2, radius: number, center: Vec2, other
   return { x: p.x + (dx / dist) * push, y: p.y + (dy / dist) * push }
 }
 
-/** True if a circle overlaps an obstacle, using its collision-circle cluster when present
- * (organic islands) or a plain rect otherwise. */
+/** True if a circle overlaps an obstacle, using its collision tiles (islands) or a plain rect otherwise. */
 export function obstacleOverlap(p: Vec2, radius: number, obstacle: Obstacle): boolean {
-  if (obstacle.collisionCircles) {
-    return obstacle.collisionCircles.some((c) =>
-      circlesOverlap(p, radius, { x: obstacle.pos.x + c.dx, y: obstacle.pos.y + c.dy }, c.radius),
-    )
+  if (obstacle.collisionTiles) {
+    const ts = obstacle.collisionTileSize!
+    for (const t of obstacle.collisionTiles) {
+      const tileRect = { pos: { x: obstacle.pos.x + t.dx, y: obstacle.pos.y + t.dy }, w: ts, h: ts }
+      const closest = closestPointOnRect(p, tileRect as Obstacle)
+      const dx = p.x - closest.x
+      const dy = p.y - closest.y
+      if (dx * dx + dy * dy < radius * radius) return true
+    }
+    return false
   }
   return circleRectOverlap(p, radius, obstacle)
 }
 
-/** Pushes a circle out of an obstacle if overlapping (no-op otherwise). Mirrors obstacleOverlap's shape choice. */
+/** Pushes a circle out of an obstacle if overlapping (no-op otherwise). Uses collision tiles for islands. */
 export function resolveObstacle(p: Vec2, radius: number, obstacle: Obstacle): Vec2 {
-  if (obstacle.collisionCircles) {
+  if (obstacle.collisionTiles) {
+    const ts = obstacle.collisionTileSize!
     let result = p
-    for (const c of obstacle.collisionCircles) {
-      const center = { x: obstacle.pos.x + c.dx, y: obstacle.pos.y + c.dy }
-      if (circlesOverlap(result, radius, center, c.radius)) {
-        result = resolveCircleCircle(result, radius, center, c.radius)
+    for (const t of obstacle.collisionTiles) {
+      const tileRect = { pos: { x: obstacle.pos.x + t.dx, y: obstacle.pos.y + t.dy }, w: ts, h: ts } as Obstacle
+      if (circleRectOverlap(result, radius, tileRect)) {
+        result = resolveCircleRect(result, radius, tileRect)
       }
     }
     return result
   }
   return circleRectOverlap(p, radius, obstacle) ? resolveCircleRect(p, radius, obstacle) : p
+}
+
+/** True if a cannonball at `p` with `radius` hits any bullet-blocking obstacle.
+ * Blocks on: non-island obstacles (reefs, rockyShore, driftBarrel) and island props (rocks, bushes).
+ * Returns the hit obstacle (if any) so callers can apply damage to destructibles. */
+export function bulletBlockerOverlap(p: Vec2, radius: number, world: World): Obstacle | null {
+  for (const obstacle of world.obstacles) {
+    if (obstacle.variant === 'island') {
+      // Island land tiles don't block bullets — only the props on them do.
+      if (obstacle.props) {
+        for (const prop of obstacle.props) {
+          const dx = p.x - (obstacle.pos.x + prop.dx)
+          const dy = p.y - (obstacle.pos.y + prop.dy)
+          const r = radius + prop.radius
+          if (dx * dx + dy * dy < r * r) return obstacle
+        }
+      }
+      continue
+    }
+    if (obstacleOverlap(p, radius, obstacle)) return obstacle
+  }
+  return null
 }

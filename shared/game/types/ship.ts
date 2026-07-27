@@ -15,11 +15,11 @@ export type EffectType =
   | 'krakenJitter'
   | 'regen'
   | 'disguise'
-  /** Applied while a hull is over an island's shallow-water ring: halves speed. */
-  | 'shallowWater'
   /** The Leviathan's Fury mega-buff: bigger hull, double speed, double rate of fire.
    * Its own type so ordinary speed/fire-rate pickups can't overwrite (and downgrade) it. */
   | 'megaBoost'
+  /** Applied while a ship sits on shallow-water tiles near an island's coast — 50% speed. */
+  | 'shallowWater'
 
 export interface ActiveEffect {
   type: EffectType
@@ -67,6 +67,12 @@ export interface Ship {
   bodyAngle: number
   cannonAngle: number
   moveDir: Vec2
+  /** Actual instantaneous speed (0 to ship.speed); accelerated by throttle each frame. */
+  currentSpeed: number
+  /** Throttle input: 1 = accelerate, -1 = brake, 0 = coast (slight drag). */
+  throttle: number
+  /** Turn input: 1 = starboard (clockwise), -1 = port (counter-clockwise). */
+  turnDir: number
   radius: number
   hp: number
   maxHp: number
@@ -101,4 +107,8 @@ export interface Ship {
   bombsToDrop: number
   /** Bomb pickup: countdown to the next queued drop. */
   bombDropTimer: number
+  /** Extra cannons granted by pickup: 0 = 1 gun (center), 1 = +front, 2 = +front+back. Max 2. */
+  extraCannons: number
+  /** Permanent-category boosts collected since last spawn — dropped as pickups on death. */
+  collectedPermaBoosts: string[]
 }

@@ -1,4 +1,4 @@
-import { MAX_DAMAGE_CAP, MAX_FIRE_RATE_CAP, MAX_SPEED_CAP } from './constants'
+import { SHIP_MAX_DAMAGE, SHIP_MAX_FIRE_RATE, SHIP_MAX_SPEED } from './constants'
 import type { PerkType, Ship } from './types'
 import { clamp } from './vector'
 
@@ -19,7 +19,7 @@ export const PERK_DEFS: Record<PerkType, PerkDef> = {
     emoji: '⛵',
     description: '+25% к скорости хода',
     apply: (ship) => {
-      ship.speed = clamp(ship.speed * 1.25, 0, MAX_SPEED_CAP)
+      ship.speed = clamp(ship.speed * 1.25, 0, SHIP_MAX_SPEED)
     },
   },
   quickReload: {
@@ -28,7 +28,7 @@ export const PERK_DEFS: Record<PerkType, PerkDef> = {
     emoji: '⏱️',
     description: '+25% к скорости перезарядки',
     apply: (ship) => {
-      ship.fireRate = clamp(ship.fireRate * 1.25, 0, MAX_FIRE_RATE_CAP)
+      ship.fireRate = clamp(ship.fireRate * 1.25, 0, SHIP_MAX_FIRE_RATE)
     },
   },
   heavyShot: {
@@ -37,7 +37,7 @@ export const PERK_DEFS: Record<PerkType, PerkDef> = {
     emoji: '💣',
     description: '+25% к урону пушек',
     apply: (ship) => {
-      ship.damage = clamp(ship.damage * 1.25, 0, MAX_DAMAGE_CAP)
+      ship.damage = clamp(ship.damage * 1.25, 0, SHIP_MAX_DAMAGE)
     },
   },
 }

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BOT_COUNT, MAX_BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
+import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
@@ -82,7 +82,7 @@ export default function HUD({
   onStart,
   onRestart,
 }: HUDProps) {
-  const [botCount, setBotCount] = useState(BOT_COUNT)
+  const [botCount, setBotCount] = useState(BOT_DEFAULT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
   /** Set once the player picks a mode — switches the menu to the perk step. */
   const [pendingMode, setPendingMode] = useState<'local' | 'online' | null>(null)
@@ -158,7 +158,7 @@ export default function HUD({
                 id="bot-count"
                 type="range"
                 min={0}
-                max={MAX_BOT_COUNT}
+                max={BOT_MAX_COUNT}
                 value={botCount}
                 onChange={(e) => setBotCount(Number(e.target.value))}
               />
@@ -322,7 +322,7 @@ export default function HUD({
           </div>
           <span className="hp-text">{stats.hp} / {stats.maxHp} HP</span>
         </div>
-        <div className="hud-badge">Убийства: {stats.kills}</div>
+        <div className="hud-badge">Потоплено: {stats.kills}</div>
         <div className="hud-badge">Кораблей на плаву: {stats.botsAlive} / {stats.botsTotal}</div>
         {roundStatus && roundStatus.phase === 'playing' && (
           <div className="hud-badge">⏱ {formatRoundTime(roundStatus.timeRemaining)}</div>
@@ -366,7 +366,7 @@ export default function HUD({
 
       {megaAnnounce && (
         <div className="mega-banner">
-          <span className="mega-banner-title">🔱 ЯРОСТЬ ЛЕВИАФАНА</span>
+          <span className="mega-banner-title">🏴‍☠️ ЧЁРНАЯ ЖЕМЧУЖИНА</span>
           <span className="mega-banner-sub">Появилась на карте — смотрите метку на миникарте!</span>
         </div>
       )}

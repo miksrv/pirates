@@ -71,3 +71,25 @@ export function bulletDodge(ship: Ship, world: World): { x: number; y: number; u
 
   return { x: dx, y: dy, urgency: worstUrgency, escapable }
 }
+
+const BOT_BOMB_AVOID_RANGE = 80
+
+/** Repulsion vector pushing the ship away from nearby mines. Strength grows as the ship gets
+ *  closer — inside the detonation radius the push is maximal so the bot swerves hard. */
+export function bombAvoidance(ship: Ship, world: World): Vec2 {
+  let px = 0
+  let py = 0
+
+  for (const bomb of world.bombs) {
+    const d = distance(ship.pos, bomb.pos)
+    const dangerDist = ship.radius + bomb.radius + BOT_BOMB_AVOID_RANGE
+    if (d >= dangerDist || d < 1e-3) continue
+    const strength = 1 - d / dangerDist
+    const away = normalize(sub(ship.pos, bomb.pos))
+    px += away.x * strength
+    py += away.y * strength
+  }
+
+  return { x: px, y: py }
+}
+

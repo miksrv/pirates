@@ -1,8 +1,8 @@
 import { nextId } from './id'
-import { generateIslandShape, islandShapeToCollisionCircles } from './islandShape'
-import { MEGA_PICKUP_RADIUS } from './constants'
-import { RANDOM_PICKUP_TYPES } from './pickups'
-import type { Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
+import { generateIslandShape, generateCollisionTiles } from './islandShape'
+import { MAP_TILE_SIZE, MEGA_PICKUP_RADIUS } from './constants'
+import { rollRandomPickupType } from './pickups'
+import type { IslandProp, Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
 import { distance } from './vector'
 
 const SAFE_ZONE_RADIUS = 260
@@ -73,11 +73,47 @@ function pushObstacle(obstacles: Obstacle[], variant: ObstacleVariant, pos: { x:
   if (variant === 'island') {
     const radius = w / 2
     obstacle.islandShape = generateIslandShape(radius)
-    obstacle.collisionCircles = islandShapeToCollisionCircles(radius, obstacle.islandShape)
+    const tiles = generateCollisionTiles(radius, obstacle.islandShape, MAP_TILE_SIZE)
+    obstacle.collisionTiles = tiles.land
+    obstacle.shallowTiles = tiles.shallow
+    obstacle.collisionTileSize = MAP_TILE_SIZE
+    obstacle.props = generateIslandProps(radius, obstacle.islandShape)
   }
 
   obstacles.push(obstacle)
   return obstacle
+}
+
+/** Generates rock and bush props on/around an island — these block cannonballs. */
+function generateIslandProps(sandRadius: number, shape: { stretchX: number; stretchY: number }): IslandProp[] {
+  const { stretchX, stretchY } = shape
+  const hasGrass = sandRadius >= 75
+  const props: IslandProp[] = []
+
+  const at = (angle: number, dist: number) => ({
+    dx: Math.cos(angle) * dist * stretchX,
+    dy: Math.sin(angle) * dist * stretchY,
+  })
+
+  // Bushes — only on grass islands
+  if (hasGrass) {
+    const count = 2 + Math.floor(Math.random() * 3)
+    for (let i = 0; i < count; i += 1) {
+      const pos = at(Math.random() * Math.PI * 2, Math.random() * sandRadius * 0.42)
+      const size = 26 + Math.random() * 16
+      props.push({ ...pos, radius: size / 2, kind: 'bush' })
+    }
+  }
+
+  // Rocks — scattered along the coastline
+  const rockCount = 1 + Math.floor(Math.random() * 3)
+  for (let i = 0; i < rockCount; i += 1) {
+    const pos = at(Math.random() * Math.PI * 2, sandRadius * (0.85 + Math.random() * 0.3))
+    const size = 18 + Math.random() * 14
+    props.push({ ...pos, radius: size / 2, kind: 'rock' })
+  }
+
+  return props
 }
 
 function tryPlaceObstacle(
@@ -183,7 +219,7 @@ export function findFreeSpawnPoint(world: World, radius: number): { x: number; y
 }
 
 export function spawnPickupAt(world: World, pos: { x: number; y: number }, type?: PickupType): Pickup {
-  const chosen = type ?? RANDOM_PICKUP_TYPES[Math.floor(Math.random() * RANDOM_PICKUP_TYPES.length)]
+  const chosen = type ?? rollRandomPickupType()
   const pickup: Pickup = {
     id: nextId('pickup'),
     pos: { ...pos },

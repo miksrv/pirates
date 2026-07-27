@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
-import { ALL_IMAGE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE } from '../../../shared/game/assetKeys'
-import { BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W, WORLD_H, WORLD_W } from '../../../shared/game/constants'
+import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_BASE } from '../../../shared/game/assetKeys'
+import { BOT_DEFAULT_COUNT, MAP_HEIGHT, MAP_WIDTH, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
 import type { PerkType, PickupType, World } from '../../../shared/game/types'
@@ -30,7 +30,7 @@ export class MainScene extends Phaser.Scene {
   private statsAccum = 0
 
   private mode: 'local' | 'online' = 'local'
-  private botCount = BOT_COUNT
+  private botCount = BOT_DEFAULT_COUNT
   private perk: PerkType | null = null
   private net: NetClient | null = null
   private watchdogAccum = 0
@@ -54,20 +54,21 @@ export class MainScene extends Phaser.Scene {
 
   preload(): void {
     for (const key of ALL_IMAGE_KEYS) this.load.image(key, `${IMG_BASE}/${key}.png`)
+    for (const key of ALL_TILE_KEYS) this.load.image(key, `${TILES_BASE}/${key}.png`)
     for (const key of SHIP_IMAGE_KEYS) this.load.image(key, `${SHIPS_BASE}/${key}.png`)
     for (const [key, file] of Object.entries(SFX)) this.load.audio(key, `${SFX_BASE}/${file}.ogg`)
   }
 
   create(): void {
-    this.groundTile = this.add.tileSprite(0, 0, WORLD_W, WORLD_H, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
+    this.groundTile = this.add.tileSprite(0, 0, MAP_WIDTH, MAP_HEIGHT, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
 
     this.minimapCam = this.cameras
       .add(0, 0, MINIMAP_W, MINIMAP_H)
       .setName('minimap')
-      .setZoom(MINIMAP_W / WORLD_W)
-      .setBounds(0, 0, WORLD_W, WORLD_H)
+      .setZoom(MINIMAP_W / MAP_WIDTH)
+      .setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT)
       .setBackgroundColor(0x0e2c40)
-      .centerOn(WORLD_W / 2, WORLD_H / 2)
+      .centerOn(MAP_WIDTH / 2, MAP_HEIGHT / 2)
     this.minimapCam.ignore(this.groundTile)
 
     // Rounds the minimap's rendered corners: the mask shape is drawn with scrollFactor 0, so
@@ -108,7 +109,7 @@ export class MainScene extends Phaser.Scene {
 
     const launch = (this.registry.get('launch') ?? {}) as Partial<LaunchConfig>
     this.mode = launch.mode ?? 'local'
-    this.botCount = launch.botCount ?? BOT_COUNT
+    this.botCount = launch.botCount ?? BOT_DEFAULT_COUNT
     this.perk = launch.perk ?? null
 
     if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname)
@@ -173,17 +174,7 @@ export class MainScene extends Phaser.Scene {
       b.flame?.destroy()
     }
     this.bulletViews.clear()
-    for (const o of this.obstacleViews.values()) {
-      o.sprite.destroy()
-      o.shallowWaterOverlay?.destroy()
-      o.grassOverlay?.destroy()
-      o.shallowWaterMaskShape?.destroy()
-      o.maskShape?.destroy()
-      o.grassMaskShape?.destroy()
-      o.decorations?.forEach((d) => d.destroy())
-      o.hpBarBg?.destroy()
-      o.hpBarFg?.destroy()
-    }
+    for (const o of this.obstacleViews.values()) o.destroy()
     this.obstacleViews.clear()
     for (const p of this.pickupViews.values()) {
       p.circle.destroy()
@@ -216,10 +207,10 @@ export class MainScene extends Phaser.Scene {
     const dt = Math.min(deltaMs / 1000, 0.05)
     let player = this.world.ships.find((t) => t.id === this.playerId)
 
-    const { moveDir, aimAngle, firing, boosting } = readPlayerInput(this, this.keys, player)
+    const { throttle, turnDir, aimAngle, firing, boosting } = readPlayerInput(this, this.keys, player)
 
     if (this.mode === 'online' && this.net) {
-      this.net.sendInput({ moveDir, aimAngle, firing, boosting })
+      this.net.sendInput({ throttle, turnDir, aimAngle, firing, boosting })
       this.net.syncWorld()
       // syncWorld replaces the ships array; re-find our ship and aim its cannon locally so the
       // crosshair doesn't lag a round-trip behind the mouse.
@@ -227,7 +218,7 @@ export class MainScene extends Phaser.Scene {
       if (player && player.alive) player.cannonAngle = aimAngle
       handleEvents(this, this.net.drainEvents())
     } else {
-      stepWorld(this.world, dt, { [this.playerId]: { moveDir, aimAngle, firing, boosting } })
+      stepWorld(this.world, dt, { [this.playerId]: { throttle, turnDir, aimAngle, firing, boosting } })
       handleEvents(this, this.world.events)
     }
 
