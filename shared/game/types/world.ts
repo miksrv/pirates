@@ -31,7 +31,7 @@ export interface Obstacle {
   collisionTiles?: CollisionTile[]
   /** Only for 'island': shallow-water tile centers (relative to pos) — ships on these tiles are slowed. */
   shallowTiles?: CollisionTile[]
-  /** Tile size used for collision tile rects (defaults to ISLAND_TILE_SIZE). */
+  /** Tile size used for collision tile rects (defaults to MAP_TILE_SIZE). */
   collisionTileSize?: number
   /** Only for 'island': rocks and bushes that block cannonballs. */
   props?: IslandProp[]

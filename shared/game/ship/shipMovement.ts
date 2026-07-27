@@ -1,6 +1,6 @@
 import { updateBoostMeter } from '../boosts/boostMeter'
 import { applyTemporaryEffect, decayEffects, getEffectMagnitude, hasEffect } from '../boosts/effects'
-import { BASE_ACCELERATION, BASE_MANEUVER, BOOST_SPEED_MULT, ESCORT_RADIUS, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHALLOW_WATER_SPEED_MULT, SHIP_RADIUS } from '../constants'
+import { BOOST_SPEED_MULT, ESCORT_RADIUS, MAP_SHALLOW_SPEED_MULT, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHIP_BASE_ACCELERATION, SHIP_BASE_MANEUVER, SHIP_RADIUS } from '../constants'
 import { circleRectOverlap } from '../physics'
 import { resolveObstacle } from '../physics'
 import type { Obstacle, Ship, World } from '../types'
@@ -42,13 +42,13 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   const boostActive = updateBoostMeter(ship, dt)
 
   // --- Turn hull ---
-  const maneuver = BASE_MANEUVER * turnMult
+  const maneuver = SHIP_BASE_MANEUVER * turnMult
   if (jitter > 0) ship.bodyAngle += (Math.random() - 0.5) * jitter * dt
   ship.bodyAngle += ship.turnDir * maneuver * dt
 
   // --- Accelerate / decelerate ---
   const maxSpeed = ship.speed * speedMult * shallowMult * (boostActive ? BOOST_SPEED_MULT : 1)
-  const accel = BASE_ACCELERATION * dt
+  const accel = SHIP_BASE_ACCELERATION * dt
   if (ship.throttle > 0) {
     ship.currentSpeed = Math.min(ship.currentSpeed + accel * ship.throttle, maxSpeed)
   } else if (ship.throttle < 0) {
@@ -78,7 +78,7 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   }
 
   if (isOnShallowWater(ship, world.obstacles)) {
-    applyTemporaryEffect(ship, 'shallowWater', 0.15, SHALLOW_WATER_SPEED_MULT)
+    applyTemporaryEffect(ship, 'shallowWater', 0.15, MAP_SHALLOW_SPEED_MULT)
   }
 
   return hitObstacle

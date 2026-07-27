@@ -1,5 +1,5 @@
 import type { WebSocket } from 'ws'
-import { BOT_COUNT, MAX_BOT_COUNT, ROUND_DURATION, ROUND_RESTART_DELAY } from '../shared/game/constants'
+import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_DURATION, GAMEPLAY_ROUND_RESTART_DELAY } from '../shared/game/constants'
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
 import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World } from '../shared/game/types'
@@ -39,7 +39,7 @@ let loop: NodeJS.Timeout | null = null
 let tick = 0
 let joinCounter = 0
 let pendingEvents: GameEvent[] = []
-/** 'playing' counts down world.time to ROUND_DURATION; 'ended' counts down restartTimer instead. */
+/** 'playing' counts down world.time to GAMEPLAY_ROUND_DURATION; 'ended' counts down restartTimer instead. */
 let roundPhase: RoundPhase = 'playing'
 let restartTimer = 0
 export const clients = new Map<WebSocket, Client>()
@@ -76,7 +76,7 @@ export function idleInput(): PlayerInput {
 
 function roundStatus(): RoundStatus {
   if (roundPhase === 'playing') {
-    return { phase: 'playing', timeRemaining: Math.max(0, ROUND_DURATION - (world?.time ?? 0)) }
+    return { phase: 'playing', timeRemaining: Math.max(0, GAMEPLAY_ROUND_DURATION - (world?.time ?? 0)) }
   }
   return { phase: 'ended', timeRemaining: Math.max(0, restartTimer) }
 }
@@ -113,7 +113,7 @@ function buildSnapshot(): SnapshotMsg {
 function endRound(): void {
   if (world) world.bullets = []
   roundPhase = 'ended'
-  restartTimer = ROUND_RESTART_DELAY
+  restartTimer = GAMEPLAY_ROUND_RESTART_DELAY
 }
 
 /** Round restart: flushes every connected player's round stats to the DB (most kills = win, the
@@ -153,7 +153,7 @@ function startLoop(): void {
 
       stepWorld(world, dt, inputs)
       pendingEvents.push(...world.events)
-      if (world.time >= ROUND_DURATION) endRound()
+      if (world.time >= GAMEPLAY_ROUND_DURATION) endRound()
     } else {
       restartTimer -= dt
       if (restartTimer <= 0) resetRound()
@@ -177,8 +177,8 @@ export function stopLoopAndReset(): void {
 /** Bot baseline for a fresh arena: the BOTS env var wins (may be 0 for pure PvP), else BOT_COUNT. */
 function baselineBotCount(): number {
   const env = Number(process.env.BOTS)
-  if (Number.isFinite(env)) return Math.max(0, Math.min(MAX_BOT_COUNT, Math.floor(env)))
-  return BOT_COUNT
+  if (Number.isFinite(env)) return Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(env)))
+  return BOT_DEFAULT_COUNT
 }
 
 /** Bots make way for humans: as players join past MAX_PLAYERS - baseline, bots leave one by one

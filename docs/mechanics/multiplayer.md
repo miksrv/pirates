@@ -9,7 +9,7 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - FFA: humans + bots all fight each other, friendly fire on. Bots run server-side.
 
 ## Bots (live scaling)
-- Baseline is 5 bots (`BOT_COUNT`); the `BOTS` env var overrides the baseline server-wide (`0` for pure PvP).
+- Baseline is 5 bots (`BOT_DEFAULT_COUNT`); the `BOTS` env var overrides the baseline server-wide (`0` for pure PvP).
 - Bots make way for humans: live bot count = `clamp(baseline, 0, MAX_PLAYERS - players)`, so players + bots never exceeds 10.
   - e.g. 5 players → 5 bots (10 total); 6 players → 4 bots; 10 players → 0 bots.
 - Recalculated on every join/leave (`syncBotCount` in `gameState.ts`): excess bots are despawned instantly, missing ones spawn fresh at a free spot. A bot's own escort fleet is not counted or touched directly — it disbands automatically once its captain is removed (existing escort-cleanup logic).
@@ -22,8 +22,8 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - Join/leave notifications appear in every player's event log.
 
 ## Rounds
-- Each arena runs a 4-minute round (`ROUND_DURATION`, `shared/game/constants.ts`), tracked via `world.time`.
-- On timeout: sim freezes (ships/bullets hold position, no input applied), a 15s restart countdown begins (`ROUND_RESTART_DELAY`).
+- Each arena runs a 4-minute round (`GAMEPLAY_ROUND_DURATION`, `shared/game/constants.ts`), tracked via `world.time`.
+- On timeout: sim freezes (ships/bullets hold position, no input applied), a 15s restart countdown begins (`GAMEPLAY_ROUND_RESTART_DELAY`).
 - On restart: every connected player's round stats are flushed to the stats DB (see below), then a brand-new arena is built; every connected client gets a fresh ship (same name/perk, stats/kills reset) via a new `welcome` message — reuses the join flow, so the client resets its view exactly like joining fresh. Bots resync to baseline via the usual live-scaling rule.
 - Win/loss: whoever has the most kills when the round ends wins (ties all win); everyone else loses. Bots count toward "most kills" — if a bot tops the round, every human gets a loss.
 - Broadcast every snapshot: `round: { phase: 'playing' | 'ended', timeRemaining }` and `leaderboard: { shipId, name, team, kills, deaths, alive }[]` (one row per captain, sorted by kills; escorts excluded).

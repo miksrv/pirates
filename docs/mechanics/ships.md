@@ -10,8 +10,8 @@ AI ships are labelled `<имя> (bot)` above the hull, so humans are distinguish
 
 ## Movement physics
 - Ships have **inertia**: W/↑ accelerates, S/↓ brakes, A/←–D/→ turns the hull.
-- `currentSpeed` ramps toward max speed at `BASE_ACCELERATION`; coasting (no throttle) applies gentle drag (20% of accel).
-- Hull rotates at `BASE_MANEUVER` rad/s × `turnDir` (±1). Effects (`turnBoost`) multiply this.
+- `currentSpeed` ramps toward max speed at `SHIP_BASE_ACCELERATION`; coasting (no throttle) applies gentle drag (20% of accel).
+- Hull rotates at `SHIP_BASE_MANEUVER` rad/s × `turnDir` (±1). Effects (`turnBoost`) multiply this.
 - Ship always moves in its `bodyAngle` direction at `currentSpeed`.
 - On respawn, `currentSpeed` resets to 0 (ship starts stationary).
 

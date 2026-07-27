@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_BASE } from '../../../shared/game/assetKeys'
-import { BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W, WORLD_H, WORLD_W } from '../../../shared/game/constants'
+import { BOT_DEFAULT_COUNT, MAP_HEIGHT, MAP_WIDTH, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
 import type { PerkType, PickupType, World } from '../../../shared/game/types'
@@ -30,7 +30,7 @@ export class MainScene extends Phaser.Scene {
   private statsAccum = 0
 
   private mode: 'local' | 'online' = 'local'
-  private botCount = BOT_COUNT
+  private botCount = BOT_DEFAULT_COUNT
   private perk: PerkType | null = null
   private net: NetClient | null = null
   private watchdogAccum = 0
@@ -60,15 +60,15 @@ export class MainScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.groundTile = this.add.tileSprite(0, 0, WORLD_W, WORLD_H, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
+    this.groundTile = this.add.tileSprite(0, 0, MAP_WIDTH, MAP_HEIGHT, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
 
     this.minimapCam = this.cameras
       .add(0, 0, MINIMAP_W, MINIMAP_H)
       .setName('minimap')
-      .setZoom(MINIMAP_W / WORLD_W)
-      .setBounds(0, 0, WORLD_W, WORLD_H)
+      .setZoom(MINIMAP_W / MAP_WIDTH)
+      .setBounds(0, 0, MAP_WIDTH, MAP_HEIGHT)
       .setBackgroundColor(0x0e2c40)
-      .centerOn(WORLD_W / 2, WORLD_H / 2)
+      .centerOn(MAP_WIDTH / 2, MAP_HEIGHT / 2)
     this.minimapCam.ignore(this.groundTile)
 
     // Rounds the minimap's rendered corners: the mask shape is drawn with scrollFactor 0, so
@@ -109,7 +109,7 @@ export class MainScene extends Phaser.Scene {
 
     const launch = (this.registry.get('launch') ?? {}) as Partial<LaunchConfig>
     this.mode = launch.mode ?? 'local'
-    this.botCount = launch.botCount ?? BOT_COUNT
+    this.botCount = launch.botCount ?? BOT_DEFAULT_COUNT
     this.perk = launch.perk ?? null
 
     if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname)

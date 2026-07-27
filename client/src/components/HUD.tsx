@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { BOT_COUNT, MAX_BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
+import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
@@ -82,7 +82,7 @@ export default function HUD({
   onStart,
   onRestart,
 }: HUDProps) {
-  const [botCount, setBotCount] = useState(BOT_COUNT)
+  const [botCount, setBotCount] = useState(BOT_DEFAULT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
   /** Set once the player picks a mode — switches the menu to the perk step. */
   const [pendingMode, setPendingMode] = useState<'local' | 'online' | null>(null)
@@ -158,7 +158,7 @@ export default function HUD({
                 id="bot-count"
                 type="range"
                 min={0}
-                max={MAX_BOT_COUNT}
+                max={BOT_MAX_COUNT}
                 value={botCount}
                 onChange={(e) => setBotCount(Number(e.target.value))}
               />

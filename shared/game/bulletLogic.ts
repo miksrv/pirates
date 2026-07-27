@@ -1,4 +1,4 @@
-import { PICKUP_DROP_CHANCE, RESPAWN_TIME } from './constants'
+import { GAMEPLAY_RESPAWN_TIME, PICKUP_DROP_CHANCE } from './constants'
 import { nextId } from './id'
 import { spawnPickupAt } from './map'
 import { fleetRootId } from './escort'
@@ -119,7 +119,7 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
 
   if (ship.hp <= 0 && ship.alive) {
     ship.alive = false
-    ship.respawnTimer = RESPAWN_TIME
+    ship.respawnTimer = GAMEPLAY_RESPAWN_TIME
     // Escorts are fodder: sinking one scores nothing and stays out of the kill feed, which a
     // five-strong wedge would otherwise flood.
     if (!ship.escortOf) {

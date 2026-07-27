@@ -1,4 +1,4 @@
-import { MAX_ARMOR_CAP, MAX_DAMAGE_CAP, MAX_FIRE_RATE_CAP, MAX_HP_CAP, MAX_SPEED_CAP } from '../constants'
+import { SHIP_MAX_ARMOR, SHIP_MAX_DAMAGE, SHIP_MAX_FIRE_RATE, SHIP_MAX_HP, SHIP_MAX_SPEED } from '../constants'
 import { clamp } from '../vector'
 import type { PickupDef } from './types'
 
@@ -24,7 +24,7 @@ export const PERMANENT_STAT_PICKUPS: Record<
     color: '#5fd0ff',
     description: '+20 к максимальному HP',
     apply: (ship) => {
-      ship.maxHp = clamp(ship.maxHp + 20, 0, MAX_HP_CAP)
+      ship.maxHp = clamp(ship.maxHp + 20, 0, SHIP_MAX_HP)
       ship.hp = clamp(ship.hp + 20, 0, ship.maxHp)
     },
   },
@@ -35,7 +35,7 @@ export const PERMANENT_STAT_PICKUPS: Record<
     color: '#b48bff',
     description: '+7% снижения урона',
     apply: (ship) => {
-      ship.armor = clamp(ship.armor + 0.07, 0, MAX_ARMOR_CAP)
+      ship.armor = clamp(ship.armor + 0.07, 0, SHIP_MAX_ARMOR)
     },
   },
   speed: {
@@ -45,7 +45,7 @@ export const PERMANENT_STAT_PICKUPS: Record<
     color: '#ffd23f',
     description: '+10% скорости хода',
     apply: (ship) => {
-      ship.speed = clamp(ship.speed * 1.1, 0, MAX_SPEED_CAP)
+      ship.speed = clamp(ship.speed * 1.1, 0, SHIP_MAX_SPEED)
     },
   },
   damage: {
@@ -55,7 +55,7 @@ export const PERMANENT_STAT_PICKUPS: Record<
     color: '#ff5d5d',
     description: '+4 к урону пушек',
     apply: (ship) => {
-      ship.damage = clamp(ship.damage + 4, 0, MAX_DAMAGE_CAP)
+      ship.damage = clamp(ship.damage + 4, 0, SHIP_MAX_DAMAGE)
     },
   },
   fireRate: {
@@ -65,7 +65,7 @@ export const PERMANENT_STAT_PICKUPS: Record<
     color: '#ff9f4a',
     description: 'Ускоряет перезарядку пушки',
     apply: (ship) => {
-      ship.fireRate = clamp(ship.fireRate + 0.05, 0, MAX_FIRE_RATE_CAP)
+      ship.fireRate = clamp(ship.fireRate + 0.05, 0, SHIP_MAX_FIRE_RATE)
     },
   },
 }

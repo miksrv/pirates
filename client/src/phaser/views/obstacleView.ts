@@ -17,7 +17,7 @@ import {
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
-import { ISLAND_TILE_SIZE } from '../../../../shared/game/constants'
+import { MAP_TILE_SIZE } from '../../../../shared/game/constants'
 import { generateIslandTileGrid, type IslandGridCell, type ShallowWaterCell } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
@@ -137,7 +137,7 @@ function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, land: Isl
     const { key, rotation } = cell.layer === 'grass' ? { key: grassTileFor(cell), rotation: 0 } : sandTileFor(cell)
     return scene.add
       .sprite(cx + cell.x, cy + cell.y, key)
-      .setDisplaySize(ISLAND_TILE_SIZE + ISLAND_TILE_OVERLAP, ISLAND_TILE_SIZE + ISLAND_TILE_OVERLAP)
+      .setDisplaySize(MAP_TILE_SIZE + ISLAND_TILE_OVERLAP, MAP_TILE_SIZE + ISLAND_TILE_OVERLAP)
       .setRotation(rotation)
       .setDepth(cell.layer === 'grass' ? 4.5 : 4)
   })
@@ -151,7 +151,7 @@ function placeShallowWaterTiles(scene: Phaser.Scene, cx: number, cy: number, sha
   return shallowWater.map((cell) =>
     scene.add
       .sprite(cx + cell.x, cy + cell.y, cell.key)
-      .setDisplaySize(ISLAND_TILE_SIZE, ISLAND_TILE_SIZE)
+      .setDisplaySize(MAP_TILE_SIZE, MAP_TILE_SIZE)
       .setDepth(3.9),
   )
 }
@@ -177,7 +177,7 @@ function createIslandView(
   const sandRadius = obstacle.w / 2
   const shape = obstacle.islandShape!
 
-  const { land, shallowWater } = generateIslandTileGrid(sandRadius, shape, ISLAND_TILE_SIZE)
+  const { land, shallowWater } = generateIslandTileGrid(sandRadius, shape, MAP_TILE_SIZE)
   const tiles = [...placeShallowWaterTiles(scene, cx, cy, shallowWater), ...placeIslandTiles(scene, cx, cy, land)]
 
   const decorations = scatterIslandProps(scene, obstacle)
