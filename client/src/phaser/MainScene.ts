@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { ALL_IMAGE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE } from '../../../shared/game/assetKeys'
+import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_BASE } from '../../../shared/game/assetKeys'
 import { BOT_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W, WORLD_H, WORLD_W } from '../../../shared/game/constants'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
@@ -54,6 +54,7 @@ export class MainScene extends Phaser.Scene {
 
   preload(): void {
     for (const key of ALL_IMAGE_KEYS) this.load.image(key, `${IMG_BASE}/${key}.png`)
+    for (const key of ALL_TILE_KEYS) this.load.image(key, `${TILES_BASE}/${key}.png`)
     for (const key of SHIP_IMAGE_KEYS) this.load.image(key, `${SHIPS_BASE}/${key}.png`)
     for (const [key, file] of Object.entries(SFX)) this.load.audio(key, `${SFX_BASE}/${file}.ogg`)
   }

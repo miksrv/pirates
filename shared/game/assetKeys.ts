@@ -1,6 +1,7 @@
 import type { ObstacleVariant, ShipHealthState, ShipVariant } from './types'
 
 export const IMG_BASE = `${import.meta.env.BASE_URL}assets/img`
+export const TILES_BASE = `${import.meta.env.BASE_URL}assets/tiles`
 export const SHIPS_BASE = `${import.meta.env.BASE_URL}assets/ships`
 export const SFX_BASE = `${import.meta.env.BASE_URL}assets/sfx`
 
@@ -29,9 +30,9 @@ export const CANNONBALL_KEY = 'cannonBall'
 
 export const OBSTACLE_KEY: Record<ObstacleVariant, string> = {
   island: 'tile_sand',
-  reef: 'tile_rock2',
+  reef: 'rock_medium_1',
   driftBarrel: 'tile_barrel',
-  rockyShore: 'tile_rockyshore',
+  rockyShore: 'rock_small_1',
 }
 
 /** Sand ground tiles for the island grid (see islandShape.generateIslandTileGrid). Every one of
@@ -148,7 +149,14 @@ export const ISLAND_GRASS_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerB
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
 export const ISLAND_TREE_KEYS = ['tile_tree1', 'tile_tree2', 'tile_tree3']
-export const ISLAND_ROCK_KEYS = ['tile_rock1', 'tile_rock2', 'tile_rock3']
+export const ISLAND_ROCK_KEYS = [
+  'rock_small_1',
+  'rock_small_2',
+  'rock_medium_1',
+  'rock_medium_2',
+  'rock_large_1',
+  'rock_large_2',
+]
 export const ISLAND_CANNON_KEY = 'cannonMobile'
 /** Small fortification pieces (capstans/wall segments) — decoration only, always sit on an island's sand ring. */
 export const ISLAND_FORT_KEYS = [
@@ -170,10 +178,19 @@ export const SFX = {
   pickup: 'pickup',
 } as const
 
+/** Keys loaded from assets/tiles/ (rock obstacles & decorative rocks). */
+export const ALL_TILE_KEYS: string[] = [...new Set([
+  ...ISLAND_ROCK_KEYS,
+  OBSTACLE_KEY.reef,
+  OBSTACLE_KEY.rockyShore,
+])]
+
+/** Keys loaded from assets/img/ (everything except tile-dir rocks). */
 export const ALL_IMAGE_KEYS: string[] = [
   SHIP_CANNON_KEY,
   CANNONBALL_KEY,
-  ...Object.values(OBSTACLE_KEY),
+  OBSTACLE_KEY.island,
+  OBSTACLE_KEY.driftBarrel,
   ...ISLAND_SAND_FILL_KEYS,
   ...Object.values(ISLAND_SAND_FILL_INNER_SHADOW_KEYS).flat(),
   ...Object.values(ISLAND_SAND_CORNER_KEYS).flat(),
@@ -189,7 +206,6 @@ export const ALL_IMAGE_KEYS: string[] = [
   ...ISLAND_GRASS_FILL_KEYS,
   ...Object.values(ISLAND_GRASS_CORNER_KEYS).flat(),
   ...ISLAND_TREE_KEYS,
-  ...ISLAND_ROCK_KEYS,
   ISLAND_CANNON_KEY,
   ...ISLAND_FORT_KEYS,
   GROUND_TILE_KEY,
