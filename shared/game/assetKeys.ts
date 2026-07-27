@@ -113,22 +113,17 @@ export const ISLAND_GRASS_FILL_KEYS = [
   'tile_grass_fill_pattern_1',
   'tile_grass_fill_pattern_2',
 ]
-
-/** Grass/sand transition art for a sand cell bordering the grass interior (not water) — smooths
- * what would otherwise be a hard square seam between the grass and sand layers. Corners only ship
- * one variant each; edges only exist facing south/east/west in the source pack, so the north
- * orientation reuses the south art rotated 180° (edgeRotation on the grid cell), same trick as
- * the coastline edge. */
+/** Grass-side counterpart to a sand coastline corner: still mostly sand (only the 2 edges nearest
+ * the name are true grass, e.g. `cornerTr` is grass along its top+right edges), used one tile
+ * inland of a sand corner cell so the coastline's round sand curve tapers into the grass over 2
+ * tiles instead of a flat grass square butting straight against the corner's round sand edge.
+ * Keyed by `IslandGridCell.grassCornerTip`, which already names the opposite corner from the
+ * adjacent sand corner cell (so a `cornerBl` sand corner pairs with `cornerTr` here). */
 export const ISLAND_GRASS_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr', string[]> = {
   cornerTl: ['tile_grass_corner_tl_1'],
   cornerTr: ['tile_grass_corner_tr_1'],
   cornerBl: ['tile_grass_corner_bl_1'],
   cornerBr: ['tile_grass_corner_br_1'],
-}
-export const ISLAND_GRASS_EDGE_KEYS: Record<'south' | 'east' | 'west', string[]> = {
-  south: ['tile_grass_edge_south_1', 'tile_grass_edge_south_2'],
-  east: ['tile_grass_edge_east_1', 'tile_grass_edge_east_2'],
-  west: ['tile_grass_edge_west_1', 'tile_grass_edge_west_2'],
 }
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
@@ -171,7 +166,6 @@ export const ALL_IMAGE_KEYS: string[] = [
   ...ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
   ...ISLAND_GRASS_FILL_KEYS,
   ...Object.values(ISLAND_GRASS_CORNER_KEYS).flat(),
-  ...Object.values(ISLAND_GRASS_EDGE_KEYS).flat(),
   ...ISLAND_TREE_KEYS,
   ...ISLAND_ROCK_KEYS,
   ISLAND_CANNON_KEY,

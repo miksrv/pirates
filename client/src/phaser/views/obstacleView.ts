@@ -3,7 +3,6 @@ import {
   ISLAND_CANNON_KEY,
   ISLAND_FORT_KEYS,
   ISLAND_GRASS_CORNER_KEYS,
-  ISLAND_GRASS_EDGE_KEYS,
   ISLAND_GRASS_FILL_KEYS,
   ISLAND_ROCK_KEYS,
   ISLAND_SAND_CORNER_GRASSTIP_KEYS,
@@ -20,12 +19,7 @@ import {
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
 import { ISLAND_TILE_SIZE } from '../../../../shared/game/constants'
-import {
-  generateIslandTileGrid,
-  type IslandGrassTransition,
-  type IslandGridCell,
-  type IslandShape,
-} from '../../../../shared/game/islandShape'
+import { generateIslandTileGrid, type IslandGridCell, type IslandShape } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
 
@@ -117,18 +111,8 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
-/** Real grass/sand transition art for a sand cell that borders the grass core — a corner where
- * grass wraps two sides, or a straight run along one side. Only 'north' has no dedicated art;
- * it reuses the south-facing edge art rotated 180°, which still puts grass on the correct side. */
-function grassTransitionTileFor(transition: IslandGrassTransition): { key: string; rotation: number } {
-  if (transition.corner) return { key: pickRandom(ISLAND_GRASS_CORNER_KEYS[transition.corner]), rotation: 0 }
-  if (transition.edgeSide === 'north') return { key: pickRandom(ISLAND_GRASS_EDGE_KEYS.south), rotation: Math.PI }
-  return { key: pickRandom(ISLAND_GRASS_EDGE_KEYS[transition.edgeSide!]), rotation: 0 }
-}
-
 function sandTileFor(cell: IslandGridCell): { key: string; rotation: number } {
   if (cell.role === 'fill') {
-    if (cell.grassTransition) return grassTransitionTileFor(cell.grassTransition)
     if (cell.innerShadowCorner) return { key: pickRandom(ISLAND_SAND_FILL_INNER_SHADOW_KEYS[cell.innerShadowCorner]), rotation: 0 }
     return { key: pickRandom(ISLAND_SAND_FILL_KEYS), rotation: 0 }
   }
@@ -160,6 +144,11 @@ function grassFillKey(): string {
   return plain
 }
 
+function grassTileFor(cell: IslandGridCell): string {
+  if (cell.grassCornerTip) return pickRandom(ISLAND_GRASS_CORNER_KEYS[cell.grassCornerTip])
+  return grassFillKey()
+}
+
 // Tiles render very slightly oversized (cell spacing stays exact) so a 1px seam of whatever
 // sits behind — a neighboring tile's non-opaque edge, at non-integer camera zoom — never shows.
 const ISLAND_TILE_OVERLAP = 2
@@ -169,7 +158,7 @@ const ISLAND_TILE_OVERLAP = 2
  * island. See islandShape.generateIslandTileGrid for how the grid itself is built. */
 function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, grid: IslandGridCell[]): Phaser.GameObjects.Sprite[] {
   return grid.map((cell) => {
-    const { key, rotation } = cell.layer === 'grass' ? { key: grassFillKey(), rotation: 0 } : sandTileFor(cell)
+    const { key, rotation } = cell.layer === 'grass' ? { key: grassTileFor(cell), rotation: 0 } : sandTileFor(cell)
     return scene.add
       .sprite(cx + cell.x, cy + cell.y, key)
       .setDisplaySize(ISLAND_TILE_SIZE + ISLAND_TILE_OVERLAP, ISLAND_TILE_SIZE + ISLAND_TILE_OVERLAP)

@@ -84,11 +84,6 @@ export type IslandTileRole = 'fill' | 'cornerTl' | 'cornerTr' | 'cornerBl' | 'co
 export type IslandEdgeRotation = 0 | 1 | 2 | 3 // multiples of 90°: 0=south, 1=west, 2=north, 3=east
 
 export type IslandCornerName = 'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr'
-export interface IslandGrassTransition {
-  corner?: IslandCornerName
-  /** Only set when `corner` isn't — a straight run of grass along one side of this sand cell. */
-  edgeSide?: 'north' | 'south' | 'east' | 'west'
-}
 
 export interface IslandGridCell {
   /** Tile center, relative to the island's own position. */
@@ -97,19 +92,21 @@ export interface IslandGridCell {
   layer: IslandTileLayer
   role: IslandTileRole
   edgeRotation?: IslandEdgeRotation
-  /** For an 'edge' cell only: true if its inland side (opposite the water side) is grass rather
-   * than more sand — picks a coastline edge tile with a grass strip baked in to match. */
+  /** For an 'edge' cell only: true if this island has a grass core at all — picks a coastline
+   * edge tile with a grass strip baked in to match. Reflects the island as a whole, not whether
+   * the specific inland neighbor cell is grass (see generateIslandTileGrid for why). */
   inlandIsGrass?: boolean
-  /** For a corner cell only: true if the diagonal cell opposite the water corner (its inland
-   * tip) is grass — picks a corner tile with a matching grass fleck baked into that tip. */
+  /** For a corner cell only: same as `inlandIsGrass`, for the corner-tip grass fleck variant. */
   diagonalIsGrass?: boolean
-  /** Only set on a sand 'fill' cell that borders the grass interior (not water) on some side —
-   * smooths that seam with real transition art instead of a hard square edge. */
-  grassTransition?: IslandGrassTransition
   /** Only set on a sand 'fill' cell (no orthogonal water neighbor) that has water diagonally —
    * a concave notch just past a coastline corner. Bakes a soft shadow into the matching corner
    * of the tile instead of a plain fill that would otherwise ignore that nearby water. */
   innerShadowCorner?: IslandCornerName
+  /** Only set on a grass 'fill' cell that sits orthogonally next to a sand *corner* cell (the
+   * coastline bends right there, unlike a straight 'edge' run) — the opposite corner name, so
+   * the grass-side art curves to match instead of butting a flat grass square against the
+   * corner's rounded sand curve. See generateIslandTileGrid for the adjacency check. */
+  grassCornerTip?: IslandCornerName
 }
 
 /** Rasterizes an island's organic coastline onto a tile grid and classifies each land cell by
@@ -136,22 +133,17 @@ function cellTouchesIslandShape(gx: number, gy: number, tileSize: number, radius
 
 export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, tileSize: number): IslandGridCell[] {
   const hasGrass = sandRadius >= 75
-  const grassRadius = sandRadius * 0.6
   const maxStretch = Math.max(shape.stretchX, shape.stretchY)
   const maxLobeReach = shape.lobes.reduce((m, l) => Math.max(m, l.distFrac + l.radiusFrac), 0.6)
   const extent = sandRadius * maxStretch * (maxLobeReach + 0.15)
   const half = Math.ceil(extent / tileSize) + 1
 
   const land = new Set<string>()
-  const grass = new Set<string>()
   const key = (gx: number, gy: number): string => `${gx},${gy}`
 
   for (let gy = -half; gy <= half; gy += 1) {
     for (let gx = -half; gx <= half; gx += 1) {
-      if (cellTouchesIslandShape(gx, gy, tileSize, sandRadius, shape)) {
-        land.add(key(gx, gy))
-        if (hasGrass && cellTouchesIslandShape(gx, gy, tileSize, grassRadius, shape)) grass.add(key(gx, gy))
-      }
+      if (cellTouchesIslandShape(gx, gy, tileSize, sandRadius, shape)) land.add(key(gx, gy))
     }
   }
 
@@ -162,7 +154,6 @@ export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, t
   type RoleInfo = { role: IslandTileRole }
   const roles = new Map<string, RoleInfo>()
   for (const k of land) {
-    if (grass.has(k)) continue
     const [gx, gy] = k.split(',').map(Number)
     const waterN = !land.has(key(gx, gy - 1))
     const waterS = !land.has(key(gx, gy + 1))
@@ -180,6 +171,28 @@ export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, t
     const info = roles.get(key(gx, gy))
     return info !== undefined && info.role !== 'fill'
   }
+  const cornerRoles = new Set<IslandTileRole>(['cornerTl', 'cornerTr', 'cornerBl', 'cornerBr'])
+  const oppositeCorner: Record<IslandCornerName, IslandCornerName> = {
+    cornerTl: 'cornerBr',
+    cornerTr: 'cornerBl',
+    cornerBl: 'cornerTr',
+    cornerBr: 'cornerTl',
+  }
+  // A corner cell only ever has land neighbors on its 2 "away" (non-water) sides, so whichever
+  // orthogonal neighbor turns out to be a corner cell, the opposite-corner tile is always the
+  // right pick for this cell regardless of which of the 2 directions it was found in.
+  const adjacentCornerRole = (gx: number, gy: number): IslandCornerName | undefined => {
+    for (const [nx, ny] of [
+      [gx, gy - 1],
+      [gx, gy + 1],
+      [gx - 1, gy],
+      [gx + 1, gy],
+    ]) {
+      const role = roles.get(key(nx, ny))?.role
+      if (role && cornerRoles.has(role)) return role as IslandCornerName
+    }
+    return undefined
+  }
 
   const cells: IslandGridCell[] = []
   for (const k of land) {
@@ -187,72 +200,52 @@ export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, t
     const x = (gx + 0.5) * tileSize
     const y = (gy + 0.5) * tileSize
 
-    if (grass.has(k)) {
-      cells.push({ x, y, layer: 'grass', role: 'fill' })
-      continue
-    }
-
     const waterN = !land.has(key(gx, gy - 1))
     const waterS = !land.has(key(gx, gy + 1))
     const waterW = !land.has(key(gx - 1, gy))
     const waterE = !land.has(key(gx + 1, gy))
 
-    if (waterN && waterW)
-      cells.push({ x, y, layer: 'sand', role: 'cornerTl', diagonalIsGrass: grass.has(key(gx + 1, gy + 1)) })
-    else if (waterN && waterE)
-      cells.push({ x, y, layer: 'sand', role: 'cornerTr', diagonalIsGrass: grass.has(key(gx - 1, gy + 1)) })
-    else if (waterS && waterW)
-      cells.push({ x, y, layer: 'sand', role: 'cornerBl', diagonalIsGrass: grass.has(key(gx + 1, gy - 1)) })
-    else if (waterS && waterE)
-      cells.push({ x, y, layer: 'sand', role: 'cornerBr', diagonalIsGrass: grass.has(key(gx - 1, gy - 1)) })
-    else if (waterS)
-      cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 0, inlandIsGrass: grass.has(key(gx, gy - 1)) })
-    else if (waterW)
-      cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 1, inlandIsGrass: grass.has(key(gx + 1, gy)) })
-    else if (waterN)
-      cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 2, inlandIsGrass: grass.has(key(gx, gy + 1)) })
-    else if (waterE)
-      cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 3, inlandIsGrass: grass.has(key(gx - 1, gy)) })
-    else {
-      // No water on any side — this cell is fully inland. It may still border the grass core
-      // (not water), in which case real transition art replaces the plain fill to avoid a hard
-      // square seam against the grass layer.
-      const grassN = grass.has(key(gx, gy - 1))
-      const grassS = grass.has(key(gx, gy + 1))
-      const grassW = grass.has(key(gx - 1, gy))
-      const grassE = grass.has(key(gx + 1, gy))
-
-      let grassTransition: IslandGrassTransition | undefined
-      if (grassN && grassW) grassTransition = { corner: 'cornerTl' }
-      else if (grassN && grassE) grassTransition = { corner: 'cornerTr' }
-      else if (grassS && grassW) grassTransition = { corner: 'cornerBl' }
-      else if (grassS && grassE) grassTransition = { corner: 'cornerBr' }
-      else if (grassS) grassTransition = { edgeSide: 'south' }
-      else if (grassW) grassTransition = { edgeSide: 'west' }
-      else if (grassN) grassTransition = { edgeSide: 'north' }
-      else if (grassE) grassTransition = { edgeSide: 'east' }
-
-      // No orthogonal grass either — but this cell may still sit diagonally next to open water:
-      // a real re-entrant "elbow" of the coast, where two coastline tiles meet at a right angle
-      // and this fill cell sits tucked into the inside of that turn. Requiring BOTH orthogonal
-      // neighbors on that side to themselves be coastline (not more plain fill) keeps this to
-      // that one specific elbow cell — otherwise, on a small/lobed island where the coast zigzags
-      // constantly, a looser "any diagonal is water" test fires all over the interior and paints
-      // what should be plain sand as one big shaded blotch.
+    // inlandIsGrass/diagonalIsGrass reflect whether *this island* has a grass core at all — every
+    // coastline cell on a grass island gets the grass-hinted art variant, since grass fill starts
+    // immediately behind the coastline ring (see the `hasGrass` branch below), not some separate
+    // inner radius the coastline could be several tiles away from.
+    if (waterN && waterW) cells.push({ x, y, layer: 'sand', role: 'cornerTl', diagonalIsGrass: hasGrass })
+    else if (waterN && waterE) cells.push({ x, y, layer: 'sand', role: 'cornerTr', diagonalIsGrass: hasGrass })
+    else if (waterS && waterW) cells.push({ x, y, layer: 'sand', role: 'cornerBl', diagonalIsGrass: hasGrass })
+    else if (waterS && waterE) cells.push({ x, y, layer: 'sand', role: 'cornerBr', diagonalIsGrass: hasGrass })
+    else if (waterS) cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 0, inlandIsGrass: hasGrass })
+    else if (waterW) cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 1, inlandIsGrass: hasGrass })
+    else if (waterN) cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 2, inlandIsGrass: hasGrass })
+    else if (waterE) cells.push({ x, y, layer: 'sand', role: 'edge', edgeRotation: 3, inlandIsGrass: hasGrass })
+    else if (hasGrass) {
+      // No water on any side — this cell is the interior, not the beach. On a grass island the
+      // interior is grass all the way up to the coastline ring above; only that ring is ever sand.
+      // But if this cell sits right next to a sand *corner* (the coast bends there, not a straight
+      // run), a plain flat grass square would butt up against that corner's rounded sand curve —
+      // use the opposite-corner grass art instead, so the curve continues into the grass.
+      const corner = adjacentCornerRole(gx, gy)
+      cells.push({ x, y, layer: 'grass', role: 'fill', grassCornerTip: corner && oppositeCorner[corner] })
+    } else {
+      // Same fully-inland cell, but this island has no grass core (too small) — plain sand fill.
+      // It may still sit diagonally next to open water: a real re-entrant "elbow" of the coast,
+      // where two coastline tiles meet at a right angle and this fill cell sits tucked into the
+      // inside of that turn. Requiring BOTH orthogonal neighbors on that side to themselves be
+      // coastline (not more plain fill) keeps this to that one specific elbow cell — otherwise, on
+      // a small/lobed island where the coast zigzags constantly, a looser "any diagonal is water"
+      // test fires all over the interior and paints what should be plain sand as one big shaded
+      // blotch.
       let innerShadowCorner: IslandCornerName | undefined
-      if (!grassTransition) {
-        if (!land.has(key(gx - 1, gy - 1)) && isCoastline(gx, gy - 1) && isCoastline(gx - 1, gy)) {
-          innerShadowCorner = 'cornerTl'
-        } else if (!land.has(key(gx + 1, gy - 1)) && isCoastline(gx, gy - 1) && isCoastline(gx + 1, gy)) {
-          innerShadowCorner = 'cornerTr'
-        } else if (!land.has(key(gx - 1, gy + 1)) && isCoastline(gx, gy + 1) && isCoastline(gx - 1, gy)) {
-          innerShadowCorner = 'cornerBl'
-        } else if (!land.has(key(gx + 1, gy + 1)) && isCoastline(gx, gy + 1) && isCoastline(gx + 1, gy)) {
-          innerShadowCorner = 'cornerBr'
-        }
+      if (!land.has(key(gx - 1, gy - 1)) && isCoastline(gx, gy - 1) && isCoastline(gx - 1, gy)) {
+        innerShadowCorner = 'cornerTl'
+      } else if (!land.has(key(gx + 1, gy - 1)) && isCoastline(gx, gy - 1) && isCoastline(gx + 1, gy)) {
+        innerShadowCorner = 'cornerTr'
+      } else if (!land.has(key(gx - 1, gy + 1)) && isCoastline(gx, gy + 1) && isCoastline(gx - 1, gy)) {
+        innerShadowCorner = 'cornerBl'
+      } else if (!land.has(key(gx + 1, gy + 1)) && isCoastline(gx, gy + 1) && isCoastline(gx + 1, gy)) {
+        innerShadowCorner = 'cornerBr'
       }
 
-      cells.push({ x, y, layer: 'sand', role: 'fill', grassTransition, innerShadowCorner })
+      cells.push({ x, y, layer: 'sand', role: 'fill', innerShadowCorner })
     }
   }
 
