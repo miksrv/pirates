@@ -86,6 +86,37 @@ export const ISLAND_SAND_EDGE_NATIVE_KEYS: Partial<Record<1 | 2 | 3, string[]>> 
 /** Same south-facing coastline edge, but with a grass strip baked along the top — for when the
  * inland neighbor is actually a grass cell, so the coastline edge doesn't show a false sand gap. */
 export const ISLAND_SAND_EDGE_GRASSTOP_KEYS = ['tile_sand_edge_grasstop_1', 'tile_sand_edge_grasstop_2']
+/**
+ * Shallow-water shoreline ring — one tile per open-water cell that touches the coastline (see the
+ * `shallowWater` pass in `generateIslandTileGrid`, `islandShape.ts`), never stacked on a sand tile
+ * itself. Every water cell is classified by which of its *own* 4 orthogonal neighbors are land
+ * (mirroring how a land cell picks its sand art), so both convex bulges and concave notches get
+ * full coverage with no gaps. A water cell with land on exactly 1 side (a straight coastline run)
+ * gets a directional edge tile, keyed below to match that classification directly (see
+ * `generateIslandTileGrid`), not `IslandGridCell`'s land-side `role`/`edgeRotation` — each
+ * direction ships its own hand-drawn art, so none of these need rotation. Any rounded corner (2
+ * adjacent land sides, or a lone diagonal touch on a rounded/staircased curve) always gets the
+ * fill tile as its base — see `ISLAND_SHALLOW_WATER_FILL_KEY` — with the matching corner tile
+ * below stacked on top at that same cell, never offset to a different one.
+ */
+export const ISLAND_SHALLOW_WATER_CORNER_KEYS: Record<CornerName, string> = {
+  cornerTl: 'tile_shallow_water_corner_1',
+  cornerTr: 'tile_shallow_water_corner_2',
+  cornerBl: 'tile_shallow_water_corner_3',
+  cornerBr: 'tile_shallow_water_corner_4',
+}
+export const ISLAND_SHALLOW_WATER_EDGE_KEYS: Record<0 | 1 | 2 | 3, string> = {
+  0: 'tile_shallow_water_edge_4',
+  1: 'tile_shallow_water_edge_2',
+  2: 'tile_shallow_water_edge_1',
+  3: 'tile_shallow_water_edge_3',
+}
+/** Base tile under every rounded-corner shallow-water cell (see `ISLAND_SHALLOW_WATER_CORNER_KEYS`
+ * above) and fallback for a 1-cell inlet/channel with no matching shape at all. The one
+ * shallow-water tile with a fully uniform alpha, safe to place anywhere without a visible seam
+ * (see the historical note this replaced: `tile_shallow_water_2..5` each carry a small notch that
+ * lines up into a repeating pattern once several are placed near each other). */
+export const ISLAND_SHALLOW_WATER_FILL_KEY = 'tile_shallow_water_1'
 /** Rare decorative substitutes for a south-facing edge cell, picked to match whether grass
  * actually borders it inland (the "_grass" variants bake a grass strip into the same tile). */
 export const ISLAND_SAND_EDGE_DECOR_KEYS = ['tile_sand_edge_wreck_1', 'tile_sand_edge_driftwood_1', 'tile_sand_edge_boulder_1']
@@ -150,6 +181,9 @@ export const ALL_IMAGE_KEYS: string[] = [
   ...ISLAND_SAND_EDGE_KEYS,
   ...Object.values(ISLAND_SAND_EDGE_NATIVE_KEYS).flat(),
   ...ISLAND_SAND_EDGE_GRASSTOP_KEYS,
+  ...Object.values(ISLAND_SHALLOW_WATER_CORNER_KEYS),
+  ...Object.values(ISLAND_SHALLOW_WATER_EDGE_KEYS),
+  ISLAND_SHALLOW_WATER_FILL_KEY,
   ...ISLAND_SAND_EDGE_DECOR_KEYS,
   ...ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
   ...ISLAND_GRASS_FILL_KEYS,

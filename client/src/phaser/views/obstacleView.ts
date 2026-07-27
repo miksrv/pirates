@@ -18,7 +18,7 @@ import {
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
 import { ISLAND_TILE_SIZE } from '../../../../shared/game/constants'
-import { generateIslandTileGrid, type IslandGridCell } from '../../../../shared/game/islandShape'
+import { generateIslandTileGrid, type IslandGridCell, type ShallowWaterCell } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
 
@@ -138,8 +138,8 @@ const ISLAND_TILE_OVERLAP = 2
 /** Places one real tile sprite per grid cell — corners and the (rotated) coastline edge use
  * authentic art per orientation instead of stretching a couple of textures over the whole
  * island. See islandShape.generateIslandTileGrid for how the grid itself is built. */
-function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, grid: IslandGridCell[]): Phaser.GameObjects.Sprite[] {
-  return grid.map((cell) => {
+function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, land: IslandGridCell[]): Phaser.GameObjects.Sprite[] {
+  return land.map((cell) => {
     const { key, rotation } = cell.layer === 'grass' ? { key: grassTileFor(cell), rotation: 0 } : sandTileFor(cell)
     return scene.add
       .sprite(cx + cell.x, cy + cell.y, key)
@@ -149,13 +149,32 @@ function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, grid: Isl
   })
 }
 
+/** Places the shallow-water ring (islandShape.generateIslandTileGrid's `shallowWater` pass) —
+ * unlike land tiles, these are drawn at their exact grid size with no overlap padding: they're
+ * semi-transparent, so two overlapping edges would double-blend into a visible seam, whereas land
+ * tiles are opaque and rely on the overlap to hide seams instead. A rounded corner gets 2 entries
+ * at the same position — a base fill tile plus a corner tile marked `overlay` — so the overlay
+ * needs a hair more depth to draw on top of its own fill, not fight it for draw order. */
+function placeShallowWaterTiles(scene: Phaser.Scene, cx: number, cy: number, shallowWater: ShallowWaterCell[]): Phaser.GameObjects.Sprite[] {
+  return shallowWater.map((cell) =>
+    scene.add
+      .sprite(cx + cell.x, cy + cell.y, cell.key)
+      .setDisplaySize(ISLAND_TILE_SIZE, ISLAND_TILE_SIZE)
+      .setDepth(cell.overlay ? 3.91 : 3.9),
+  )
+}
+
 /**
- * Islands get an organic (non-perfectly-round) coastline: a sand base, and — for bigger ones —
- * a smaller grass interior, built from the island's stored shape recipe (the same recipe the
- * physics layer used to build its collision circles, so a ship never sails through visible sand).
- * The sand and grass body is rasterized onto a tile grid and rendered as real corner/edge/fill
- * art per cell (generateIslandTileGrid). Trees, shoreline rocks, and occasionally a cannon or
- * small fort are scattered on top.
+ * Islands get an organic (non-perfectly-round) coastline: a shallow-water ring, a sand base, and
+ * — for bigger ones — a smaller grass interior, all built from the island's stored shape recipe
+ * (the same recipe the physics layer used to build its collision circles, so a ship never sails
+ * through visible sand). The shallow-water ring is drawn first/underneath (generateIslandTileGrid's
+ * `shallowWater` pass classifies every water cell touching the coast, so both bulges and concave
+ * notches get full coverage); the sand and grass body is rasterized onto a tile grid on top of it
+ * and rendered as real corner/edge/fill art per cell (generateIslandTileGrid's `land` pass) —
+ * since the two never share a grid cell, the opaque sand/grass always cleanly covers the shallow
+ * ring at the coastline instead of the reverse. Trees, shoreline rocks, and occasionally a cannon
+ * or small fort are scattered on top of everything.
  */
 function createIslandView(
   scene: Phaser.Scene,
@@ -167,8 +186,8 @@ function createIslandView(
   const shape = obstacle.islandShape!
   const { stretchX, stretchY } = shape
 
-  const grid = generateIslandTileGrid(sandRadius, shape, ISLAND_TILE_SIZE)
-  const tiles = placeIslandTiles(scene, cx, cy, grid)
+  const { land, shallowWater } = generateIslandTileGrid(sandRadius, shape, ISLAND_TILE_SIZE)
+  const tiles = [...placeShallowWaterTiles(scene, cx, cy, shallowWater), ...placeIslandTiles(scene, cx, cy, land)]
   const hasGrass = sandRadius >= 75
 
   const decorations = scatterIslandProps(scene, cx, cy, sandRadius, hasGrass, stretchX, stretchY)

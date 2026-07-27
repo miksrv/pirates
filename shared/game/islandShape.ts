@@ -1,3 +1,5 @@
+import { ISLAND_SHALLOW_WATER_CORNER_KEYS, ISLAND_SHALLOW_WATER_EDGE_KEYS, ISLAND_SHALLOW_WATER_FILL_KEY } from './assetKeys'
+
 /** A lobe is a circle offset from an island's center, used to build an organic (non-perfectly-round) coastline. */
 export interface IslandLobe {
   angle: number
@@ -109,6 +111,24 @@ export interface IslandGridCell {
   grassCornerTip?: IslandCornerName
 }
 
+/** A water cell touching the coastline, keyed to an already-resolved shallow-water tile —
+ * see the `shallowWater` pass in generateIslandTileGrid for how `key` is picked. */
+export interface ShallowWaterCell {
+  /** Tile center, relative to the island's own position. */
+  x: number
+  y: number
+  key: string
+  /** True for a corner tile stacked on top of the fill tile at this same cell (any rounded
+   * corner) — renders at a slightly higher depth so the corner curve shows on top of the flat
+   * fill tint underneath it, rather than the two fighting over draw order. */
+  overlay?: boolean
+}
+
+export interface IslandTiles {
+  land: IslandGridCell[]
+  shallowWater: ShallowWaterCell[]
+}
+
 /** Rasterizes an island's organic coastline onto a tile grid and classifies each land cell by
  * which of its 4 orthogonal neighbors are water, so the renderer can pick real corner/edge/fill
  * art instead of stretching a couple of textures. Grass only appears once the island is big
@@ -131,7 +151,7 @@ function cellTouchesIslandShape(gx: number, gy: number, tileSize: number, radius
   return samples.some(([px, py]) => isPointInIslandShape(px, py, radius, shape))
 }
 
-export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, tileSize: number): IslandGridCell[] {
+export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, tileSize: number): IslandTiles {
   const hasGrass = sandRadius >= 75
   const maxStretch = Math.max(shape.stretchX, shape.stretchY)
   const maxLobeReach = shape.lobes.reduce((m, l) => Math.max(m, l.distFrac + l.radiusFrac), 0.6)
@@ -249,5 +269,89 @@ export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, t
     }
   }
 
-  return cells
+  // Shallow-water ring: every water cell touching the coastline (orthogonally *or* diagonally,
+  // so a diagonal-only touch at a tight pinch still counts) gets a shallow-water tile, classified
+  // by which of *its own* 4 orthogonal neighbors are land — the mirror image of how a land cell is
+  // classified above. This fully wraps convex bulges and concave notches alike with no gaps: a
+  // land-side pass (placing one tile per coastline *land* cell, offset outward) misses the water
+  // cell tucked into a concave notch, which touches 2 land cells only diagonally from either one's
+  // own offset. A water cell with land on exactly 1 side gets the matching directional edge tile,
+  // continuing that straight run. Any rounded corner — land on 2 *adjacent* sides, or a lone
+  // diagonal touch (a rounded/staircased corner spanning several grid cells) — always gets the
+  // fill tile as its base, with the matching corner tile stacked on top *at that same cell*
+  // (never offset to a different one): the fill covers the cell as a flat shallow tint, and the
+  // corner curve reads on top of it. Everything else (a 1-cell inlet/channel: land on 3+ sides, or
+  // 2 opposite sides) falls back to plain fill with no corner overlay — no matching shape exists.
+  const shallowSeen = new Set<string>()
+  const shallowWater: ShallowWaterCell[] = []
+  for (const k of land) {
+    const [gx, gy] = k.split(',').map(Number)
+    const neighbors: Array<[number, number]> = [
+      [gx, gy - 1],
+      [gx, gy + 1],
+      [gx - 1, gy],
+      [gx + 1, gy],
+      [gx - 1, gy - 1],
+      [gx + 1, gy - 1],
+      [gx - 1, gy + 1],
+      [gx + 1, gy + 1],
+    ]
+    for (const [nx, ny] of neighbors) {
+      const nk = key(nx, ny)
+      if (land.has(nk) || shallowSeen.has(nk)) continue
+      shallowSeen.add(nk)
+
+      const landN = land.has(key(nx, ny - 1))
+      const landS = land.has(key(nx, ny + 1))
+      const landW = land.has(key(nx - 1, ny))
+      const landE = land.has(key(nx + 1, ny))
+      const landCount = [landN, landS, landW, landE].filter(Boolean).length
+
+      const x = (nx + 0.5) * tileSize
+      const y = (ny + 0.5) * tileSize
+      let tileKey: string
+      let cornerOverlay: string | undefined
+      if (landCount === 1) {
+        tileKey = ISLAND_SHALLOW_WATER_EDGE_KEYS[landN ? 0 : landS ? 2 : landW ? 3 : 1]
+      } else if (landCount === 2 && landS && landE) {
+        tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
+        cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerTl
+      } else if (landCount === 2 && landS && landW) {
+        tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
+        cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerTr
+      } else if (landCount === 2 && landN && landE) {
+        tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
+        cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerBl
+      } else if (landCount === 2 && landN && landW) {
+        tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
+        cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerBr
+      } else if (landCount === 0) {
+        const diagSE = land.has(key(nx + 1, ny + 1))
+        const diagSW = land.has(key(nx - 1, ny + 1))
+        const diagNE = land.has(key(nx + 1, ny - 1))
+        const diagNW = land.has(key(nx - 1, ny - 1))
+        const diagCount = [diagNE, diagNW, diagSE, diagSW].filter(Boolean).length
+        tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
+        if (diagCount === 1 && diagSE) cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerTl
+        else if (diagCount === 1 && diagSW) cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerTr
+        else if (diagCount === 1 && diagNE) cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerBl
+        else if (diagCount === 1 && diagNW) cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerBr
+      } else tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
+
+      shallowWater.push({ x, y, key: tileKey })
+      if (cornerOverlay) shallowWater.push({ x, y, key: cornerOverlay, overlay: true })
+    }
+  }
+
+  // Place shallow-water fill tiles underneath land corner cells (outer corners and inner-shadow
+  // corners): the sand corner art has transparent areas in the water-facing quadrant, so without
+  // a shallow-water fill behind it, the deep-water background shows through instead of a soft
+  // shallow tint.
+  for (const cell of cells) {
+    if (cell.role === 'cornerTl' || cell.role === 'cornerTr' || cell.role === 'cornerBl' || cell.role === 'cornerBr' || cell.innerShadowCorner) {
+      shallowWater.push({ x: cell.x, y: cell.y, key: ISLAND_SHALLOW_WATER_FILL_KEY })
+    }
+  }
+
+  return { land: cells, shallowWater }
 }
