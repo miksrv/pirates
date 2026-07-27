@@ -1,4 +1,4 @@
-import type { CollisionCircle, IslandShape } from '../islandShape'
+import type { CollisionTile, IslandShape } from '../islandShape'
 import type { Vec2 } from '../vector'
 import type { Bomb, Bullet } from './combat'
 import type { Ship, Team } from './ship'
@@ -18,8 +18,10 @@ export interface Obstacle {
   variant: ObstacleVariant
   /** Only for 'island': the organic coastline recipe, shared by the renderer and physics so they always agree. */
   islandShape?: IslandShape
-  /** Only for 'island': precomputed collision circles derived from islandShape (see islandShapeToCollisionCircles). */
-  collisionCircles?: CollisionCircle[]
+  /** Only for 'island': precomputed land-tile centers (relative to pos) used for collision — matches exactly the rendered tiles. */
+  collisionTiles?: CollisionTile[]
+  /** Tile size used for collision tile rects (defaults to ISLAND_TILE_SIZE). */
+  collisionTileSize?: number
 }
 
 export type PickupType =

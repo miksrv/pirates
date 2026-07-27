@@ -19,6 +19,12 @@ export interface CollisionCircle {
   radius: number
 }
 
+/** A single tile center offset used for tile-based island collision. */
+export interface CollisionTile {
+  dx: number
+  dy: number
+}
+
 /** Generates a random organic coastline recipe for an island of the given core radius.
  * The same recipe drives both the visual mask (as ellipses) and the collision shape (as
  * circles), so a ship can never sail through sand it can see, or bump into "empty" water. */
@@ -57,6 +63,26 @@ export function islandShapeToCollisionCircles(radius: number, shape: IslandShape
   }
 
   return circles
+}
+
+/** Rasterizes the island shape onto a tile grid and returns the center offsets of every
+ *  land cell — used as the authoritative collision shape so ships collide with exactly the
+ *  tiles they see, not an approximate circle cluster. */
+export function generateCollisionTiles(radius: number, shape: IslandShape, tileSize: number): CollisionTile[] {
+  const maxStretch = Math.max(shape.stretchX, shape.stretchY)
+  const maxLobeReach = shape.lobes.reduce((m, l) => Math.max(m, l.distFrac + l.radiusFrac), 0.6)
+  const extent = radius * maxStretch * (maxLobeReach + 0.15)
+  const half = Math.ceil(extent / tileSize) + 1
+
+  const tiles: CollisionTile[] = []
+  for (let gy = -half; gy <= half; gy += 1) {
+    for (let gx = -half; gx <= half; gx += 1) {
+      if (cellTouchesIslandShape(gx, gy, tileSize, radius, shape)) {
+        tiles.push({ dx: (gx + 0.5) * tileSize, dy: (gy + 0.5) * tileSize })
+      }
+    }
+  }
+  return tiles
 }
 
 function isInEllipse(px: number, py: number, ex: number, ey: number, rx: number, ry: number): boolean {

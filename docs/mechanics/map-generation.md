@@ -8,7 +8,7 @@ Code: `shared/game/map.ts`, `shared/game/islandShape.ts` · Render: `client/src/
 
 ## Islands
 - Shape: 5–10 randomly angled/sized lobes (overlapping ellipses) around a center, plus overall X/Y stretch — see `generateIslandShape`.
-- Same shape recipe drives the visible sand/grass grid and the physics collision circles, so a ship never sails through visible sand.
+- Same shape recipe drives the visible sand/grass grid and the physics collision — collision uses the rasterized tile grid (`generateCollisionTiles`), so a ship collides with exactly the tiles it sees, not an approximate circle cluster.
 - Placement: `tryPlaceObstacle` rejects islands too close to the ship spawn (`SAFE_ZONE_RADIUS`) or overlapping existing obstacles.
 - No gameplay slowdown near islands — the shallow-water tiles below are purely a visual coastline sheen.
 

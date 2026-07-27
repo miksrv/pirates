@@ -1,6 +1,6 @@
 import { nextId } from './id'
-import { generateIslandShape, islandShapeToCollisionCircles } from './islandShape'
-import { MEGA_PICKUP_RADIUS } from './constants'
+import { generateIslandShape, generateCollisionTiles } from './islandShape'
+import { ISLAND_TILE_SIZE, MEGA_PICKUP_RADIUS } from './constants'
 import { RANDOM_PICKUP_TYPES } from './pickups'
 import type { Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
 import { distance } from './vector'
@@ -73,7 +73,8 @@ function pushObstacle(obstacles: Obstacle[], variant: ObstacleVariant, pos: { x:
   if (variant === 'island') {
     const radius = w / 2
     obstacle.islandShape = generateIslandShape(radius)
-    obstacle.collisionCircles = islandShapeToCollisionCircles(radius, obstacle.islandShape)
+    obstacle.collisionTiles = generateCollisionTiles(radius, obstacle.islandShape, ISLAND_TILE_SIZE)
+    obstacle.collisionTileSize = ISLAND_TILE_SIZE
   }
 
   obstacles.push(obstacle)
