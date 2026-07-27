@@ -13,6 +13,8 @@ Pickups are split into **4 categories** with different spawn weights:
 
 Permanent upgrades reset on respawn in multiplayer; timed ones expire on their own.
 
+**Death drop:** when a ship sinks, each collected **permanent** boost has a **70%** chance (`PERMA_BOOST_DROP_CHANCE`) to drop as a pickup near the wreck. Other categories are not dropped.
+
 ---
 
 ## 1. Постоянные (permanent)

@@ -109,4 +109,6 @@ export interface Ship {
   bombDropTimer: number
   /** Extra cannons granted by pickup: 0 = 1 gun (center), 1 = +front, 2 = +front+back. Max 2. */
   extraCannons: number
+  /** Permanent-category boosts collected since last spawn — dropped as pickups on death. */
+  collectedPermaBoosts: string[]
 }

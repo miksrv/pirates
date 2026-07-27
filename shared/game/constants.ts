@@ -16,7 +16,7 @@ export const SHIP_RADIUS = 20 // hull collision radius
 export const SHIP_BASE_HP = 100 // starting hit points
 export const SHIP_BASE_SPEED = 187.5 // top speed (units/s)
 export const SHIP_BASE_ACCELERATION = 120 // units/s² — time to max speed ≈ speed / accel
-export const SHIP_BASE_MANEUVER = 2.5 // rad/s hull turn rate
+export const SHIP_BASE_MANEUVER = 2.9 // rad/s hull turn rate
 export const SHIP_BASE_DAMAGE = 14 // damage per cannonball
 export const SHIP_BASE_FIRE_RATE = 1 / 3 // 1 shot every 3 seconds
 export const SHIP_BASE_ARMOR = 0 // base damage reduction fraction
@@ -36,6 +36,7 @@ export const PICKUP_MAX_ON_MAP = 18 // max crates alive at once
 export const PICKUP_SPAWN_INTERVAL = 7 / 3 // ≈2.33s between spawns
 export const PICKUP_INITIAL_COUNT = 11 // crates placed at round start
 export const PICKUP_DROP_CHANCE = 0.45 // chance a destroyed crate drops a pickup
+export const PERMA_BOOST_DROP_CHANCE = 0.7 // chance each collected permanent boost drops on ship death
 
 // ─── Bot: AI behavior tuning ────────────────────────────────────────────────
 export const BOT_DEFAULT_COUNT = 5 // bots spawned at game start

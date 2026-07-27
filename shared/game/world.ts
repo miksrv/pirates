@@ -115,6 +115,7 @@ function respawnShip(world: World, ship: Ship): void {
   ship.bombsToDrop = 0
   ship.bombDropTimer = 0
   ship.extraCannons = 0
+  ship.collectedPermaBoosts = []
   ship.moveDir = { x: 0, y: 0 }
   ship.currentSpeed = 0
   ship.throttle = 0
@@ -248,6 +249,9 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
       if (!ship.alive || ship.escortOf) continue
       if (circlesOverlap(ship.pos, ship.radius, pickup.pos, pickup.radius)) {
         PICKUP_DEFS[pickup.type].apply(ship, world)
+        if (PICKUP_DEFS[pickup.type].category === 'permanent') {
+          ship.collectedPermaBoosts.push(pickup.type)
+        }
         world.events.push({ kind: 'pickup', pos: { ...pickup.pos }, pickupType: pickup.type, shipName: ship.name })
         collected = true
         break

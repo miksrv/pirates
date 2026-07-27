@@ -1,4 +1,4 @@
-import { GAMEPLAY_RESPAWN_TIME, PICKUP_DROP_CHANCE } from './constants'
+import { GAMEPLAY_RESPAWN_TIME, PERMA_BOOST_DROP_CHANCE, PICKUP_DROP_CHANCE } from './constants'
 import { nextId } from './id'
 import { spawnPickupAt } from './map'
 import { fleetRootId } from './escort'
@@ -128,6 +128,8 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
       ship.deaths += 1
       if (attacker) attacker.kills += 1
       world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
+      // Drop collected permanent boosts as pickups around the wreck.
+      dropPermaBoosts(world, ship)
     }
   } else {
     world.events.push({ kind: 'damage', attackerName, targetName: ship.name, amount: Math.round(mitigated) })
@@ -135,3 +137,24 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
     world.events.push({ kind: 'damageNumber', pos: { ...ship.pos }, amount: Math.round(mitigated), targetName: ship.name })
   }
 }
+
+/** Drops each collected permanent boost as a pickup around the wreck, spaced in a ring. */
+function dropPermaBoosts(world: World, ship: Ship): void {
+  const boosts = ship.collectedPermaBoosts
+  if (boosts.length === 0) return
+
+  const dropDist = 30 // distance from wreck center
+  let dropped = 0
+  for (let i = 0; i < boosts.length; i++) {
+    if (Math.random() > PERMA_BOOST_DROP_CHANCE) continue
+    const angle = (dropped / Math.max(boosts.length, 1)) * Math.PI * 2
+    const pos = {
+      x: ship.pos.x + Math.cos(angle) * dropDist,
+      y: ship.pos.y + Math.sin(angle) * dropDist,
+    }
+    spawnPickupAt(world, pos, boosts[i] as any)
+    dropped++
+  }
+  ship.collectedPermaBoosts = []
+}
+
