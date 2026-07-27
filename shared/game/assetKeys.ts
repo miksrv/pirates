@@ -34,9 +34,6 @@ export const OBSTACLE_KEY: Record<ObstacleVariant, string> = {
   rockyShore: 'tile_rockyshore',
 }
 
-/** Cosmetic overlay layered on top of large 'island' obstacles; not a selectable variant of its own. */
-export const ISLAND_GRASS_KEY = 'tile_grass'
-
 /**
  * Shallow-water shoreline ring drawn around every island, between the open water and the sand.
  * Only tile_shallow_water_1 is a truly uniform fill — safe to repeat via TileSprite without
@@ -47,6 +44,46 @@ export const ISLAND_GRASS_KEY = 'tile_grass'
  * neighbor-aware autotiled shore, same reasoning: they'd repeat into a grid pattern if tiled.
  */
 export const ISLAND_SHALLOW_WATER_KEY = 'tile_shallow_water_1'
+
+/** Sand ground tiles for the island grid (see islandShape.generateIslandTileGrid). Corners are
+ * real hand-drawn art per orientation; edges only exist facing one way in the source pack (south)
+ * and are rotated to face the other 3 directions — safe because the art has no directional detail. */
+export const ISLAND_SAND_FILL_KEYS = [
+  'tile_sand_fill_1',
+  'tile_sand_fill_2',
+  'tile_sand_fill_3',
+  'tile_sand_fill_4',
+  'tile_sand_fill_5',
+  'tile_sand_fill_6',
+  'tile_sand_fill_7',
+  'tile_sand_fill_8',
+  'tile_sand_fill_9',
+]
+export const ISLAND_SAND_FILL_RARE_KEYS = ['tile_sand_fill_sparkle_1', 'tile_sand_fill_sparkle_2']
+export const ISLAND_SAND_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr', string[]> = {
+  cornerTl: ['tile_sand_corner_tl_1', 'tile_sand_corner_tl_2'],
+  cornerTr: ['tile_sand_corner_tr_1', 'tile_sand_corner_tr_2'],
+  cornerBl: ['tile_sand_corner_bl_1', 'tile_sand_corner_bl_2'],
+  cornerBr: ['tile_sand_corner_br_1', 'tile_sand_corner_br_2'],
+}
+export const ISLAND_SAND_EDGE_KEYS = ['tile_sand_edge_1', 'tile_sand_edge_2', 'tile_sand_edge_3']
+/** Rare decorative substitutes for a south-facing edge cell, picked to match whether grass
+ * actually borders it inland (the "_grass" variants bake a grass strip into the same tile). */
+export const ISLAND_SAND_EDGE_DECOR_KEYS = ['tile_sand_edge_wreck_1', 'tile_sand_edge_driftwood_1', 'tile_sand_edge_boulder_1']
+export const ISLAND_SAND_EDGE_DECOR_GRASS_KEYS = [
+  'tile_sand_edge_wreck_grass_1',
+  'tile_sand_edge_driftwood_grass_1',
+  'tile_sand_edge_boulder_grass_1',
+]
+
+/** Grass ground tiles for the island grid — no dedicated grass/sand transition art exists in the
+ * pack, so the boundary between grass and sand cells is a plain square seam. */
+export const ISLAND_GRASS_FILL_KEYS = [
+  'tile_grass_fill_1',
+  'tile_grass_fill_flowers_1',
+  'tile_grass_fill_pattern_1',
+  'tile_grass_fill_pattern_2',
+]
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
 export const ISLAND_TREE_KEYS = ['tile_tree1', 'tile_tree2', 'tile_tree3']
@@ -76,8 +113,14 @@ export const ALL_IMAGE_KEYS: string[] = [
   SHIP_CANNON_KEY,
   CANNONBALL_KEY,
   ...Object.values(OBSTACLE_KEY),
-  ISLAND_GRASS_KEY,
   ISLAND_SHALLOW_WATER_KEY,
+  ...ISLAND_SAND_FILL_KEYS,
+  ...ISLAND_SAND_FILL_RARE_KEYS,
+  ...Object.values(ISLAND_SAND_CORNER_KEYS).flat(),
+  ...ISLAND_SAND_EDGE_KEYS,
+  ...ISLAND_SAND_EDGE_DECOR_KEYS,
+  ...ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
+  ...ISLAND_GRASS_FILL_KEYS,
   ...ISLAND_TREE_KEYS,
   ...ISLAND_ROCK_KEYS,
   ISLAND_CANNON_KEY,

@@ -27,6 +27,7 @@ export const MAX_HP_CAP = 320
 
 export const BOT_COUNT = 5
 export const ISLAND_COUNT = 10
+export const ISLAND_TILE_SIZE = 32 // grid cell size (px) for island sand/grass autotiling
 export const SCATTER_ROCK_COUNT = 12
 // Pickup density, dialled up 1.5x. The spawn interval is the lever that actually binds —
 // bots clear the map faster than the cap is ever reached — so the cap is raised alongside it

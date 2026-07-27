@@ -2,24 +2,25 @@ import Phaser from 'phaser'
 import {
   ISLAND_CANNON_KEY,
   ISLAND_FORT_KEYS,
-  ISLAND_GRASS_KEY,
+  ISLAND_GRASS_FILL_KEYS,
   ISLAND_ROCK_KEYS,
+  ISLAND_SAND_CORNER_KEYS,
+  ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
+  ISLAND_SAND_EDGE_DECOR_KEYS,
+  ISLAND_SAND_EDGE_KEYS,
+  ISLAND_SAND_FILL_KEYS,
+  ISLAND_SAND_FILL_RARE_KEYS,
   ISLAND_SHALLOW_WATER_KEY,
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
-import type { IslandShape } from '../../../../shared/game/islandShape'
+import { ISLAND_TILE_SIZE } from '../../../../shared/game/constants'
+import { generateIslandTileGrid, type IslandGridCell, type IslandShape } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
 
 export interface ObstacleView {
-  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.TileSprite
-  shallowWaterOverlay?: Phaser.GameObjects.TileSprite
-  grassOverlay?: Phaser.GameObjects.Sprite | Phaser.GameObjects.TileSprite
-  shallowWaterMaskShape?: Phaser.GameObjects.Graphics
-  maskShape?: Phaser.GameObjects.Graphics
-  grassMaskShape?: Phaser.GameObjects.Graphics
-  decorations?: Phaser.GameObjects.Sprite[]
+  destroy(): void
   hpBarBg?: Phaser.GameObjects.Rectangle
   hpBarFg?: Phaser.GameObjects.Rectangle
 }
@@ -102,14 +103,62 @@ function scatterIslandProps(
   return props
 }
 
+function pickRandom<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)]
+}
+
+function sandTileFor(cell: IslandGridCell): { key: string; rotation: number } {
+  if (cell.role === 'fill') {
+    const key = Math.random() < 0.06 ? pickRandom(ISLAND_SAND_FILL_RARE_KEYS) : pickRandom(ISLAND_SAND_FILL_KEYS)
+    return { key, rotation: 0 }
+  }
+  if (cell.role === 'edge') {
+    const rotation = (cell.edgeRotation ?? 0) * (Math.PI / 2)
+    // Decorative wrecks/driftwood/boulders only make sense right-way-up, so only the
+    // un-rotated (south-facing) edge cells get a chance at them.
+    if (cell.edgeRotation === 0 && Math.random() < 0.12) {
+      const key = pickRandom(cell.northIsGrass ? ISLAND_SAND_EDGE_DECOR_GRASS_KEYS : ISLAND_SAND_EDGE_DECOR_KEYS)
+      return { key, rotation }
+    }
+    return { key: pickRandom(ISLAND_SAND_EDGE_KEYS), rotation }
+  }
+  return { key: pickRandom(ISLAND_SAND_CORNER_KEYS[cell.role]), rotation: 0 }
+}
+
+function grassFillKey(): string {
+  const [plain, flowers, pattern1, pattern2] = ISLAND_GRASS_FILL_KEYS
+  const r = Math.random()
+  if (r < 0.08) return flowers
+  if (r < 0.18) return Math.random() < 0.5 ? pattern1 : pattern2
+  return plain
+}
+
+// Tiles render very slightly oversized (cell spacing stays exact) so a 1px seam of whatever
+// sits behind — a neighboring tile's non-opaque edge, at non-integer camera zoom — never shows.
+const ISLAND_TILE_OVERLAP = 2
+
+/** Places one real tile sprite per grid cell — corners and the (rotated) coastline edge use
+ * authentic art per orientation instead of stretching a couple of textures over the whole
+ * island. See islandShape.generateIslandTileGrid for how the grid itself is built. */
+function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, grid: IslandGridCell[]): Phaser.GameObjects.Sprite[] {
+  return grid.map((cell) => {
+    const { key, rotation } = cell.layer === 'grass' ? { key: grassFillKey(), rotation: 0 } : sandTileFor(cell)
+    return scene.add
+      .sprite(cx + cell.x, cy + cell.y, key)
+      .setDisplaySize(ISLAND_TILE_SIZE + ISLAND_TILE_OVERLAP, ISLAND_TILE_SIZE + ISLAND_TILE_OVERLAP)
+      .setRotation(rotation)
+      .setDepth(cell.layer === 'grass' ? 4.5 : 4)
+  })
+}
+
 /**
  * Islands get an organic (non-perfectly-round) coastline: a shallow-water ring, a sand base,
  * and — for bigger ones — a smaller grass interior, all built from the island's stored shape
  * recipe (the same recipe the physics layer used to build its collision circles, so a ship
- * never sails through visible sand). The ring is just a bigger copy of the sand's lobed shape,
- * drawn first and at a lower depth, so the sand naturally occludes everything but its outer
- * band — no separate ring/donut mask needed. Trees, shoreline rocks, and occasionally a cannon
- * or small fort are scattered on top, matching the pack's sample scenes.
+ * never sails through visible sand). The shallow-water ring is still a masked TileSprite (its
+ * autotile art isn't wired up yet — see assetKeys.ts); the sand and grass body is rasterized
+ * onto a tile grid and rendered as real corner/edge/fill art per cell (generateIslandTileGrid).
+ * Trees, shoreline rocks, and occasionally a cannon or small fort are scattered on top.
  */
 function createIslandView(
   scene: Phaser.Scene,
@@ -132,42 +181,20 @@ function createIslandView(
     .setDepth(3.5)
     .setMask(shallowWaterMaskShape.createGeometryMask())
 
-  const maskShape = scene.make.graphics({ x: 0, y: 0 }, false)
-  maskShape.fillStyle(0xffffff)
-  drawIslandLobes(maskShape, cx, cy, sandRadius, shape)
-  const mask = maskShape.createGeometryMask()
-
-  const sandCover = sandRadius * 5
-  const sprite = scene.add.tileSprite(cx, cy, sandCover, sandCover, OBSTACLE_KEY.island).setDepth(4).setMask(mask)
-
-  let grassOverlay: Phaser.GameObjects.TileSprite | undefined
-  let grassMaskShape: Phaser.GameObjects.Graphics | undefined
+  const grid = generateIslandTileGrid(sandRadius, shape, ISLAND_TILE_SIZE)
+  const tiles = placeIslandTiles(scene, cx, cy, grid)
   const hasGrass = sandRadius >= 75
-
-  if (hasGrass) {
-    const grassRadius = sandRadius * 0.6
-    grassMaskShape = scene.make.graphics({ x: 0, y: 0 }, false)
-    grassMaskShape.fillStyle(0xffffff)
-    drawIslandLobes(grassMaskShape, cx, cy, grassRadius, shape)
-
-    const grassCover = grassRadius * 5
-    grassOverlay = scene.add
-      .tileSprite(cx, cy, grassCover, grassCover, ISLAND_GRASS_KEY)
-      .setDepth(4.5)
-      .setMask(grassMaskShape.createGeometryMask())
-  }
 
   const decorations = scatterIslandProps(scene, cx, cy, sandRadius, hasGrass, stretchX, stretchY)
   minimapCam.ignore(decorations)
 
   return {
-    sprite,
-    shallowWaterOverlay,
-    grassOverlay,
-    shallowWaterMaskShape,
-    maskShape,
-    grassMaskShape,
-    decorations,
+    destroy() {
+      shallowWaterOverlay.destroy()
+      shallowWaterMaskShape.destroy()
+      tiles.forEach((t) => t.destroy())
+      decorations.forEach((d) => d.destroy())
+    },
   }
 }
 
@@ -196,7 +223,15 @@ function createObstacleView(
     minimapCam.ignore([hpBarBg, hpBarFg])
   }
 
-  return { sprite, hpBarBg, hpBarFg }
+  return {
+    hpBarBg,
+    hpBarFg,
+    destroy() {
+      sprite.destroy()
+      hpBarBg?.destroy()
+      hpBarFg?.destroy()
+    },
+  }
 }
 
 export function syncObstacles(
@@ -208,15 +243,7 @@ export function syncObstacles(
   const currentIds = new Set(world.obstacles.map((o) => o.id))
   for (const [id, view] of obstacleViews) {
     if (!currentIds.has(id)) {
-      view.sprite.destroy()
-      view.shallowWaterOverlay?.destroy()
-      view.grassOverlay?.destroy()
-      view.shallowWaterMaskShape?.destroy()
-      view.maskShape?.destroy()
-      view.grassMaskShape?.destroy()
-      view.decorations?.forEach((d) => d.destroy())
-      view.hpBarBg?.destroy()
-      view.hpBarFg?.destroy()
+      view.destroy()
       obstacleViews.delete(id)
     }
   }

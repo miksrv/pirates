@@ -173,17 +173,7 @@ export class MainScene extends Phaser.Scene {
       b.flame?.destroy()
     }
     this.bulletViews.clear()
-    for (const o of this.obstacleViews.values()) {
-      o.sprite.destroy()
-      o.shallowWaterOverlay?.destroy()
-      o.grassOverlay?.destroy()
-      o.shallowWaterMaskShape?.destroy()
-      o.maskShape?.destroy()
-      o.grassMaskShape?.destroy()
-      o.decorations?.forEach((d) => d.destroy())
-      o.hpBarBg?.destroy()
-      o.hpBarFg?.destroy()
-    }
+    for (const o of this.obstacleViews.values()) o.destroy()
     this.obstacleViews.clear()
     for (const p of this.pickupViews.values()) {
       p.circle.destroy()
