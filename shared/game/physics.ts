@@ -1,4 +1,4 @@
-import type { Obstacle } from './types'
+import type { Obstacle, World } from './types'
 import type { Vec2 } from './vector'
 import { clamp } from './vector'
 
@@ -98,4 +98,26 @@ export function resolveObstacle(p: Vec2, radius: number, obstacle: Obstacle): Ve
     return result
   }
   return circleRectOverlap(p, radius, obstacle) ? resolveCircleRect(p, radius, obstacle) : p
+}
+
+/** True if a cannonball at `p` with `radius` hits any bullet-blocking obstacle.
+ * Blocks on: non-island obstacles (reefs, rockyShore, driftBarrel) and island props (rocks, bushes).
+ * Returns the hit obstacle (if any) so callers can apply damage to destructibles. */
+export function bulletBlockerOverlap(p: Vec2, radius: number, world: World): Obstacle | null {
+  for (const obstacle of world.obstacles) {
+    if (obstacle.variant === 'island') {
+      // Island land tiles don't block bullets — only the props on them do.
+      if (obstacle.props) {
+        for (const prop of obstacle.props) {
+          const dx = p.x - (obstacle.pos.x + prop.dx)
+          const dy = p.y - (obstacle.pos.y + prop.dy)
+          const r = radius + prop.radius
+          if (dx * dx + dy * dy < r * r) return obstacle
+        }
+      }
+      continue
+    }
+    if (obstacleOverlap(p, radius, obstacle)) return obstacle
+  }
+  return null
 }

@@ -30,40 +30,35 @@ export interface ObstacleView {
 
 function scatterIslandProps(
   scene: Phaser.Scene,
-  cx: number,
-  cy: number,
-  sandRadius: number,
-  hasGrass: boolean,
-  stretchX: number,
-  stretchY: number,
+  obstacle: Obstacle,
 ): Phaser.GameObjects.Sprite[] {
   const props: Phaser.GameObjects.Sprite[] = []
+  const { x: cx, y: cy } = obstacle.pos
+  const sandRadius = obstacle.w / 2
+  const hasGrass = sandRadius >= 75
+  const { stretchX, stretchY } = obstacle.islandShape!
   const at = (angle: number, dist: number) => ({
     x: cx + Math.cos(angle) * dist * stretchX,
     y: cy + Math.sin(angle) * dist * stretchY,
   })
 
-  if (hasGrass) {
-    const treeCount = 2 + Math.floor(Math.random() * 3)
-    for (let i = 0; i < treeCount; i += 1) {
-      const p = at(Math.random() * Math.PI * 2, Math.random() * sandRadius * 0.42)
-      const key = ISLAND_TREE_KEYS[Math.floor(Math.random() * ISLAND_TREE_KEYS.length)]
-      const size = 26 + Math.random() * 16
-      const tree = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6)
-      props.push(tree)
+  // Render stored props (rocks and bushes) — these match the server-side positions.
+  if (obstacle.props) {
+    for (const prop of obstacle.props) {
+      const px = cx + prop.dx
+      const py = cy + prop.dy
+      const size = prop.radius * 2
+      if (prop.kind === 'bush') {
+        const key = ISLAND_TREE_KEYS[Math.floor(Math.random() * ISLAND_TREE_KEYS.length)]
+        props.push(scene.add.sprite(px, py, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6))
+      } else {
+        const key = ISLAND_ROCK_KEYS[Math.floor(Math.random() * ISLAND_ROCK_KEYS.length)]
+        props.push(scene.add.sprite(px, py, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6))
+      }
     }
   }
 
-  const rockCount = 1 + Math.floor(Math.random() * 3)
-  for (let i = 0; i < rockCount; i += 1) {
-    const angle = Math.random() * Math.PI * 2
-    const p = at(angle, sandRadius * (0.85 + Math.random() * 0.3))
-    const key = ISLAND_ROCK_KEYS[Math.floor(Math.random() * ISLAND_ROCK_KEYS.length)]
-    const size = 18 + Math.random() * 14
-    const rock = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6)
-    props.push(rock)
-  }
-
+  // Cannon — purely decorative, not a bullet blocker
   if (sandRadius >= 75 && Math.random() < 0.3) {
     const angle = Math.random() * Math.PI * 2
     const p = at(angle, sandRadius * 0.92)
@@ -76,8 +71,7 @@ function scatterIslandProps(
     props.push(cannon)
   }
 
-  // Small fortification pieces sit squarely on the sand ring — never past the coast into
-  // open water, and never inland on the grass — so they always read as "part of this island".
+  // Fort pieces — purely decorative
   if (hasGrass && Math.random() < 0.35) {
     const p = at(Math.random() * Math.PI * 2, sandRadius * (0.6 + Math.random() * 0.22))
     const key = ISLAND_FORT_KEYS[Math.floor(Math.random() * ISLAND_FORT_KEYS.length)]
@@ -182,13 +176,11 @@ function createIslandView(
   const { x: cx, y: cy } = obstacle.pos
   const sandRadius = obstacle.w / 2
   const shape = obstacle.islandShape!
-  const { stretchX, stretchY } = shape
 
   const { land, shallowWater } = generateIslandTileGrid(sandRadius, shape, ISLAND_TILE_SIZE)
   const tiles = [...placeShallowWaterTiles(scene, cx, cy, shallowWater), ...placeIslandTiles(scene, cx, cy, land)]
-  const hasGrass = sandRadius >= 75
 
-  const decorations = scatterIslandProps(scene, cx, cy, sandRadius, hasGrass, stretchX, stretchY)
+  const decorations = scatterIslandProps(scene, obstacle)
   minimapCam.ignore(decorations)
 
   return {

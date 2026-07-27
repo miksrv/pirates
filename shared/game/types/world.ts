@@ -6,6 +6,15 @@ import type { Ship, Team } from './ship'
 export type ObstacleKind = 'crate' | 'rock'
 export type ObstacleVariant = 'island' | 'reef' | 'driftBarrel' | 'rockyShore'
 
+/** A decorative prop (rock or bush) placed on/around an island — blocks cannonballs. */
+export interface IslandProp {
+  /** Offset from the island's center. */
+  dx: number
+  dy: number
+  radius: number
+  kind: 'rock' | 'bush'
+}
+
 export interface Obstacle {
   id: string
   pos: Vec2
@@ -24,6 +33,8 @@ export interface Obstacle {
   shallowTiles?: CollisionTile[]
   /** Tile size used for collision tile rects (defaults to ISLAND_TILE_SIZE). */
   collisionTileSize?: number
+  /** Only for 'island': rocks and bushes that block cannonballs. */
+  props?: IslandProp[]
 }
 
 export type PickupType =

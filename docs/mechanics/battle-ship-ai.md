@@ -10,7 +10,7 @@ Code: `shared/game/ai/` (`index.ts` state machine, `targeting.ts`, `threats.ts`)
 
 ## Shooting
 - **Leads the target**: solves the intercept using target velocity and actual bullet speed (buffs included).
-- **Fire discipline**: shoots only with clear line of sight and an intercept reachable within bullet lifetime.
+- **Fire discipline**: shoots only with clear line of sight and an intercept reachable within bullet lifetime. Islands don't block shots — only rocks, bushes, reefs, and shore props do (see `bulletBlockerOverlap` in `physics.ts`).
 - **Human error**: holds a rolled aim error for 0.7–1.6s, then re-rolls. ~22% of windows are flubs (3× wider error). Lead is imperfect: 70–115% of the true intercept. Error scales up with distance.
 
 ## Boost usage

@@ -2,7 +2,7 @@ import { PICKUP_DROP_CHANCE, RESPAWN_TIME } from './constants'
 import { nextId } from './id'
 import { spawnPickupAt } from './map'
 import { fleetRootId } from './escort'
-import { obstacleOverlap } from './physics'
+import { bulletBlockerOverlap } from './physics'
 import type { Bullet, Ship, World } from './types'
 import { BULLET_MAX_LIFE, BULLET_RADIUS, BULLET_SPEED, INFERNO_BULLET_SCALE } from './constants'
 import { clamp, fromAngle } from './vector'
@@ -57,20 +57,19 @@ export function updateBullets(world: World, dt: number): void {
 
     let consumed = false
 
-    for (const obstacle of world.obstacles) {
-      if (!obstacleOverlap(bullet.pos, bullet.radius, obstacle)) continue
+    const hitObstacle = bulletBlockerOverlap(bullet.pos, bullet.radius, world)
+    if (hitObstacle) {
       consumed = true
       world.events.push({ kind: 'impact', pos: { ...bullet.pos }, lethal: false })
-      if (obstacle.destructible) {
-        obstacle.hp -= bullet.damage
-        if (obstacle.hp <= 0) {
-          obstacle.hp = 0
+      if (hitObstacle.destructible) {
+        hitObstacle.hp -= bullet.damage
+        if (hitObstacle.hp <= 0) {
+          hitObstacle.hp = 0
           if (Math.random() < PICKUP_DROP_CHANCE) {
-            spawnPickupAt(world, obstacle.pos)
+            spawnPickupAt(world, hitObstacle.pos)
           }
         }
       }
-      break
     }
 
     if (consumed) continue

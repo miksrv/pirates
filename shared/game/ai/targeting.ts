@@ -10,7 +10,7 @@ import {
   BULLET_RADIUS,
 } from '../constants'
 import { sameFleet } from '../escort'
-import { obstacleOverlap } from '../physics'
+import { bulletBlockerOverlap } from '../physics'
 import type { BotAI, Pickup, PickupType, Ship, World } from '../types'
 import { add, clamp, distance, normalize, scale, sub, type Vec2 } from '../vector'
 
@@ -28,9 +28,7 @@ export function hasLineOfSight(world: World, from: Vec2, to: Vec2): boolean {
 
   for (let i = 1; i < steps; i += 1) {
     const p = add(from, scale(dir, (i * d) / steps))
-    for (const obstacle of world.obstacles) {
-      if (obstacleOverlap(p, BULLET_RADIUS, obstacle)) return false
-    }
+    if (bulletBlockerOverlap(p, BULLET_RADIUS, world)) return false
   }
   return true
 }

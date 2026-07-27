@@ -8,7 +8,7 @@ export const MINIMAP_MARGIN = 14
 export const SHIP_RADIUS = 20
 export const BULLET_RADIUS = 4
 export const BULLET_SPEED = 640
-export const BULLET_MAX_LIFE = 1.4 // seconds
+export const BULLET_MAX_LIFE = .6 // seconds
 
 export const BASE_MAX_HP = 100
 export const BASE_SPEED = 187.5
