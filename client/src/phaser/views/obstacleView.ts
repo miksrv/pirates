@@ -49,7 +49,7 @@ function scatterIslandProps(
       const p = at(Math.random() * Math.PI * 2, Math.random() * sandRadius * 0.42)
       const key = ISLAND_TREE_KEYS[Math.floor(Math.random() * ISLAND_TREE_KEYS.length)]
       const size = 26 + Math.random() * 16
-      const tree = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setDepth(6)
+      const tree = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6)
       props.push(tree)
     }
   }
@@ -60,7 +60,7 @@ function scatterIslandProps(
     const p = at(angle, sandRadius * (0.85 + Math.random() * 0.3))
     const key = ISLAND_ROCK_KEYS[Math.floor(Math.random() * ISLAND_ROCK_KEYS.length)]
     const size = 18 + Math.random() * 14
-    const rock = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setDepth(6)
+    const rock = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6)
     props.push(rock)
   }
 
@@ -208,6 +208,9 @@ function createObstacleView(
 
   const sprite = scene.add.sprite(obstacle.pos.x, obstacle.pos.y, OBSTACLE_KEY[obstacle.variant]).setDepth(5)
   sprite.setDisplaySize(obstacle.w, obstacle.h)
+  if (obstacle.variant === 'reef' || obstacle.variant === 'rockyShore') {
+    sprite.setRotation(Math.random() * Math.PI * 2)
+  }
 
   let hpBarBg: Phaser.GameObjects.Rectangle | undefined
   let hpBarFg: Phaser.GameObjects.Rectangle | undefined

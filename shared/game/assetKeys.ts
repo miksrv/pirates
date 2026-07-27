@@ -148,7 +148,13 @@ export const ISLAND_GRASS_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerB
 }
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
-export const ISLAND_TREE_KEYS = ['tile_tree1', 'tile_tree2', 'tile_tree3']
+export const ISLAND_TREE_KEYS = [
+  'grass_deco_bush_1',
+  'grass_deco_bush_2',
+  'grass_deco_bush_3',
+  'grass_deco_bush_small_1',
+  'grass_deco_bush_small_2',
+]
 export const ISLAND_ROCK_KEYS = [
   'rock_small_1',
   'rock_small_2',
@@ -178,9 +184,10 @@ export const SFX = {
   pickup: 'pickup',
 } as const
 
-/** Keys loaded from assets/tiles/ (rock obstacles & decorative rocks). */
+/** Keys loaded from assets/tiles/ (rocks & bushes). */
 export const ALL_TILE_KEYS: string[] = [...new Set([
   ...ISLAND_ROCK_KEYS,
+  ...ISLAND_TREE_KEYS,
   OBSTACLE_KEY.reef,
   OBSTACLE_KEY.rockyShore,
 ])]
@@ -205,7 +212,6 @@ export const ALL_IMAGE_KEYS: string[] = [
   ...ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
   ...ISLAND_GRASS_FILL_KEYS,
   ...Object.values(ISLAND_GRASS_CORNER_KEYS).flat(),
-  ...ISLAND_TREE_KEYS,
   ISLAND_CANNON_KEY,
   ...ISLAND_FORT_KEYS,
   GROUND_TILE_KEY,
