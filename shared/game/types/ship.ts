@@ -67,6 +67,12 @@ export interface Ship {
   bodyAngle: number
   cannonAngle: number
   moveDir: Vec2
+  /** Actual instantaneous speed (0 to ship.speed); accelerated by throttle each frame. */
+  currentSpeed: number
+  /** Throttle input: 1 = accelerate, -1 = brake, 0 = coast (slight drag). */
+  throttle: number
+  /** Turn input: 1 = starboard (clockwise), -1 = port (counter-clockwise). */
+  turnDir: number
   radius: number
   hp: number
   maxHp: number

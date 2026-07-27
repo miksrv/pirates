@@ -71,7 +71,7 @@ function broadcast(msg: ServerMsg): void {
 }
 
 export function idleInput(): PlayerInput {
-  return { moveDir: { x: 0, y: 0 }, aimAngle: 0, firing: false, boosting: false }
+  return { throttle: 0, turnDir: 0, aimAngle: 0, firing: false, boosting: false }
 }
 
 function roundStatus(): RoundStatus {

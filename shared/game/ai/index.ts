@@ -325,6 +325,17 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     ship.moveDir = fromAngle(smoothed)
   }
 
+  // Convert the desired heading vector into throttle + turnDir controls.
+  if (length(ship.moveDir) > 1e-6) {
+    const desiredAngle = angleOf(ship.moveDir)
+    const diff = angleDiff(desiredAngle, ship.bodyAngle)
+    ship.turnDir = clamp(diff / 0.5, -1, 1)
+    ship.throttle = 1
+  } else {
+    ship.throttle = 0
+    ship.turnDir = 0
+  }
+
   // Spend boost where speed wins fights: swerving clear of an incoming ball (the extra speed is
   // what turns a graze into a miss), escaping while fleeing or disengaging, and closing a long
   // gap on a chase. Meter hysteresis (start high, keep to the floor) avoids flickering.

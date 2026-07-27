@@ -207,10 +207,10 @@ export class MainScene extends Phaser.Scene {
     const dt = Math.min(deltaMs / 1000, 0.05)
     let player = this.world.ships.find((t) => t.id === this.playerId)
 
-    const { moveDir, aimAngle, firing, boosting } = readPlayerInput(this, this.keys, player)
+    const { throttle, turnDir, aimAngle, firing, boosting } = readPlayerInput(this, this.keys, player)
 
     if (this.mode === 'online' && this.net) {
-      this.net.sendInput({ moveDir, aimAngle, firing, boosting })
+      this.net.sendInput({ throttle, turnDir, aimAngle, firing, boosting })
       this.net.syncWorld()
       // syncWorld replaces the ships array; re-find our ship and aim its cannon locally so the
       // crosshair doesn't lag a round-trip behind the mouse.
@@ -218,7 +218,7 @@ export class MainScene extends Phaser.Scene {
       if (player && player.alive) player.cannonAngle = aimAngle
       handleEvents(this, this.net.drainEvents())
     } else {
-      stepWorld(this.world, dt, { [this.playerId]: { moveDir, aimAngle, firing, boosting } })
+      stepWorld(this.world, dt, { [this.playerId]: { throttle, turnDir, aimAngle, firing, boosting } })
       handleEvents(this, this.world.events)
     }
 

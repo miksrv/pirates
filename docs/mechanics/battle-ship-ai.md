@@ -19,6 +19,8 @@ Code: `shared/game/ai/` (`index.ts` state machine, `targeting.ts`, `threats.ts`)
 - Meter hysteresis: starts only above 35%, keeps burning down to 5%. Leads boosted targets correctly when aiming.
 
 ## Steering (layered on top of the state's heading)
+- Bot computes a desired heading direction (vector), blends avoidance forces, smooths it, then converts to `throttle` + `turnDir` — the same controls a player uses.
+- `turnDir` is proportional to the angle difference (saturates at ±0.5 rad ≈ 29°); `throttle` is always 1 (full ahead).
 - Heading and cannon turn at capped rates (no per-frame snaps); fires only once the cannon aligns with the aim.
 - Attack range-keeping uses hysteresis (close / hold / back) instead of flipping per frame.
 - Sidesteps incoming cannonballs predicted to hit; the swerve gets up to 3× stronger as impact nears, so it outweighs terrain avoidance instead of being pinned against a coastline. Measured: ~3-8% hit rate from perfectly-led shots, vs 74-84% with dodging off.

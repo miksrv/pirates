@@ -1,4 +1,3 @@
-import { getEffectMagnitude } from '../boosts/effects'
 import {
   BOOST_SPEED_MULT,
   BOT_BOUNDARY_MARGIN,
@@ -12,7 +11,7 @@ import {
 import { sameFleet } from '../escort'
 import { bulletBlockerOverlap } from '../physics'
 import type { BotAI, Pickup, PickupType, Ship, World } from '../types'
-import { add, clamp, distance, normalize, scale, sub, type Vec2 } from '../vector'
+import { add, clamp, distance, fromAngle, scale, sub, type Vec2 } from '../vector'
 
 /** Pickups that restore or protect the hull — what a hurt bot goes looking for. */
 export const HEALING_PICKUPS: ReadonlySet<PickupType> = new Set(['health', 'carpenter', 'maxHp', 'shield'])
@@ -33,13 +32,13 @@ export function hasLineOfSight(world: World, from: Vec2, to: Vec2): boolean {
   return true
 }
 
-/** A ship's actual world velocity, matching how updateShipMovement integrates moveDir —
+/** A ship's actual world velocity — direction from bodyAngle, magnitude from currentSpeed,
  * including the shift-boost multiplier, so boosted targets are still led correctly. */
 export function shipVelocity(ship: Ship): Vec2 {
-  const dir = normalize(ship.moveDir)
-  if (dir.x === 0 && dir.y === 0) return dir
+  if (ship.currentSpeed < 0.01) return { x: 0, y: 0 }
   const boostMult = ship.boosting && ship.boost > 0 ? BOOST_SPEED_MULT : 1
-  return scale(dir, ship.speed * getEffectMagnitude(ship, 'speedBoost', 1) * boostMult)
+  const dir = fromAngle(ship.bodyAngle)
+  return scale(dir, ship.currentSpeed * boostMult)
 }
 
 /** Where to aim so a bullet meets the target on its current course: solves

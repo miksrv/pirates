@@ -19,7 +19,7 @@ import { obstacleOverlap } from './physics'
 import { createShip } from './ship/shipFactory'
 import { obstacleAvoidance } from './steering'
 import type { Ship, World } from './types'
-import { angleOf, distance, fromAngle, length, moveAngleTowards, normalize, scale, sub, type Vec2 } from './vector'
+import { angleOf, distance, fromAngle, length, moveAngleTowards, normalize, scale, sub, angleDiff, clamp, type Vec2 } from './vector'
 
 /**
  * Escorts ("Эскадра"): fragile ships that sail in a wedge behind whoever picked the fleet up.
@@ -133,7 +133,7 @@ export function updateEscort(escort: Ship, world: World, captain: Ship, dt: numb
   const slotPos = slotWorldPos(captain, escort.escortSlot)
   const toSlot = sub(slotPos, escort.pos)
   const gap = distance(escort.pos, slotPos)
-  const captainMoving = captain.moveDir.x !== 0 || captain.moveDir.y !== 0
+  const captainMoving = captain.currentSpeed > 0.01
 
   // 0 when parked on the slot, 1 when a full station-keeping distance away.
   const urgency = Math.min(gap / ESCORT_SLOT_BLEND, 1)
@@ -144,7 +144,7 @@ export function updateEscort(escort: Ship, world: World, captain: Ship, dt: numb
     escort.speed = captain.speed
   } else {
     const seek = gap > 1e-3 ? scale(toSlot, 1 / gap) : { x: 0, y: 0 }
-    const course = normalize(captain.moveDir)
+    const course = fromAngle(captain.bodyAngle)
     escort.moveDir = normalize({
       x: seek.x * urgency + course.x * (1 - urgency),
       y: seek.y * urgency + course.y * (1 - urgency),
@@ -168,6 +168,17 @@ export function updateEscort(escort: Ship, world: World, captain: Ship, dt: numb
   if (length(escort.moveDir) > 1e-6 && length(prevMoveDir) > 1e-6) {
     const smoothed = moveAngleTowards(angleOf(prevMoveDir), angleOf(escort.moveDir), ESCORT_TURN_RATE * dt)
     escort.moveDir = fromAngle(smoothed)
+  }
+
+  // Convert desired heading to throttle/turnDir controls.
+  if (length(escort.moveDir) > 1e-6) {
+    const desiredAngle = angleOf(escort.moveDir)
+    const diff = angleDiff(desiredAngle, escort.bodyAngle)
+    escort.turnDir = clamp(diff / 0.5, -1, 1)
+    escort.throttle = 1
+  } else {
+    escort.throttle = 0
+    escort.turnDir = 0
   }
 
   // Guns track the nearest enemy in range, otherwise they follow the captain's aim so a volley

@@ -12,6 +12,8 @@ export const BULLET_MAX_LIFE = .6 // seconds
 
 export const BASE_MAX_HP = 100
 export const BASE_SPEED = 187.5
+export const BASE_ACCELERATION = 120 // units/s² — time to max speed ≈ BASE_SPEED / BASE_ACCELERATION
+export const BASE_MANEUVER = 2.5 // rad/s hull turn rate
 export const BASE_DAMAGE = 14
 export const BASE_FIRE_RATE = 1 / 3 // 1 shot every 3 seconds
 export const BASE_ARMOR = 0

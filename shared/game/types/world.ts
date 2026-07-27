@@ -104,7 +104,8 @@ export interface World {
 }
 
 export interface PlayerInput {
-  moveDir: Vec2
+  throttle: number
+  turnDir: number
   aimAngle: number
   firing: boolean
   boosting: boolean

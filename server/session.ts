@@ -10,10 +10,8 @@ export function sanitizeInput(raw: unknown): PlayerInput {
   const input = (raw ?? {}) as Partial<PlayerInput>
   const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
   return {
-    moveDir: {
-      x: Math.max(-1, Math.min(1, num(input.moveDir?.x))),
-      y: Math.max(-1, Math.min(1, num(input.moveDir?.y))),
-    },
+    throttle: Math.max(-1, Math.min(1, num(input.throttle))),
+    turnDir: Math.max(-1, Math.min(1, num(input.turnDir))),
     aimAngle: num(input.aimAngle),
     firing: input.firing === true,
     boosting: input.boosting === true,
