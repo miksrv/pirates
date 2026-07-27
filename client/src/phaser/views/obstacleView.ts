@@ -149,18 +149,16 @@ function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, land: Isl
   })
 }
 
-/** Places the shallow-water ring (islandShape.generateIslandTileGrid's `shallowWater` pass) —
- * unlike land tiles, these are drawn at their exact grid size with no overlap padding: they're
- * semi-transparent, so two overlapping edges would double-blend into a visible seam, whereas land
- * tiles are opaque and rely on the overlap to hide seams instead. A rounded corner gets 2 entries
- * at the same position — a base fill tile plus a corner tile marked `overlay` — so the overlay
- * needs a hair more depth to draw on top of its own fill, not fight it for draw order. */
+/** Places the shallow-water ring — each water cell touching the coastline gets one shallow-water
+ * tile. Rendered at exact grid size with no overlap padding: they're semi-transparent, so two
+ * overlapping edges would double-blend into a visible seam, whereas land tiles are opaque and
+ * rely on the overlap to hide seams instead. */
 function placeShallowWaterTiles(scene: Phaser.Scene, cx: number, cy: number, shallowWater: ShallowWaterCell[]): Phaser.GameObjects.Sprite[] {
   return shallowWater.map((cell) =>
     scene.add
       .sprite(cx + cell.x, cy + cell.y, cell.key)
       .setDisplaySize(ISLAND_TILE_SIZE, ISLAND_TILE_SIZE)
-      .setDepth(cell.overlay ? 3.91 : 3.9),
+      .setDepth(3.9),
   )
 }
 

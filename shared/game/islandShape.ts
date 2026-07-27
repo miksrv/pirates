@@ -118,10 +118,6 @@ export interface ShallowWaterCell {
   x: number
   y: number
   key: string
-  /** True for a corner tile stacked on top of the fill tile at this same cell (any rounded
-   * corner) — renders at a slightly higher depth so the corner curve shows on top of the flat
-   * fill tint underneath it, rather than the two fighting over draw order. */
-  overlay?: boolean
 }
 
 export interface IslandTiles {
@@ -338,8 +334,11 @@ export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, t
         else if (diagCount === 1 && diagNW) cornerOverlay = ISLAND_SHALLOW_WATER_CORNER_KEYS.cornerBr
       } else tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
 
-      shallowWater.push({ x, y, key: tileKey })
-      if (cornerOverlay) shallowWater.push({ x, y, key: cornerOverlay, overlay: true })
+      if (cornerOverlay) {
+        shallowWater.push({ x, y, key: cornerOverlay })
+      } else {
+        shallowWater.push({ x, y, key: tileKey })
+      }
     }
   }
 
