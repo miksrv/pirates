@@ -73,7 +73,13 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   let hitObstacle = false
   for (const obstacle of world.obstacles) {
     const corrected = resolveObstacle(ship.pos, ship.radius, obstacle)
-    if (corrected !== ship.pos) hitObstacle = true
+    if (corrected !== ship.pos) {
+      hitObstacle = true
+      // Rocks kill all momentum on impact.
+      if (obstacle.kind === 'rock') {
+        ship.currentSpeed = 0
+      }
+    }
     ship.pos = corrected
   }
 
