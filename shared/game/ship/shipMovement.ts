@@ -37,14 +37,14 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   const speedMult = getEffectMagnitude(ship, 'speedBoost', 1) * (mega ? MEGA_SPEED_MULT : 1)
   const shallowMult = getEffectMagnitude(ship, 'shallowWater', 1)
   const turnMult = getEffectMagnitude(ship, 'turnBoost', 1)
-  const jitter = getEffectMagnitude(ship, 'krakenJitter', 0)
+  const invertControls = hasEffect(ship, 'krakenJitter')
 
   const boostActive = updateBoostMeter(ship, dt)
 
   // --- Turn hull ---
   const maneuver = SHIP_BASE_MANEUVER * turnMult
-  if (jitter > 0) ship.bodyAngle += (Math.random() - 0.5) * jitter * dt
-  ship.bodyAngle += ship.turnDir * maneuver * dt
+  const effectiveTurnDir = invertControls ? -ship.turnDir : ship.turnDir
+  ship.bodyAngle += effectiveTurnDir * maneuver * dt
 
   // --- Accelerate / decelerate ---
   const maxSpeed = ship.speed * speedMult * shallowMult * (boostActive ? BOOST_SPEED_MULT : 1)

@@ -1,24 +1,28 @@
 import { applyTemporaryEffect } from '../boosts/effects'
 import { MEGA_DURATION } from '../constants'
+import { clamp } from '../vector'
 import type { PickupDef } from './types'
 
-/** Timed buffs applied via applyTemporaryEffect — everything here wears off on its own. */
+/** Timed buffs applied via applyTemporaryEffect — everything here wears off on its own.
+ *  Carpenter is an instant heal despite living in this file historically. */
 export const BOOST_PICKUPS: Record<
   'carpenter' | 'tailwind' | 'compass' | 'kraken' | 'doublePowder' | 'sharpshooter' | 'rapidFire' | 'leviathan' | 'disguise',
   PickupDef
 > = {
   carpenter: {
     type: 'carpenter',
+    category: 'instant',
     label: 'Набор плотника',
     emoji: '🛠️',
     color: '#8bd8a0',
-    description: 'Постепенно чинит корпус 10 сек',
+    description: 'Мгновенно восстанавливает 30 HP',
     apply: (ship) => {
-      applyTemporaryEffect(ship, 'regen', 10, 3)
+      ship.hp = clamp(ship.hp + 30, 0, ship.maxHp)
     },
   },
   tailwind: {
     type: 'tailwind',
+    category: 'temporary',
     label: 'Попутный ветер',
     emoji: '💨',
     color: '#bfe8ff',
@@ -29,6 +33,7 @@ export const BOOST_PICKUPS: Record<
   },
   compass: {
     type: 'compass',
+    category: 'temporary',
     label: 'Компас капитана',
     emoji: '🧭',
     color: '#ffe08a',
@@ -39,17 +44,18 @@ export const BOOST_PICKUPS: Record<
   },
   kraken: {
     type: 'kraken',
+    category: 'temporary',
     label: 'Щупальца Кракена',
     emoji: '🐙',
     color: '#c86bd8',
-    description: 'Ускоряет, но шатает курс — 8 сек',
+    description: 'Путает право и лево — 10 сек',
     apply: (ship) => {
-      applyTemporaryEffect(ship, 'speedBoost', 8, 1.4)
-      applyTemporaryEffect(ship, 'krakenJitter', 8, 0.5)
+      applyTemporaryEffect(ship, 'krakenJitter', 10, 1)
     },
   },
   doublePowder: {
     type: 'doublePowder',
+    category: 'temporary',
     label: 'Бочонок двойного пороха',
     emoji: '🧨',
     color: '#ff8a3d',
@@ -61,6 +67,7 @@ export const BOOST_PICKUPS: Record<
   },
   sharpshooter: {
     type: 'sharpshooter',
+    category: 'temporary',
     label: 'Ядро меткого стрелка',
     emoji: '🎯',
     color: '#ff9f9f',
@@ -71,6 +78,7 @@ export const BOOST_PICKUPS: Record<
   },
   rapidFire: {
     type: 'rapidFire',
+    category: 'temporary',
     label: 'Огненный залп',
     emoji: '🔥',
     color: '#ff6a3d',
@@ -81,8 +89,9 @@ export const BOOST_PICKUPS: Record<
   },
   leviathan: {
     type: 'leviathan',
-    label: 'Ярость Левиафана',
-    emoji: '🔱',
+    category: 'rare',
+    label: 'Чёрная жемчужина',
+    emoji: '🏴‍☠️',
     color: '#ff3df0',
     description: 'Корабль крупнее, вдвое быстрее и стреляет вдвое чаще — 20 сек',
     apply: (ship) => {
@@ -91,6 +100,7 @@ export const BOOST_PICKUPS: Record<
   },
   disguise: {
     type: 'disguise',
+    category: 'temporary',
     label: 'Маскировка',
     emoji: '🎭',
     color: '#9aa5b8',

@@ -366,7 +366,7 @@ export default function HUD({
 
       {megaAnnounce && (
         <div className="mega-banner">
-          <span className="mega-banner-title">🔱 ЯРОСТЬ ЛЕВИАФАНА</span>
+          <span className="mega-banner-title">🏴‍☠️ ЧЁРНАЯ ЖЕМЧУЖИНА</span>
           <span className="mega-banner-sub">Появилась на карте — смотрите метку на миникарте!</span>
         </div>
       )}

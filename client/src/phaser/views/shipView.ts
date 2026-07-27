@@ -30,18 +30,15 @@ const SHIP_SPRITE_OFFSET = -Math.PI / 2
 /** The cannon sprite is drawn pointing right (bow-to-stern horizontal), which already matches a 0-rad world angle. */
 const CANNON_SPRITE_OFFSET = 0
 
-/** Icon shown in a ship's buff row for each active effect type (independent of which pickup granted it). */
-const EFFECT_EMOJI: Record<EffectType, string> = {
+/** Icon shown in a ship's buff row for each active effect type — only temporary-category effects display. */
+const EFFECT_EMOJI: Partial<Record<EffectType, string>> = {
   speedBoost: '💨',
   turnBoost: '🧭',
   damageBoost: '🧨',
   fireRateBoost: '🔥',
   bulletSpeedBoost: '🎯',
   krakenJitter: '🐙',
-  regen: '🛠️',
   disguise: '🎭',
-  megaBoost: '🔱',
-  shallowWater: '🏖️',
 }
 
 function shipHealthState(ship: Ship): ShipHealthState {
@@ -59,10 +56,10 @@ function shipLabel(ship: Ship): string {
 }
 
 function buildBuffIconText(ship: Ship): string {
-  const icons = ship.effects.map((e) => EFFECT_EMOJI[e.type])
+  const icons = ship.effects
+    .map((e) => EFFECT_EMOJI[e.type])
+    .filter((e): e is string => !!e)
   if (ship.shieldCharges > 0) icons.push('🛡️'.repeat(ship.shieldCharges))
-  if (ship.infernoShots > 0) icons.push('🔥'.repeat(ship.infernoShots))
-  if (ship.extraCannons > 0) icons.push('🎰'.repeat(ship.extraCannons))
   return icons.join(' ')
 }
 

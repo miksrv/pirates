@@ -94,7 +94,7 @@ export const MEGA_PICKUP_RADIUS = 22 // bigger collision than a normal crate
 // ─── Escort: companion ships in wedge formation ─────────────────────────────
 export const ESCORT_FIRST_PICKUP = 2 // escorts granted the first time
 export const ESCORT_NEXT_PICKUP = 3 // granted by each later pickup
-export const ESCORT_MAX = 5 // hard cap on escort count
+export const ESCORT_MAX = 2 // hard cap on escort count
 export const ESCORT_HP = 1 // any single hit sinks an escort
 export const ESCORT_RADIUS = 15 // slightly smaller hull than captain
 export const ESCORT_DAMAGE = 8 // weaker guns than captain

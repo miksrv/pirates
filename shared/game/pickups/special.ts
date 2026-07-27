@@ -10,26 +10,29 @@ const EXTRA_CANNONS_MAX = 2
 export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot' | 'gust' | 'extraCannon', PickupDef> = {
   shield: {
     type: 'shield',
+    category: 'temporary',
     label: 'Капитанский щит',
     emoji: '🛡️',
     color: '#8bb8ff',
-    description: 'Блокирует следующий удар целиком',
+    description: 'Блокирует следующий удар целиком (до 3)',
     apply: (ship) => {
       ship.shieldCharges = clamp(ship.shieldCharges + 1, 0, 3)
     },
   },
   fleet: {
     type: 'fleet',
+    category: 'permanent',
     label: 'Эскадра',
     emoji: '⛵',
     color: '#7ad7ff',
-    description: 'Корабли сопровождения идут за вами клином (до 5)',
+    description: 'Корабли сопровождения идут за вами клином (до 2)',
     apply: (ship, world) => {
       grantFleet(world, ship)
     },
   },
   bomb: {
     type: 'bomb',
+    category: 'rare',
     label: 'Бомбы',
     emoji: '💣',
     color: '#4a4a4a',
@@ -41,8 +44,9 @@ export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot'
   },
   infernoShot: {
     type: 'infernoShot',
+    category: 'rare',
     label: 'Адское ядро',
-    emoji: '🔥',
+    emoji: '☢️',
     color: '#ff4b1f',
     description: 'Один выстрел: ядро втрое больше, топит с одного попадания',
     apply: (ship) => {
@@ -51,7 +55,8 @@ export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot'
   },
   gust: {
     type: 'gust',
-    label: 'Порыв ветра',
+    category: 'instant',
+    label: 'Торнадо',
     emoji: '🌪️',
     color: '#d9d9d9',
     description: 'Мгновенно переносит в случайную точку на воде',
@@ -63,8 +68,9 @@ export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot'
   },
   extraCannon: {
     type: 'extraCannon',
+    category: 'permanent',
     label: 'Дополнительная пушка',
-    emoji: '🎰',
+    emoji: '🎱',
     color: '#ffd54f',
     description: 'Добавляет пушку на корабль (макс. 3)',
     apply: (ship) => {

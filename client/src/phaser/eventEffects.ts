@@ -36,7 +36,7 @@ export function handleEvents(scene: Phaser.Scene, events: GameEvent[]): void {
       scene.sound.play(SFX.pickup, { volume: 0.6 })
       scene.cameras.main.flash(400, 90, 0, 80)
       scene.events.emit('log', {
-        text: '🔱 ЯРОСТЬ ЛЕВИАФАНА поднялась из глубин! Ищите метку на миникарте',
+        text: '🏴‍☠️ ЧЁРНАЯ ЖЕМЧУЖИНА появилась в море! Ищите метку на миникарте',
         kind: 'mega',
       })
       scene.events.emit('mega-announce')

@@ -1,7 +1,7 @@
 import { nextId } from './id'
 import { generateIslandShape, generateCollisionTiles } from './islandShape'
 import { MAP_TILE_SIZE, MEGA_PICKUP_RADIUS } from './constants'
-import { RANDOM_PICKUP_TYPES } from './pickups'
+import { rollRandomPickupType } from './pickups'
 import type { IslandProp, Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
 import { distance } from './vector'
 
@@ -219,7 +219,7 @@ export function findFreeSpawnPoint(world: World, radius: number): { x: number; y
 }
 
 export function spawnPickupAt(world: World, pos: { x: number; y: number }, type?: PickupType): Pickup {
-  const chosen = type ?? RANDOM_PICKUP_TYPES[Math.floor(Math.random() * RANDOM_PICKUP_TYPES.length)]
+  const chosen = type ?? rollRandomPickupType()
   const pickup: Pickup = {
     id: nextId('pickup'),
     pos: { ...pos },
