@@ -42,7 +42,6 @@ export const BOT_DEFAULT_COUNT = 5 // bots spawned at game start
 export const BOT_MAX_COUNT = 10 // hard cap on concurrent bots
 export const BOT_SIGHT_RANGE = 460 // detection radius for enemies
 export const BOT_ATTACK_RANGE = 320 // range at which bots open fire
-export const BOT_PICKUP_SEEK_RANGE = 300 // only detour for a pickup this close
 export const BOT_COMBAT_PICKUP_SEEK_RANGE = 140 // tighter range while in combat
 export const BOT_COMBAT_PICKUP_WEIGHT = 0.8 // how strongly a nearby pickup bends the combat heading
 export const BOT_FLEE_HP_FRACTION = 0.25 // flee when HP drops below this fraction
@@ -81,7 +80,6 @@ export const BOT_LEAD_JITTER_MIN = 0.7 // under-lead factor (70% of intercept)
 export const BOT_LEAD_JITTER_MAX = 1.15 // over-lead factor (115% of intercept)
 export const BOT_BOOST_MIN_START = 0.35 // bots only boost with at least this meter
 export const BOT_BOOST_MIN_KEEP = 0.05 // keep boosting down to this floor
-export const BOT_LEVIATHAN_SEEK_RANGE = 1100 // break off patrol to race for Leviathan
 
 // ─── Mega: Leviathan's Fury map-wide pickup ─────────────────────────────────
 export const MEGA_SPAWN_INTERVAL = 60 // seconds between Leviathan spawns

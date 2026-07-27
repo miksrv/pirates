@@ -21,12 +21,10 @@ import {
   BOT_HEAL_SEEK_RANGE,
   BOT_LEAD_JITTER_MAX,
   BOT_LEAD_JITTER_MIN,
-  BOT_LEVIATHAN_SEEK_RANGE,
   BOT_MISS_CHANCE,
   BOT_MISS_FLUB_SPREAD,
   BOT_MOVE_TURN_RATE,
   BOT_OBSTACLE_AVOID_WEIGHT,
-  BOT_PICKUP_SEEK_RANGE,
   BOT_RETARGET_INTERVAL,
   BOT_SIGHT_RANGE,
   BOT_STEER_DEADLOCK_THRESHOLD,
@@ -56,12 +54,17 @@ import {
   HEALING_PICKUPS,
   REPAIR_ONLY_PICKUPS,
   findNearestPickup,
+  findPriorityPickup,
   hasLineOfSight,
   interceptPoint,
   randomPointNear,
   selectTarget,
 } from './targeting'
-import { boundaryAvoidance, bulletDodge } from './threats'
+import { PICKUP_DEFS } from '../pickups'
+import { bombAvoidance, boundaryAvoidance, bulletDodge } from './threats'
+
+/** First N seconds: bots avoid combat and focus on collecting boosts. */
+const BOT_EARLY_GAME_TIME = 30
 
 /** Updates a bot's AI state and steering. Returns true if it wants to fire this frame. */
 export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
@@ -122,9 +125,13 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   const shouldFlee =
     ai.state === 'flee' ? effectiveHp <= BOT_FLEE_RECOVER_FRACTION : effectiveHp <= BOT_FLEE_HP_FRACTION
 
+  // Early game: avoid combat and focus on collecting boosts (unless needing to flee).
+  const earlyGame = world.time < BOT_EARLY_GAME_TIME
+  const suppressCombat = earlyGame && !shouldFlee
+
   if (target && shouldFlee) {
     ai.state = 'flee'
-  } else if (target) {
+  } else if (target && !suppressCombat) {
     ai.state = distance(ship.pos, target.pos) <= BOT_ATTACK_RANGE ? 'attack' : 'chase'
   } else {
     ai.state = 'patrol'
@@ -155,36 +162,30 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
 
   switch (ai.state) {
     case 'patrol': {
+      // Priority-weighted search: rarer pickups are worth going further for.
       // Skip pure-repair pickups at full health — leave them on the map for when they matter.
-      // A disengaging bot ignores pickups too: a blocked pickup may be what trapped it.
       const pickup = disengaging
         ? null
-        : findNearestPickup(ship, world, BOT_PICKUP_SEEK_RANGE, (p) =>
+        : findPriorityPickup(ship, world, 600, (p) =>
             nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
           )
       if (pickup) {
         ship.moveDir = normalize(sub(pickup.pos, ship.pos))
+      } else {
+        if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
+          ai.targetPos = randomPointNear(world, ship.pos, 400)
+          ai.retargetTimer = BOT_RETARGET_INTERVAL
+        }
+        ship.moveDir = normalize(sub(ai.targetPos, ship.pos))
+      }
+      // Opportunistic shooting: fire at nearby enemies while collecting boosts.
+      if (target) {
+        const shot = computeShot(target)
+        desiredAim = shot.angle
+        wantsToFire = shot.worthFiring && distance(ship.pos, target.pos) <= BOT_CHASE_FIRE_RANGE
+      } else {
         desiredAim = ship.bodyAngle
-        break
       }
-
-      // The Leviathan is worth crossing the map for, so it outranks both the wander waypoint
-      // and ordinary loot — bots race the player for it instead of stumbling across it.
-      const leviathan = disengaging
-        ? null
-        : findNearestPickup(ship, world, BOT_LEVIATHAN_SEEK_RANGE, (p) => p.type === 'leviathan')
-      if (leviathan) {
-        ship.moveDir = normalize(sub(leviathan.pos, ship.pos))
-        desiredAim = ship.bodyAngle
-        break
-      }
-
-      if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
-        ai.targetPos = randomPointNear(world, ship.pos, 400)
-        ai.retargetTimer = BOT_RETARGET_INTERVAL
-      }
-      ship.moveDir = normalize(sub(ai.targetPos, ship.pos))
-      desiredAim = ship.bodyAngle
       break
     }
     case 'chase': {
@@ -263,9 +264,41 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     wantsToFire = false
   }
 
+  // --- Priority overrides: low HP healing and rare pickup chasing ---
+  let overrideActive = false
+
+  // 1. Low HP: race for any healing pickup across a wide range, keep shooting.
+  if (hpFraction < 0.5) {
+    const healOverride = findPriorityPickup(ship, world, 2000, (p) => HEALING_PICKUPS.has(p.type))
+    if (healOverride) {
+      ship.moveDir = normalize(sub(healOverride.pos, ship.pos))
+      overrideActive = true
+      if (target) {
+        const shot = computeShot(target)
+        desiredAim = shot.angle
+        wantsToFire = shot.worthFiring
+        ship.cannonAngle = moveAngleTowards(ship.cannonAngle, desiredAim, BOT_CANNON_TURN_RATE * dt)
+      }
+    }
+  }
+  // 2. Rare pickup on map: drop everything and race for it, keep shooting.
+  if (!overrideActive && !disengaging) {
+    const rareOverride = findPriorityPickup(ship, world, 2000, (p) => PICKUP_DEFS[p.type].category === 'rare')
+    if (rareOverride) {
+      ship.moveDir = normalize(sub(rareOverride.pos, ship.pos))
+      overrideActive = true
+      if (target) {
+        const shot = computeShot(target)
+        desiredAim = shot.angle
+        wantsToFire = shot.worthFiring
+        ship.cannonAngle = moveAngleTowards(ship.cannonAngle, desiredAim, BOT_CANNON_TURN_RATE * dt)
+      }
+    }
+  }
+
   // Even mid-fight, bend the heading toward a pickup if it's right there — hurt bots lunge
-  // harder for healing ones. 'patrol' already fully seeks pickups above, so skip it here.
-  if (ai.state !== 'patrol') {
+  // harder for healing ones. Skip when a priority override is already steering.
+  if (!overrideActive && ai.state !== 'patrol') {
     const nearbyPickup = findNearestPickup(ship, world, BOT_COMBAT_PICKUP_SEEK_RANGE, (p) =>
       nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
     )
@@ -281,8 +314,9 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   }
 
   // Layer the survival steering on top of whatever the state decided: sidestep incoming
-  // cannonballs, swing around islands instead of scraping them, and stay off the map edge.
+  // cannonballs, steer around mines, swing around islands, and stay off the map edge.
   const dodge = bulletDodge(ship, world)
+  const avoidBombs = bombAvoidance(ship, world)
   const avoidObstacle = obstacleAvoidance(ship, world)
   const avoidEdge = boundaryAvoidance(ship, world)
   // An imminent cannonball has to outweigh terrain avoidance, or a bot hugging a coastline
@@ -292,11 +326,13 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     x:
       ship.moveDir.x +
       dodge.x * dodgeWeight +
+      avoidBombs.x * BOT_OBSTACLE_AVOID_WEIGHT +
       avoidObstacle.x * BOT_OBSTACLE_AVOID_WEIGHT +
       avoidEdge.x * BOT_BOUNDARY_AVOID_WEIGHT,
     y:
       ship.moveDir.y +
       dodge.y * dodgeWeight +
+      avoidBombs.y * BOT_OBSTACLE_AVOID_WEIGHT +
       avoidObstacle.y * BOT_OBSTACLE_AVOID_WEIGHT +
       avoidEdge.y * BOT_BOUNDARY_AVOID_WEIGHT,
   }
@@ -343,6 +379,7 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     (dodge.escapable && dodge.urgency >= BOT_BOOST_DODGE_URGENCY) ||
     ai.state === 'flee' ||
     disengaging ||
+    overrideActive ||
     (ai.state === 'chase' && target !== null && distance(ship.pos, target.pos) > BOT_ATTACK_RANGE * 1.15)
   ship.boosting = wantsBoost && ship.boost > (ship.boosting ? BOT_BOOST_MIN_KEEP : BOT_BOOST_MIN_START)
 

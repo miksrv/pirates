@@ -9,9 +9,42 @@ import {
   BULLET_RADIUS,
 } from '../constants'
 import { sameFleet } from '../escort'
+import { PICKUP_DEFS, type PickupCategory } from '../pickups'
 import { bulletBlockerOverlap } from '../physics'
 import type { BotAI, Pickup, PickupType, Ship, World } from '../types'
 import { add, clamp, distance, fromAngle, scale, sub, type Vec2 } from '../vector'
+
+/** Bot priority multiplier per pickup category — rarer = more attractive. */
+const PICKUP_BOT_PRIORITY: Record<PickupCategory, number> = {
+  rare: 5.0,
+  permanent: 2.0,
+  temporary: 1.0,
+  instant: 1.0,
+}
+
+/** Find the best pickup by priority/distance score within range. */
+export function findPriorityPickup(
+  ship: Ship,
+  world: World,
+  range: number,
+  accept?: (pickup: Pickup) => boolean,
+): Pickup | null {
+  let best: Pickup | null = null
+  let bestScore = 0
+
+  for (const pickup of world.pickups) {
+    if (accept && !accept(pickup)) continue
+    const d = distance(ship.pos, pickup.pos)
+    if (d > range) continue
+    const priority = PICKUP_BOT_PRIORITY[PICKUP_DEFS[pickup.type].category]
+    const score = priority / Math.max(d, 1)
+    if (score > bestScore) {
+      bestScore = score
+      best = pickup
+    }
+  }
+  return best
+}
 
 /** Pickups that restore or protect the hull — what a hurt bot goes looking for. */
 export const HEALING_PICKUPS: ReadonlySet<PickupType> = new Set(['health', 'carpenter', 'maxHp', 'shield'])
