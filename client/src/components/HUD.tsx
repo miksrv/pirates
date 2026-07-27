@@ -322,7 +322,7 @@ export default function HUD({
           </div>
           <span className="hp-text">{stats.hp} / {stats.maxHp} HP</span>
         </div>
-        <div className="hud-badge">Убийства: {stats.kills}</div>
+        <div className="hud-badge">Потоплено: {stats.kills}</div>
         <div className="hud-badge">Кораблей на плаву: {stats.botsAlive} / {stats.botsTotal}</div>
         {roundStatus && roundStatus.phase === 'playing' && (
           <div className="hud-badge">⏱ {formatRoundTime(roundStatus.timeRemaining)}</div>
