@@ -335,7 +335,23 @@ export function generateIslandTileGrid(sandRadius: number, shape: IslandShape, t
       } else tileKey = ISLAND_SHALLOW_WATER_FILL_KEY
 
       if (cornerOverlay) {
-        shallowWater.push({ x, y, key: cornerOverlay })
+        if (landCount === 0) {
+          // Outer corners: corner tile at the cell position.
+          shallowWater.push({ x, y, key: cornerOverlay })
+        } else {
+          // Inner corners (landCount === 2): fill at this cell, corner tile one cell further
+          // diagonally away from the island so it doesn't sit right against the coastline.
+          shallowWater.push({ x, y, key: tileKey })
+          // const dx = (landE ? -1 : 1) * tileSize
+          // const dy = (landS ? -1 : 1) * tileSize
+          const cnx = nx + (landE ? -1 : 1)
+          const cny = ny + (landS ? -1 : 1)
+          const cnk = key(cnx, cny)
+          if (!land.has(cnk) && !shallowSeen.has(cnk)) {
+            shallowSeen.add(cnk)
+            // shallowWater.push({ x: x + dx, y: y + dy, key: cornerOverlay })
+          }
+        }
       } else {
         shallowWater.push({ x, y, key: tileKey })
       }
