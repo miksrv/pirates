@@ -114,6 +114,7 @@ function respawnShip(world: World, ship: Ship): void {
   ship.infernoShots = 0
   ship.bombsToDrop = 0
   ship.bombDropTimer = 0
+  ship.extraCannons = 0
   ship.moveDir = { x: 0, y: 0 }
   ship.currentSpeed = 0
   ship.throttle = 0
@@ -193,9 +194,11 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
     }
 
     if (wantsToFire) {
-      const shot = tryFireCannon(ship)
-      if (shot) {
-        spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed, shot.inferno)
+      const shots = tryFireCannon(ship)
+      if (shots) {
+        for (const shot of shots) {
+          spawnBullet(world, ship, shot.angle, shot.damage, shot.bulletSpeed, shot.inferno, shot.offset)
+        }
         world.events.push({ kind: 'shot', pos: { ...ship.pos }, team: ship.team })
         if (!ship.escortOf) {
           firedFleets.add(ship.id)

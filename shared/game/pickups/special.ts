@@ -4,8 +4,10 @@ import { BOMB_DROP_COUNT, BOMB_DROP_INTERVAL, INFERNO_MAX_CHARGES } from '../con
 import { clamp } from '../vector'
 import type { PickupDef } from './types'
 
+const EXTRA_CANNONS_MAX = 2
+
 /** One-off effects that don't fit a stat bump or a timed buff: charges, teleport, escort, mines. */
-export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot' | 'gust', PickupDef> = {
+export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot' | 'gust' | 'extraCannon', PickupDef> = {
   shield: {
     type: 'shield',
     label: 'Капитанский щит',
@@ -57,6 +59,16 @@ export const SPECIAL_PICKUPS: Record<'shield' | 'fleet' | 'bomb' | 'infernoShot'
       const pos = findFreeSpawnPoint(world, ship.radius)
       ship.pos.x = pos.x
       ship.pos.y = pos.y
+    },
+  },
+  extraCannon: {
+    type: 'extraCannon',
+    label: 'Дополнительная пушка',
+    emoji: '🎰',
+    color: '#ffd54f',
+    description: 'Добавляет пушку на корабль (макс. 3)',
+    apply: (ship) => {
+      ship.extraCannons = clamp(ship.extraCannons + 1, 0, EXTRA_CANNONS_MAX)
     },
   },
 }

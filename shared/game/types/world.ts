@@ -58,6 +58,7 @@ export type PickupType =
   | 'infernoShot'
   | 'fleet'
   | 'bomb'
+  | 'extraCannon'
 
 export interface Pickup {
   id: string

@@ -6,6 +6,7 @@ import { bulletBlockerOverlap } from './physics'
 import type { Bullet, Ship, World } from './types'
 import { BULLET_MAX_LIFE, BULLET_RADIUS, BULLET_SPEED, INFERNO_BULLET_SCALE } from './constants'
 import { clamp, fromAngle } from './vector'
+import type { Vec2 } from './vector'
 
 export function spawnBullet(
   world: World,
@@ -14,6 +15,7 @@ export function spawnBullet(
   damage: number,
   bulletSpeed: number = BULLET_SPEED,
   inferno = false,
+  offset: Vec2 = { x: 0, y: 0 },
 ): void {
   const dir = fromAngle(angle)
   const radius = inferno ? BULLET_RADIUS * INFERNO_BULLET_SCALE : BULLET_RADIUS
@@ -21,8 +23,8 @@ export function spawnBullet(
   const bullet: Bullet = {
     id: nextId('bullet'),
     pos: {
-      x: ship.pos.x + dir.x * spawnDist,
-      y: ship.pos.y + dir.y * spawnDist,
+      x: ship.pos.x + offset.x + dir.x * spawnDist,
+      y: ship.pos.y + offset.y + dir.y * spawnDist,
     },
     vel: { x: dir.x * bulletSpeed, y: dir.y * bulletSpeed },
     radius,

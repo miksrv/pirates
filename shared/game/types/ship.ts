@@ -107,4 +107,6 @@ export interface Ship {
   bombsToDrop: number
   /** Bomb pickup: countdown to the next queued drop. */
   bombDropTimer: number
+  /** Extra cannons granted by pickup: 0 = 1 gun (center), 1 = +front, 2 = +front+back. Max 2. */
+  extraCannons: number
 }

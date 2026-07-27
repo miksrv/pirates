@@ -89,6 +89,7 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     escortSlot: 0,
     bombsToDrop: 0,
     bombDropTimer: 0,
+    extraCannons: 0,
   }
 
   applyPerk(ship)

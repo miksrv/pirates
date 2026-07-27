@@ -52,5 +52,6 @@ Source: `shared/game/pickups/` (`permanentStats.ts`, `boosts.ts`, `special.ts`) 
 - 🎯 **Ядро меткого стрелка** — bullets fly ×1.5 faster for 10s
 - 🧑‍🔧 **Опытный канонир** — permanently faster reload (cap: 1.25s)
 - 🔥 **Огненный залп** — reload ×4 faster for 5s
+- 🎰 **Дополнительная пушка** — adds a cannon (max 3 total: center + front + back); extra cannons fire along the body axis simultaneously with the main turret. Lost on respawn.
 
 Permanent upgrades (обшивка, броня, паруса, порох, канонир) reset on respawn in multiplayer; timed ones expire on their own.
