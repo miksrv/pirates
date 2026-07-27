@@ -45,28 +45,56 @@ export const OBSTACLE_KEY: Record<ObstacleVariant, string> = {
  */
 export const ISLAND_SHALLOW_WATER_KEY = 'tile_shallow_water_1'
 
-/** Sand ground tiles for the island grid (see islandShape.generateIslandTileGrid). Corners are
- * real hand-drawn art per orientation; edges only exist facing one way in the source pack (south)
- * and are rotated to face the other 3 directions — safe because the art has no directional detail. */
-export const ISLAND_SAND_FILL_KEYS = [
-  'tile_sand_fill_1',
-  'tile_sand_fill_2',
-  'tile_sand_fill_3',
-  'tile_sand_fill_4',
-  'tile_sand_fill_5',
-  'tile_sand_fill_6',
-  'tile_sand_fill_7',
-  'tile_sand_fill_8',
-  'tile_sand_fill_9',
-]
+/** Sand ground tiles for the island grid (see islandShape.generateIslandTileGrid). Every one of
+ * these is checked pixel-by-pixel to be pure, unmarked sand — not just at the border. A few
+ * originally filed here turned out to have a colored grass corner/edge painted in (moved to the
+ * grass-transition sets below), a genuine small water bite on one side (moved to
+ * ISLAND_SAND_EDGE_NATIVE_KEYS), or a ~10%-area darkened corner (moved to
+ * ISLAND_SAND_FILL_INNER_SHADOW_KEYS below — only truly flat art stays a candidate here). */
+export const ISLAND_SAND_FILL_KEYS = ['tile_sand_fill_plain_1']
 export const ISLAND_SAND_FILL_RARE_KEYS = ['tile_sand_fill_sparkle_1', 'tile_sand_fill_sparkle_2']
-export const ISLAND_SAND_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr', string[]> = {
-  cornerTl: ['tile_sand_corner_tl_1', 'tile_sand_corner_tl_2'],
-  cornerTr: ['tile_sand_corner_tr_1', 'tile_sand_corner_tr_2'],
-  cornerBl: ['tile_sand_corner_bl_1', 'tile_sand_corner_bl_2'],
-  cornerBr: ['tile_sand_corner_br_1', 'tile_sand_corner_br_2'],
+type CornerName = 'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr'
+/** A fill cell can have no orthogonal water neighbor yet still sit diagonally next to open water
+ * (a concave notch just past a coastline corner) — this bakes a soft shadow into the matching
+ * corner of the tile instead of leaving it looking like a stray, unexplained smudge. Use only
+ * when that specific diagonal neighbor actually is water (islandShape's `innerShadowCorner`). */
+export const ISLAND_SAND_FILL_INNER_SHADOW_KEYS: Record<CornerName, string[]> = {
+  cornerTl: ['tile_sand_fill_innershadow_tl_1'],
+  cornerTr: ['tile_sand_fill_innershadow_tr_1'],
+  cornerBl: ['tile_sand_fill_innershadow_bl_1'],
+  cornerBr: ['tile_sand_fill_innershadow_br_1'],
 }
-export const ISLAND_SAND_EDGE_KEYS = ['tile_sand_edge_1', 'tile_sand_edge_2', 'tile_sand_edge_3']
+/** Plain water corner — no grass baked in. Safe regardless of what's diagonally inland. */
+export const ISLAND_SAND_CORNER_KEYS: Record<CornerName, string[]> = {
+  cornerTl: ['tile_sand_corner_tl_1'],
+  cornerTr: ['tile_sand_corner_tr_1'],
+  cornerBl: ['tile_sand_corner_bl_1'],
+  cornerBr: ['tile_sand_corner_br_1'],
+}
+/** Same water corner, but with a small grass fleck baked into the opposite (inland) tip — use
+ * only when that diagonal neighbor is actually a grass cell, or the fleck reads as a stray patch
+ * of grass in the middle of open sand. */
+export const ISLAND_SAND_CORNER_GRASSTIP_KEYS: Record<CornerName, string[]> = {
+  cornerTl: ['tile_sand_corner_tl_grasstip_1'],
+  cornerTr: ['tile_sand_corner_tr_grasstip_1'],
+  cornerBl: ['tile_sand_corner_bl_grasstip_1'],
+  cornerBr: ['tile_sand_corner_br_grasstip_1'],
+}
+/** Plain south-facing coastline edge — no grass strip baked in. Use only when the inland
+ * neighbor is more sand, not grass (see ISLAND_SAND_EDGE_GRASSTOP_KEYS). Rotated 90/180/270° to
+ * also cover west/north/east (see IslandGridCell.edgeRotation). */
+export const ISLAND_SAND_EDGE_KEYS = ['tile_sand_edge_1']
+/** Extra native art for the west/north/east coastline edge — a smaller, partial water bite than
+ * ISLAND_SAND_EDGE_KEYS, but facing the right way already so it needs no rotation. Mixed in as
+ * bonus variety alongside the rotated south art for those 3 directions (never used for south). */
+export const ISLAND_SAND_EDGE_NATIVE_KEYS: Partial<Record<1 | 2 | 3, string[]>> = {
+  1: ['tile_sand_edge_west_1'],
+  2: ['tile_sand_edge_north_1'],
+  3: ['tile_sand_edge_east_1'],
+}
+/** Same south-facing coastline edge, but with a grass strip baked along the top — for when the
+ * inland neighbor is actually a grass cell, so the coastline edge doesn't show a false sand gap. */
+export const ISLAND_SAND_EDGE_GRASSTOP_KEYS = ['tile_sand_edge_grasstop_1', 'tile_sand_edge_grasstop_2']
 /** Rare decorative substitutes for a south-facing edge cell, picked to match whether grass
  * actually borders it inland (the "_grass" variants bake a grass strip into the same tile). */
 export const ISLAND_SAND_EDGE_DECOR_KEYS = ['tile_sand_edge_wreck_1', 'tile_sand_edge_driftwood_1', 'tile_sand_edge_boulder_1']
@@ -76,14 +104,30 @@ export const ISLAND_SAND_EDGE_DECOR_GRASS_KEYS = [
   'tile_sand_edge_boulder_grass_1',
 ]
 
-/** Grass ground tiles for the island grid — no dedicated grass/sand transition art exists in the
- * pack, so the boundary between grass and sand cells is a plain square seam. */
+/** Grass ground tiles for the island grid. */
 export const ISLAND_GRASS_FILL_KEYS = [
   'tile_grass_fill_1',
   'tile_grass_fill_flowers_1',
   'tile_grass_fill_pattern_1',
   'tile_grass_fill_pattern_2',
 ]
+
+/** Grass/sand transition art for a sand cell bordering the grass interior (not water) — smooths
+ * what would otherwise be a hard square seam between the grass and sand layers. Corners only ship
+ * one variant each; edges only exist facing south/east/west in the source pack, so the north
+ * orientation reuses the south art rotated 180° (edgeRotation on the grid cell), same trick as
+ * the coastline edge. */
+export const ISLAND_GRASS_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr', string[]> = {
+  cornerTl: ['tile_grass_corner_tl_1'],
+  cornerTr: ['tile_grass_corner_tr_1'],
+  cornerBl: ['tile_grass_corner_bl_1'],
+  cornerBr: ['tile_grass_corner_br_1'],
+}
+export const ISLAND_GRASS_EDGE_KEYS: Record<'south' | 'east' | 'west', string[]> = {
+  south: ['tile_grass_edge_south_1', 'tile_grass_edge_south_2'],
+  east: ['tile_grass_edge_east_1', 'tile_grass_edge_east_2'],
+  west: ['tile_grass_edge_west_1', 'tile_grass_edge_west_2'],
+}
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
 export const ISLAND_TREE_KEYS = ['tile_tree1', 'tile_tree2', 'tile_tree3']
@@ -116,11 +160,17 @@ export const ALL_IMAGE_KEYS: string[] = [
   ISLAND_SHALLOW_WATER_KEY,
   ...ISLAND_SAND_FILL_KEYS,
   ...ISLAND_SAND_FILL_RARE_KEYS,
+  ...Object.values(ISLAND_SAND_FILL_INNER_SHADOW_KEYS).flat(),
   ...Object.values(ISLAND_SAND_CORNER_KEYS).flat(),
+  ...Object.values(ISLAND_SAND_CORNER_GRASSTIP_KEYS).flat(),
   ...ISLAND_SAND_EDGE_KEYS,
+  ...Object.values(ISLAND_SAND_EDGE_NATIVE_KEYS).flat(),
+  ...ISLAND_SAND_EDGE_GRASSTOP_KEYS,
   ...ISLAND_SAND_EDGE_DECOR_KEYS,
   ...ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
   ...ISLAND_GRASS_FILL_KEYS,
+  ...Object.values(ISLAND_GRASS_CORNER_KEYS).flat(),
+  ...Object.values(ISLAND_GRASS_EDGE_KEYS).flat(),
   ...ISLAND_TREE_KEYS,
   ...ISLAND_ROCK_KEYS,
   ISLAND_CANNON_KEY,

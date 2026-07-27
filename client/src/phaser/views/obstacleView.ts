@@ -2,12 +2,18 @@ import Phaser from 'phaser'
 import {
   ISLAND_CANNON_KEY,
   ISLAND_FORT_KEYS,
+  ISLAND_GRASS_CORNER_KEYS,
+  ISLAND_GRASS_EDGE_KEYS,
   ISLAND_GRASS_FILL_KEYS,
   ISLAND_ROCK_KEYS,
+  ISLAND_SAND_CORNER_GRASSTIP_KEYS,
   ISLAND_SAND_CORNER_KEYS,
   ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
   ISLAND_SAND_EDGE_DECOR_KEYS,
+  ISLAND_SAND_EDGE_GRASSTOP_KEYS,
   ISLAND_SAND_EDGE_KEYS,
+  ISLAND_SAND_EDGE_NATIVE_KEYS,
+  ISLAND_SAND_FILL_INNER_SHADOW_KEYS,
   ISLAND_SAND_FILL_KEYS,
   ISLAND_SAND_FILL_RARE_KEYS,
   ISLAND_SHALLOW_WATER_KEY,
@@ -15,7 +21,12 @@ import {
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
 import { ISLAND_TILE_SIZE } from '../../../../shared/game/constants'
-import { generateIslandTileGrid, type IslandGridCell, type IslandShape } from '../../../../shared/game/islandShape'
+import {
+  generateIslandTileGrid,
+  type IslandGrassTransition,
+  type IslandGridCell,
+  type IslandShape,
+} from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
 
@@ -107,22 +118,40 @@ function pickRandom<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]
 }
 
+/** Real grass/sand transition art for a sand cell that borders the grass core — a corner where
+ * grass wraps two sides, or a straight run along one side. Only 'north' has no dedicated art;
+ * it reuses the south-facing edge art rotated 180°, which still puts grass on the correct side. */
+function grassTransitionTileFor(transition: IslandGrassTransition): { key: string; rotation: number } {
+  if (transition.corner) return { key: pickRandom(ISLAND_GRASS_CORNER_KEYS[transition.corner]), rotation: 0 }
+  if (transition.edgeSide === 'north') return { key: pickRandom(ISLAND_GRASS_EDGE_KEYS.south), rotation: Math.PI }
+  return { key: pickRandom(ISLAND_GRASS_EDGE_KEYS[transition.edgeSide!]), rotation: 0 }
+}
+
 function sandTileFor(cell: IslandGridCell): { key: string; rotation: number } {
   if (cell.role === 'fill') {
+    if (cell.grassTransition) return grassTransitionTileFor(cell.grassTransition)
+    if (cell.innerShadowCorner) return { key: pickRandom(ISLAND_SAND_FILL_INNER_SHADOW_KEYS[cell.innerShadowCorner]), rotation: 0 }
     const key = Math.random() < 0.06 ? pickRandom(ISLAND_SAND_FILL_RARE_KEYS) : pickRandom(ISLAND_SAND_FILL_KEYS)
     return { key, rotation: 0 }
   }
   if (cell.role === 'edge') {
-    const rotation = (cell.edgeRotation ?? 0) * (Math.PI / 2)
+    const edgeRotation = cell.edgeRotation ?? 0
+    const rotation = edgeRotation * (Math.PI / 2)
     // Decorative wrecks/driftwood/boulders only make sense right-way-up, so only the
     // un-rotated (south-facing) edge cells get a chance at them.
-    if (cell.edgeRotation === 0 && Math.random() < 0.12) {
-      const key = pickRandom(cell.northIsGrass ? ISLAND_SAND_EDGE_DECOR_GRASS_KEYS : ISLAND_SAND_EDGE_DECOR_KEYS)
+    if (edgeRotation === 0 && Math.random() < 0.12) {
+      const key = pickRandom(cell.inlandIsGrass ? ISLAND_SAND_EDGE_DECOR_GRASS_KEYS : ISLAND_SAND_EDGE_DECOR_KEYS)
       return { key, rotation }
     }
-    return { key: pickRandom(ISLAND_SAND_EDGE_KEYS), rotation }
+    if (cell.inlandIsGrass) return { key: pickRandom(ISLAND_SAND_EDGE_GRASSTOP_KEYS), rotation }
+    // West/north/east also have a bit of native (unrotated) art with a smaller, partial water
+    // bite — mixed in with the rotated south art as extra texture variety.
+    const nativeKeys = (edgeRotation !== 0 && ISLAND_SAND_EDGE_NATIVE_KEYS[edgeRotation]) || []
+    const candidates = [...ISLAND_SAND_EDGE_KEYS.map((key) => ({ key, rotation })), ...nativeKeys.map((key) => ({ key, rotation: 0 }))]
+    return pickRandom(candidates)
   }
-  return { key: pickRandom(ISLAND_SAND_CORNER_KEYS[cell.role]), rotation: 0 }
+  const keys = cell.diagonalIsGrass ? ISLAND_SAND_CORNER_GRASSTIP_KEYS[cell.role] : ISLAND_SAND_CORNER_KEYS[cell.role]
+  return { key: pickRandom(keys), rotation: 0 }
 }
 
 function grassFillKey(): string {
