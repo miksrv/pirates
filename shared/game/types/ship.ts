@@ -15,8 +15,6 @@ export type EffectType =
   | 'krakenJitter'
   | 'regen'
   | 'disguise'
-  /** Applied while a hull is over an island's shallow-water ring: halves speed. */
-  | 'shallowWater'
   /** The Leviathan's Fury mega-buff: bigger hull, double speed, double rate of fire.
    * Its own type so ordinary speed/fire-rate pickups can't overwrite (and downgrade) it. */
   | 'megaBoost'

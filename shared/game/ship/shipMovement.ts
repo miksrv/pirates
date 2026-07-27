@@ -4,13 +4,9 @@ import { BOOST_SPEED_MULT, ESCORT_RADIUS, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHIP_
 import { resolveObstacle } from '../physics'
 import type { Ship, World } from '../types'
 import { angleOf, clamp, length, moveAngleTowards } from '../vector'
-import { isInShallowWater } from './shallowWater'
 
 const TURN_SPEED = Math.PI * 6 // radians/sec for body rotation
 const SHIP_SHIP_PUSH = 0.5
-
-/** Speed reduction factor when moving on shallow water tiles */
-const SHALLOW_WATER_SPEED_MULT = 0.5
 
 /** Moves a ship and pushes it out of terrain. Returns true if it ran into something —
  * harmless for a real hull, fatal for an escort (see stepWorld). */
@@ -31,11 +27,7 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   const boostActive = updateBoostMeter(ship, dt, moveLen)
 
   if (moveLen > 0.01) {
-    let effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
-
-    // Check if the ship is on shallow water and apply speed reduction
-    const shallowWaterMult = getEffectMagnitude(ship, 'shallowWater', 1)
-    effectiveSpeed *= shallowWaterMult
+    const effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
 
     const dx = (ship.moveDir.x / moveLen) * effectiveSpeed * dt
     const dy = (ship.moveDir.y / moveLen) * effectiveSpeed * dt
@@ -49,17 +41,6 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
 
   ship.pos.x = clamp(ship.pos.x, ship.radius, world.width - ship.radius)
   ship.pos.y = clamp(ship.pos.y, ship.radius, world.height - ship.radius)
-
-  // Update shallow water effect on the ship
-  const inShallowWater = isInShallowWater(ship, world)
-  const shallowWaterEffectIndex = ship.effects.findIndex((e) => e.type === 'shallowWater')
-  if (inShallowWater && shallowWaterEffectIndex === -1) {
-    // Add shallow water effect that reduces speed by 50%
-    ship.effects.push({ type: 'shallowWater', remaining: Infinity, magnitude: SHALLOW_WATER_SPEED_MULT })
-  } else if (!inShallowWater && shallowWaterEffectIndex !== -1) {
-    // Remove shallow water effect
-    ship.effects.splice(shallowWaterEffectIndex, 1)
-  }
 
   let hitObstacle = false
   for (const obstacle of world.obstacles) {

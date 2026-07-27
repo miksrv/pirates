@@ -14,12 +14,11 @@ import {
   ISLAND_SAND_EDGE_NATIVE_KEYS,
   ISLAND_SAND_FILL_INNER_SHADOW_KEYS,
   ISLAND_SAND_FILL_KEYS,
-  ISLAND_SHALLOW_WATER_KEY,
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
 import { ISLAND_TILE_SIZE } from '../../../../shared/game/constants'
-import { generateIslandTileGrid, type IslandGridCell, type IslandShape } from '../../../../shared/game/islandShape'
+import { generateIslandTileGrid, type IslandGridCell } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
 
@@ -27,23 +26,6 @@ export interface ObstacleView {
   destroy(): void
   hpBarBg?: Phaser.GameObjects.Rectangle
   hpBarFg?: Phaser.GameObjects.Rectangle
-}
-
-function drawIslandLobes(
-  g: Phaser.GameObjects.Graphics,
-  cx: number,
-  cy: number,
-  radius: number,
-  shape: IslandShape,
-): void {
-  const { lobes, stretchX, stretchY } = shape
-  g.fillEllipse(cx, cy, radius * 1.2 * stretchX, radius * 1.2 * stretchY)
-  for (const lobe of lobes) {
-    const dx = Math.cos(lobe.angle) * lobe.distFrac * radius * stretchX
-    const dy = Math.sin(lobe.angle) * lobe.distFrac * radius * stretchY
-    const lobeR = radius * lobe.radiusFrac
-    g.fillEllipse(cx + dx, cy + dy, lobeR * 2 * stretchX, lobeR * 2 * stretchY)
-  }
 }
 
 function scatterIslandProps(
@@ -168,13 +150,12 @@ function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, grid: Isl
 }
 
 /**
- * Islands get an organic (non-perfectly-round) coastline: a shallow-water ring, a sand base,
- * and — for bigger ones — a smaller grass interior, all built from the island's stored shape
- * recipe (the same recipe the physics layer used to build its collision circles, so a ship
- * never sails through visible sand). The shallow-water ring is still a masked TileSprite (its
- * autotile art isn't wired up yet — see assetKeys.ts); the sand and grass body is rasterized
- * onto a tile grid and rendered as real corner/edge/fill art per cell (generateIslandTileGrid).
- * Trees, shoreline rocks, and occasionally a cannon or small fort are scattered on top.
+ * Islands get an organic (non-perfectly-round) coastline: a sand base, and — for bigger ones —
+ * a smaller grass interior, built from the island's stored shape recipe (the same recipe the
+ * physics layer used to build its collision circles, so a ship never sails through visible sand).
+ * The sand and grass body is rasterized onto a tile grid and rendered as real corner/edge/fill
+ * art per cell (generateIslandTileGrid). Trees, shoreline rocks, and occasionally a cannon or
+ * small fort are scattered on top.
  */
 function createIslandView(
   scene: Phaser.Scene,
@@ -186,17 +167,6 @@ function createIslandView(
   const shape = obstacle.islandShape!
   const { stretchX, stretchY } = shape
 
-  const shallowRadius = sandRadius * 1.3
-  const shallowWaterMaskShape = scene.make.graphics({ x: 0, y: 0 }, false)
-  shallowWaterMaskShape.fillStyle(0xffffff)
-  drawIslandLobes(shallowWaterMaskShape, cx, cy, shallowRadius, shape)
-
-  const shallowCover = shallowRadius * 5
-  const shallowWaterOverlay = scene.add
-    .tileSprite(cx, cy, shallowCover, shallowCover, ISLAND_SHALLOW_WATER_KEY)
-    .setDepth(3.5)
-    .setMask(shallowWaterMaskShape.createGeometryMask())
-
   const grid = generateIslandTileGrid(sandRadius, shape, ISLAND_TILE_SIZE)
   const tiles = placeIslandTiles(scene, cx, cy, grid)
   const hasGrass = sandRadius >= 75
@@ -206,8 +176,6 @@ function createIslandView(
 
   return {
     destroy() {
-      shallowWaterOverlay.destroy()
-      shallowWaterMaskShape.destroy()
       tiles.forEach((t) => t.destroy())
       decorations.forEach((d) => d.destroy())
     },

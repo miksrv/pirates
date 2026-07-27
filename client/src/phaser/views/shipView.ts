@@ -38,7 +38,6 @@ const EFFECT_EMOJI: Record<EffectType, string> = {
   krakenJitter: '🐙',
   regen: '🛠️',
   disguise: '🎭',
-  shallowWater: '🌊',
   megaBoost: '🔱',
 }
 

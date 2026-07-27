@@ -8,13 +8,13 @@ Code: `shared/game/map.ts`, `shared/game/islandShape.ts` · Render: `client/src/
 
 ## Islands
 - Shape: 5–10 randomly angled/sized lobes (overlapping ellipses) around a center, plus overall X/Y stretch — see `generateIslandShape`.
-- Same shape recipe drives the visible sand/grass grid, the physics collision circles, and the shallow-water mask, so a ship never sails through visible sand.
+- Same shape recipe drives the visible sand/grass grid and the physics collision circles, so a ship never sails through visible sand.
 - Placement: `tryPlaceObstacle` rejects islands too close to the ship spawn (`SAFE_ZONE_RADIUS`) or overlapping existing obstacles.
+- No shallow-water ring/slowdown around islands right now (removed — the coastline visuals and any near-shore movement effect are being redesigned from scratch).
 
 ## Coastline layers (rendered back-to-front per island)
-1. **Shallow water ring** (depth 3.5) — same lobed shape scaled to `sandRadius * 1.3`, filled with `ISLAND_SHALLOW_WATER_KEY` (`tile_shallow_water_1`) via a masked `TileSprite` (not gridded — see below). Drawn *before* sand, so the sand tiles occlude its inner portion.
-2. **Sand + grass grid** (depth 4 / 4.5) — `generateIslandTileGrid` rasterizes the lobed shape onto an `ISLAND_TILE_SIZE` (32px) grid, only if `sandRadius >= 75`. Every interior (`fill`) cell is grass; only the water-facing coastline ring (`edge`/`corner` cells) is sand. Each land cell picks real tile art by its 4-neighbor bitmask instead of stretching a texture — see below.
-3. **Props** (depth 6) — trees (grass islands only), rocks, occasional cannon/fort piece, scattered near the coast.
+1. **Sand + grass grid** (depth 4 / 4.5) — `generateIslandTileGrid` rasterizes the lobed shape onto an `ISLAND_TILE_SIZE` (32px) grid, only if `sandRadius >= 75`. Every interior (`fill`) cell is grass; only the water-facing coastline ring (`edge`/`corner` cells) is sand. Each land cell picks real tile art by its 4-neighbor bitmask instead of stretching a texture — see below.
+2. **Props** (depth 6) — trees (grass islands only), rocks, occasional cannon/fort piece, scattered near the coast.
 
 ## Sand/grass tile grid (`generateIslandTileGrid` in `islandShape.ts`)
 - Rasterization tests each cell against the lobe union at its center **and its 4 corners** (`cellTouchesIslandShape`), not just the center point alone. The lobe union can have a narrow waist between two lobes that dips below one cell's exact center while still clearly covering part of that cell — center-only sampling turned that into a full water gap, splitting the island in two with a hard straight cut instead of an organic pinch.
@@ -28,8 +28,3 @@ Code: `shared/game/map.ts`, `shared/game/islandShape.ts` · Render: `client/src/
 - `ISLAND_SAND_FILL_KEYS` mixes the one truly flat tile with the 2 sparkle variants at equal weight — not a rare/common split. A single identical texture repeated across a whole interior always reads as an obvious flat block once you can see many cells at once, *regardless of whether its tone matches its neighbors* (confirmed by pixel-sampling a reported "dark rectangle": it was exactly the flat tile's own slightly-darker base tone, uniformly, over every fill cell in a small island's interior — restoring 3-way variety broke up the block).
 - Excluded from all of this: the pack's fortress/settlement tiles (roads, cars, walls, towers, dock) — classified but not used for island generation.
 - Tiles render 2px oversized relative to the 32px grid spacing (`ISLAND_TILE_OVERLAP` in `obstacleView.ts`) to hide a 1px seam that otherwise appears at non-integer camera zoom.
-
-## Shallow-water ring (unchanged, still a masked `TileSprite`)
-- Source pack ships a coastal autotile block (`tile_shallow_water_*`) with 3 shapes: uniform fill, edge (one side cut by deep water), and corner (diagonal cut) — plus small-notch variants that look uniform in isolation but bake in a tiny corner/edge bite.
-- Only `tile_shallow_water_1` is truly uniform (flat ~40% alpha, no bite) and is the only one wired into the ring — a `TileSprite` repeats one texture on a fixed grid, so any tile with even a small notch lines up into a visible repeating pattern of "wedges" once tiled (this bit us once: `tile_shallow_water_2..5` looked fine standalone but produced a grid of triangular notches around every island).
-- `tile_shallow_water_2..5`, `tile_shallow_water_edge_*`, `tile_shallow_water_corner_*` exist on disk but are unused. The sand/grass grid above proves the neighbor-aware approach works — porting the shallow-water ring to the same grid is a natural follow-up, not yet done.

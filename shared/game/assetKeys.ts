@@ -34,17 +34,6 @@ export const OBSTACLE_KEY: Record<ObstacleVariant, string> = {
   rockyShore: 'tile_rockyshore',
 }
 
-/**
- * Shallow-water shoreline ring drawn around every island, between the open water and the sand.
- * Only tile_shallow_water_1 is a truly uniform fill — safe to repeat via TileSprite without
- * seams. tile_shallow_water_2..5 each carry a small corner/edge notch that looks fine alone but
- * lines up into a visible repeating grid of "wedges" when tiled — do not use them for the ring.
- * The pack also ships edge/corner variants with a baked-in diagonal coastline cut
- * (tile_shallow_water_edge_*.png, tile_shallow_water_corner_*.png) — kept on disk for a future
- * neighbor-aware autotiled shore, same reasoning: they'd repeat into a grid pattern if tiled.
- */
-export const ISLAND_SHALLOW_WATER_KEY = 'tile_shallow_water_1'
-
 /** Sand ground tiles for the island grid (see islandShape.generateIslandTileGrid). Every one of
  * these is checked pixel-by-pixel to be pure, unmarked sand — not just at the border. A few
  * originally filed here turned out to have a colored grass corner/edge painted in (moved to the
@@ -154,7 +143,6 @@ export const ALL_IMAGE_KEYS: string[] = [
   SHIP_CANNON_KEY,
   CANNONBALL_KEY,
   ...Object.values(OBSTACLE_KEY),
-  ISLAND_SHALLOW_WATER_KEY,
   ...ISLAND_SAND_FILL_KEYS,
   ...Object.values(ISLAND_SAND_FILL_INNER_SHADOW_KEYS).flat(),
   ...Object.values(ISLAND_SAND_CORNER_KEYS).flat(),

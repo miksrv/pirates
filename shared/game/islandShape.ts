@@ -63,9 +63,9 @@ function isInEllipse(px: number, py: number, ex: number, ey: number, rx: number,
   return nx * nx + ny * ny <= 1
 }
 
-/** Same union-of-ellipses test the visual mask (drawIslandLobes) and collision circles are
- * built from, so grid rasterization always agrees with what's rendered. Point is relative to
- * the island's own center. */
+/** Same union-of-ellipses test the sand/grass tile grid and collision circles are built from,
+ * so grid rasterization always agrees with what's rendered. Point is relative to the island's
+ * own center. */
 export function isPointInIslandShape(px: number, py: number, radius: number, shape: IslandShape): boolean {
   const { lobes, stretchX, stretchY } = shape
   if (isInEllipse(px, py, 0, 0, radius * 0.6 * stretchX, radius * 0.6 * stretchY)) return true
