@@ -1,9 +1,6 @@
 export const WORLD_W = 2200
 export const WORLD_H = 1600
 
-export const VIEW_W = 1000
-export const VIEW_H = 680
-
 export const MINIMAP_W = 220
 export const MINIMAP_H = 160 // matches WORLD_H / WORLD_W aspect ratio
 export const MINIMAP_MARGIN = 14
@@ -28,6 +25,7 @@ export const MAX_HP_CAP = 320
 export const BOT_COUNT = 5
 export const ISLAND_COUNT = 10
 export const ISLAND_TILE_SIZE = 32 // grid cell size (px) for island sand/grass autotiling
+export const SHALLOW_WATER_SPEED_MULT = 0.5 // speed multiplier while on shallow-water tiles
 export const SCATTER_ROCK_COUNT = 12
 // Pickup density, dialled up 1.5x. The spawn interval is the lever that actually binds —
 // bots clear the map faster than the cap is ever reached — so the cap is raised alongside it
@@ -76,8 +74,6 @@ export const BOT_AIM_REROLL_MIN = 0.7 // min seconds a rolled aim error is held 
 export const BOT_AIM_REROLL_MAX = 1.6 // max seconds a rolled aim error is held before re-rolling
 export const BOT_LEAD_JITTER_MIN = 0.7 // bots under-lead down to 70% of the perfect intercept...
 export const BOT_LEAD_JITTER_MAX = 1.15 // ...or over-lead up to 115% of it
-
-export const SHIP_SHIP_PUSH = 0.5
 
 // --- Ярость Левиафана: the map-wide mega pickup -------------------------------------------
 export const MEGA_SPAWN_INTERVAL = 60 // seconds between Leviathan spawns

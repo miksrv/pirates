@@ -18,6 +18,8 @@ export type EffectType =
   /** The Leviathan's Fury mega-buff: bigger hull, double speed, double rate of fire.
    * Its own type so ordinary speed/fire-rate pickups can't overwrite (and downgrade) it. */
   | 'megaBoost'
+  /** Applied while a ship sits on shallow-water tiles near an island's coast — 50% speed. */
+  | 'shallowWater'
 
 export interface ActiveEffect {
   type: EffectType

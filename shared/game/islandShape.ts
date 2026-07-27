@@ -65,24 +65,49 @@ export function islandShapeToCollisionCircles(radius: number, shape: IslandShape
   return circles
 }
 
-/** Rasterizes the island shape onto a tile grid and returns the center offsets of every
- *  land cell — used as the authoritative collision shape so ships collide with exactly the
- *  tiles they see, not an approximate circle cluster. */
-export function generateCollisionTiles(radius: number, shape: IslandShape, tileSize: number): CollisionTile[] {
+/** Rasterizes the island shape onto a tile grid and returns land tiles (for collision) and
+ *  shallow-water tiles (water cells adjacent to land, for the speed debuff). Both sets are
+ *  derived from the same scan, so the two rings are always consistent. */
+export function generateCollisionTiles(
+  radius: number,
+  shape: IslandShape,
+  tileSize: number,
+): { land: CollisionTile[]; shallow: CollisionTile[] } {
   const maxStretch = Math.max(shape.stretchX, shape.stretchY)
   const maxLobeReach = shape.lobes.reduce((m, l) => Math.max(m, l.distFrac + l.radiusFrac), 0.6)
   const extent = radius * maxStretch * (maxLobeReach + 0.15)
   const half = Math.ceil(extent / tileSize) + 1
 
-  const tiles: CollisionTile[] = []
+  const landSet = new Set<string>()
+  const key = (gx: number, gy: number) => `${gx},${gy}`
+
   for (let gy = -half; gy <= half; gy += 1) {
     for (let gx = -half; gx <= half; gx += 1) {
-      if (cellTouchesIslandShape(gx, gy, tileSize, radius, shape)) {
-        tiles.push({ dx: (gx + 0.5) * tileSize, dy: (gy + 0.5) * tileSize })
+      if (cellTouchesIslandShape(gx, gy, tileSize, radius, shape)) landSet.add(key(gx, gy))
+    }
+  }
+
+  const land: CollisionTile[] = []
+  const shallowSet = new Set<string>()
+  for (const k of landSet) {
+    const [gx, gy] = k.split(',').map(Number)
+    land.push({ dx: (gx + 0.5) * tileSize, dy: (gy + 0.5) * tileSize })
+    // 8-neighbor scan for adjacent water cells
+    for (let ny = gy - 1; ny <= gy + 1; ny += 1) {
+      for (let nx = gx - 1; nx <= gx + 1; nx += 1) {
+        const nk = key(nx, ny)
+        if (!landSet.has(nk)) shallowSet.add(nk)
       }
     }
   }
-  return tiles
+
+  const shallow: CollisionTile[] = []
+  for (const k of shallowSet) {
+    const [gx, gy] = k.split(',').map(Number)
+    shallow.push({ dx: (gx + 0.5) * tileSize, dy: (gy + 0.5) * tileSize })
+  }
+
+  return { land, shallow }
 }
 
 function isInEllipse(px: number, py: number, ex: number, ey: number, rx: number, ry: number): boolean {

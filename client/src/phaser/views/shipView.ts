@@ -39,6 +39,7 @@ const EFFECT_EMOJI: Record<EffectType, string> = {
   regen: '🛠️',
   disguise: '🎭',
   megaBoost: '🔱',
+  shallowWater: '🏖️',
 }
 
 function shipHealthState(ship: Ship): ShipHealthState {

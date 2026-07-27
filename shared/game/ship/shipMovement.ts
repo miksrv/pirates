@@ -1,12 +1,29 @@
 import { updateBoostMeter } from '../boosts/boostMeter'
-import { decayEffects, getEffectMagnitude, hasEffect } from '../boosts/effects'
-import { BOOST_SPEED_MULT, ESCORT_RADIUS, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHIP_RADIUS } from '../constants'
+import { applyTemporaryEffect, decayEffects, getEffectMagnitude, hasEffect } from '../boosts/effects'
+import { BOOST_SPEED_MULT, ESCORT_RADIUS, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHALLOW_WATER_SPEED_MULT, SHIP_RADIUS } from '../constants'
+import { circleRectOverlap } from '../physics'
 import { resolveObstacle } from '../physics'
-import type { Ship, World } from '../types'
+import type { Obstacle, Ship, World } from '../types'
 import { angleOf, clamp, length, moveAngleTowards } from '../vector'
 
 const TURN_SPEED = Math.PI * 6 // radians/sec for body rotation
 const SHIP_SHIP_PUSH = 0.5
+
+function isOnShallowWater(ship: Ship, obstacles: Obstacle[]): boolean {
+  for (const o of obstacles) {
+    if (!o.shallowTiles) continue
+    const ts = o.collisionTileSize!
+    // Broad-phase: skip if ship is too far from the island center
+    const dx = Math.abs(ship.pos.x - o.pos.x)
+    const dy = Math.abs(ship.pos.y - o.pos.y)
+    if (dx > o.w + ts || dy > o.h + ts) continue
+    for (const t of o.shallowTiles) {
+      const tileRect = { pos: { x: o.pos.x + t.dx, y: o.pos.y + t.dy }, w: ts, h: ts } as Obstacle
+      if (circleRectOverlap(ship.pos, ship.radius, tileRect)) return true
+    }
+  }
+  return false
+}
 
 /** Moves a ship and pushes it out of terrain. Returns true if it ran into something —
  * harmless for a real hull, fatal for an escort (see stepWorld). */
@@ -20,6 +37,7 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   ship.radius = baseRadius * (mega ? MEGA_SIZE_MULT : 1)
 
   const speedMult = getEffectMagnitude(ship, 'speedBoost', 1) * (mega ? MEGA_SPEED_MULT : 1)
+  const shallowMult = getEffectMagnitude(ship, 'shallowWater', 1)
   const turnMult = getEffectMagnitude(ship, 'turnBoost', 1)
   const jitter = getEffectMagnitude(ship, 'krakenJitter', 0)
 
@@ -27,7 +45,7 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   const boostActive = updateBoostMeter(ship, dt, moveLen)
 
   if (moveLen > 0.01) {
-    const effectiveSpeed = ship.speed * speedMult * (boostActive ? BOOST_SPEED_MULT : 1)
+    const effectiveSpeed = ship.speed * speedMult * shallowMult * (boostActive ? BOOST_SPEED_MULT : 1)
 
     const dx = (ship.moveDir.x / moveLen) * effectiveSpeed * dt
     const dy = (ship.moveDir.y / moveLen) * effectiveSpeed * dt
@@ -48,6 +66,12 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
     if (corrected !== ship.pos) hitObstacle = true
     ship.pos = corrected
   }
+
+  // Shallow-water slowdown: refresh a short-lived effect while the ship overlaps any shallow tile.
+  if (isOnShallowWater(ship, world.obstacles)) {
+    applyTemporaryEffect(ship, 'shallowWater', 0.15, SHALLOW_WATER_SPEED_MULT)
+  }
+
   return hitObstacle
 }
 

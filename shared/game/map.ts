@@ -73,7 +73,9 @@ function pushObstacle(obstacles: Obstacle[], variant: ObstacleVariant, pos: { x:
   if (variant === 'island') {
     const radius = w / 2
     obstacle.islandShape = generateIslandShape(radius)
-    obstacle.collisionTiles = generateCollisionTiles(radius, obstacle.islandShape, ISLAND_TILE_SIZE)
+    const tiles = generateCollisionTiles(radius, obstacle.islandShape, ISLAND_TILE_SIZE)
+    obstacle.collisionTiles = tiles.land
+    obstacle.shallowTiles = tiles.shallow
     obstacle.collisionTileSize = ISLAND_TILE_SIZE
   }
 

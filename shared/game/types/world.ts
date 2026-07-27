@@ -20,6 +20,8 @@ export interface Obstacle {
   islandShape?: IslandShape
   /** Only for 'island': precomputed land-tile centers (relative to pos) used for collision — matches exactly the rendered tiles. */
   collisionTiles?: CollisionTile[]
+  /** Only for 'island': shallow-water tile centers (relative to pos) — ships on these tiles are slowed. */
+  shallowTiles?: CollisionTile[]
   /** Tile size used for collision tile rects (defaults to ISLAND_TILE_SIZE). */
   collisionTileSize?: number
 }
