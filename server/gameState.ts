@@ -1,9 +1,11 @@
 import type { WebSocket } from 'ws'
-import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_DURATION, GAMEPLAY_ROUND_RESTART_DELAY } from '../shared/game/constants'
+import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_RESTART_DELAY } from '../shared/game/constants'
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
 import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World } from '../shared/game/types'
 import { addPlayerShip, createWorld, removeShip, stepWorld } from '../shared/game/world'
+import { getGameMode, deathmatch } from '../shared/game/modes'
+import type { GameMode } from '../shared/game/modes/types'
 import { getTopPlayers, type TopPlayerEntry } from './db'
 import {
   shipToWire,
@@ -20,6 +22,32 @@ const TICK_RATE = 30
 const SNAPSHOT_EVERY = 2 // broadcast at 15Hz
 /** Total ship slots per arena (humans + bots); humans always get priority over bots. */
 export const MAX_PLAYERS = 10
+
+/** Server game mode: set via GAME_MODE env var (e.g. "deathmatch", "battleRoyale", "lastShipStanding"). Defaults to deathmatch. */
+function getServerMode(): GameMode {
+  const id = process.env.GAME_MODE
+  if (id) {
+    const mode = getGameMode(id)
+    if (mode) return mode
+    console.warn(`[config] unknown GAME_MODE "${id}", falling back to deathmatch`)
+  }
+  return deathmatch
+}
+
+const serverMode = getServerMode()
+
+/** Mutable: can be changed at runtime via setServerMode(). Takes effect on next round. */
+let activeMode: GameMode = serverMode
+
+export function getActiveMode(): GameMode {
+  return activeMode
+}
+
+/** Change the game mode at runtime. Takes effect on next round reset. */
+export function setServerMode(mode: GameMode): void {
+  activeMode = mode
+  console.log(`[config] game mode changed to "${mode.id}" — takes effect next round`)
+}
 
 export interface Client {
   socket: WebSocket
@@ -76,7 +104,8 @@ export function idleInput(): PlayerInput {
 
 function roundStatus(): RoundStatus {
   if (roundPhase === 'playing') {
-    return { phase: 'playing', timeRemaining: Math.max(0, GAMEPLAY_ROUND_DURATION - (world?.time ?? 0)) }
+    // Mode HUD provides its own timer/status; the round status just tracks elapsed time.
+    return { phase: 'playing', timeRemaining: world?.time ?? 0 }
   }
   return { phase: 'ended', timeRemaining: Math.max(0, restartTimer) }
 }
@@ -103,6 +132,7 @@ function buildSnapshot(): SnapshotMsg {
     events: pendingEvents,
     round: roundStatus(),
     leaderboard: buildLeaderboard(),
+    shrinkInset: w.shrinkInset || undefined,
   }
   pendingEvents = []
   return snapshot
@@ -129,7 +159,7 @@ function resetRound(): void {
     }
   }
 
-  world = createWorld({ botCount: baselineBotCount(), withPlayer: false, respawnEnabled: true })
+  world = createWorld({ botCount: baselineBotCount(), withPlayer: false, mode: serverMode })
   for (const client of clients.values()) {
     const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
     client.shipId = ship.id
@@ -153,7 +183,9 @@ function startLoop(): void {
 
       stepWorld(world, dt, inputs)
       pendingEvents.push(...world.events)
-      if (world.time >= GAMEPLAY_ROUND_DURATION) endRound()
+
+      const modeResult = serverMode.checkEnd(world)
+      if (modeResult) endRound()
     } else {
       restartTimer -= dt
       if (restartTimer <= 0) resetRound()
@@ -190,7 +222,7 @@ function desiredBotCount(playerCount: number): number {
 /** Returns the running arena, creating one (and starting its tick loop) on the first join. */
 export function ensureWorld(): World {
   if (!world) {
-    world = createWorld({ botCount: baselineBotCount(), withPlayer: false, respawnEnabled: true })
+    world = createWorld({ botCount: baselineBotCount(), withPlayer: false, mode: serverMode })
     startLoop()
   }
   return world
@@ -217,7 +249,7 @@ export interface ServerStatus {
   maxPlayers: number
   bots: number
   full: boolean
-  /** Top 10 players by lifetime kills — shown on the client's main menu, server reachability permitting. */
+  gameMode: string
   leaderboard: TopPlayerEntry[]
 }
 
@@ -231,6 +263,7 @@ export function getStatus(): ServerStatus {
     maxPlayers: MAX_PLAYERS,
     bots,
     full: clients.size >= MAX_PLAYERS,
+    gameMode: activeMode.id,
     leaderboard: getTopPlayers(),
   }
 }

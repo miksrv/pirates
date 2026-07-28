@@ -22,10 +22,11 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - Join/leave notifications appear in every player's event log.
 
 ## Rounds
-- Each arena runs a 4-minute round (`GAMEPLAY_ROUND_DURATION`, `shared/game/constants.ts`), tracked via `world.time`.
-- On timeout: sim freezes (ships/bullets hold position, no input applied), a 15s restart countdown begins (`GAMEPLAY_ROUND_RESTART_DELAY`).
-- On restart: every connected player's round stats are flushed to the stats DB (see below), then a brand-new arena is built; every connected client gets a fresh ship (same name/perk, stats/kills reset) via a new `welcome` message — reuses the join flow, so the client resets its view exactly like joining fresh. Bots resync to baseline via the usual live-scaling rule.
-- Win/loss: whoever has the most kills when the round ends wins (ties all win); everyone else loses. Bots count toward "most kills" — if a bot tops the round, every human gets a loss.
+- Game mode is selected via `GAME_MODE` env var (`deathmatch`, `lastShipStanding`, `battleRoyale`); defaults to `deathmatch`.
+- Round ends when `mode.checkEnd(world)` returns a result (e.g. timer for deathmatch, last alive for BR/LSS).
+- On end: sim freezes, 15s restart countdown begins (`GAMEPLAY_ROUND_RESTART_DELAY`).
+- On restart: round stats flushed to DB, fresh arena built with the same mode, all clients get new ships via `welcome`.
+- `shrinkInset` (Battle Royale) is included in snapshots so clients can render the shrinking field.
 - Broadcast every snapshot: `round: { phase: 'playing' | 'ended', timeRemaining }` and `leaderboard: { shipId, name, team, kills, deaths, alive }[]` (one row per captain, sorted by kills; escorts excluded).
 - Client: HUD shows a countdown badge while `playing`, and an overlay with the restart countdown + leaderboard while `ended` (`client/src/components/HUD.tsx`).
 

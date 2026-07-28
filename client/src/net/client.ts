@@ -174,6 +174,7 @@ export class NetClient {
     world.pickups = s1.snap.pickups
     world.bombs = s1.snap.bombs
     world.time = s1.snap.time
+    world.shrinkInset = s1.snap.shrinkInset ?? 0
 
     const surviving = new Map(s1.snap.obstacles.map((o) => [o.id, o.hp]))
     world.obstacles = world.obstacles.filter((o) => !o.destructible || surviving.has(o.id))

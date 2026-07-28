@@ -75,6 +75,8 @@ export interface SnapshotMsg {
   events: GameEvent[]
   round: RoundStatus
   leaderboard: LeaderboardEntry[]
+  /** Battle Royale: symmetric inset from each edge (px). */
+  shrinkInset?: number
 }
 
 export interface ErrorMsg {
