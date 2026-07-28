@@ -135,6 +135,7 @@ function buildSnapshot(): SnapshotMsg {
     shrinkInset: w.shrinkInset || undefined,
     teamScores: Object.keys(w.teamScores).length > 0 ? w.teamScores : undefined,
     captureZone: w.captureZone ?? undefined,
+    flags: w.flags.length > 0 ? w.flags : undefined,
   }
   pendingEvents = []
   return snapshot

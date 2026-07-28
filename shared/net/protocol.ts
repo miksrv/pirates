@@ -1,5 +1,5 @@
 import { MEGA_SPAWN_INTERVAL, PICKUP_SPAWN_INTERVAL } from '../game/constants'
-import type { Bomb, Bullet, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, Team, World } from '../game/types'
+import type { Bomb, Bullet, CtfFlag, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, Team, World } from '../game/types'
 
 /**
  * Wire format shared by the WebSocket server and the browser client. Everything is plain JSON;
@@ -81,6 +81,8 @@ export interface SnapshotMsg {
   teamScores?: Record<string, number>
   /** Capture zone position and radius (KOTH). */
   captureZone?: { pos: { x: number; y: number }; radius: number } | null
+  /** CTF flag state. */
+  flags?: CtfFlag[]
 }
 
 export interface ErrorMsg {
@@ -132,5 +134,6 @@ export function wireToWorld(wire: WireWorld): World {
     shrinkInset: 0,
     teamScores: {},
     captureZone: null,
+    flags: [],
   }
 }
