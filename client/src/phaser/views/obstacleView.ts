@@ -1,7 +1,6 @@
 import Phaser from 'phaser'
 import {
   ISLAND_CANNON_KEY,
-  ISLAND_FORT_KEYS,
   ISLAND_GRASS_CORNER_KEYS,
   ISLAND_GRASS_FILL_KEYS,
   ISLAND_ROCK_KEYS,
@@ -18,6 +17,7 @@ import {
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
 import { MAP_TILE_SIZE } from '../../../../shared/game/constants'
+import { generateFort } from '../../../../shared/game/fortGeneration'
 import { generateIslandTileGrid, type IslandGridCell, type ShallowWaterCell } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
@@ -35,7 +35,6 @@ function scatterIslandProps(
   const props: Phaser.GameObjects.Sprite[] = []
   const { x: cx, y: cy } = obstacle.pos
   const sandRadius = obstacle.w / 2
-  const hasGrass = sandRadius >= 75
   const { stretchX, stretchY } = obstacle.islandShape!
   const at = (angle: number, dist: number) => ({
     x: cx + Math.cos(angle) * dist * stretchX,
@@ -71,14 +70,6 @@ function scatterIslandProps(
     props.push(cannon)
   }
 
-  // Fort pieces — purely decorative
-  if (hasGrass && Math.random() < 0.35) {
-    const p = at(Math.random() * Math.PI * 2, sandRadius * (0.6 + Math.random() * 0.22))
-    const key = ISLAND_FORT_KEYS[Math.floor(Math.random() * ISLAND_FORT_KEYS.length)]
-    const size = 32 + Math.random() * 14
-    const fort = scene.add.sprite(p.x, p.y, key).setDisplaySize(size, size).setDepth(6)
-    props.push(fort)
-  }
 
   return props
 }
@@ -179,6 +170,20 @@ function createIslandView(
 
   const { land, shallowWater } = generateIslandTileGrid(sandRadius, shape, MAP_TILE_SIZE)
   const tiles = [...placeShallowWaterTiles(scene, cx, cy, shallowWater), ...placeIslandTiles(scene, cx, cy, land)]
+
+  // Fort — a rectangular walled structure placed on grass tiles (≈50% chance on grass islands).
+  const grassFillCells = land.filter((c) => c.layer === 'grass' && c.role === 'fill')
+  if (grassFillCells.length >= 9 && Math.random() < 0.5) {
+    const fortTiles = generateFort(grassFillCells, MAP_TILE_SIZE)
+    for (const ft of fortTiles) {
+      tiles.push(
+        scene.add
+          .sprite(cx + ft.x, cy + ft.y, ft.key)
+          .setDisplaySize(MAP_TILE_SIZE + ISLAND_TILE_OVERLAP, MAP_TILE_SIZE + ISLAND_TILE_OVERLAP)
+          .setDepth(5),
+      )
+    }
+  }
 
   const decorations = scatterIslandProps(scene, obstacle)
   minimapCam.ignore(decorations)

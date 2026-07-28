@@ -1,4 +1,5 @@
 import type { ObstacleVariant, ShipHealthState, ShipVariant } from './types'
+import { ALL_FORT_TILE_KEYS } from './fortGeneration'
 
 export const IMG_BASE = `${import.meta.env.BASE_URL}assets/img`
 export const TILES_BASE = `${import.meta.env.BASE_URL}assets/tiles`
@@ -164,15 +165,6 @@ export const ISLAND_ROCK_KEYS = [
   'rock_large_2',
 ]
 export const ISLAND_CANNON_KEY = 'cannonMobile'
-/** Small fortification pieces (capstans/wall segments) — decoration only, always sit on an island's sand ring. */
-export const ISLAND_FORT_KEYS = [
-  'tile_fort_wheel_s',
-  'tile_fort_wheel_m',
-  'tile_fort_wheel_l',
-  'tile_fort_wall',
-  'tile_fort_pillar',
-  'tile_dock',
-]
 
 export const GROUND_TILE_KEY = 'tile_water'
 export const EXPLOSION_FRAME_KEYS = ['explosion1', 'explosion2', 'explosion3']
@@ -213,7 +205,7 @@ export const ALL_IMAGE_KEYS: string[] = [
   ...ISLAND_GRASS_FILL_KEYS,
   ...Object.values(ISLAND_GRASS_CORNER_KEYS).flat(),
   ISLAND_CANNON_KEY,
-  ...ISLAND_FORT_KEYS,
+  ...ALL_FORT_TILE_KEYS,
   GROUND_TILE_KEY,
   ...EXPLOSION_FRAME_KEYS,
 ]
