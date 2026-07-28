@@ -214,7 +214,7 @@ export default function HUD({
 
             <button
               className="primary-btn primary-btn-big"
-              disabled={serverStatus?.full}
+              disabled={serverUnreachable || serverStatus?.full}
               onClick={() => setPendingMode('online')}
             >
               ⚓ Играть онлайн
