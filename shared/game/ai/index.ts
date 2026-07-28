@@ -73,6 +73,11 @@ const KOTH_PICKUP_RANGE = 200
 /** In KOTH: flee threshold is lower — the zone is worth tanking more damage for. */
 const KOTH_FLEE_HP_FRACTION = 0.18
 
+/** In CTF: how close to a destination before switching to the next goal. */
+const CTF_ARRIVE_DIST = 50
+/** In CTF: pickup seek range while on a flag mission — only grab what's on the way. */
+const CTF_PICKUP_RANGE = 200
+
 /** Updates a bot's AI state and steering. Returns true if it wants to fire this frame. */
 export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   const ai = ship.ai
@@ -137,6 +142,17 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   const inZone = isKoth && distToZone <= zone!.radius
   const nearZone = isKoth && distToZone <= zone!.radius + KOTH_TETHER_MARGIN
 
+  // ─── CTF context ──────────────────────────────────────────────────────────
+  const isCtf = world.flags.length > 0 && ship.faction !== null
+  const enemyFlag = isCtf ? world.flags.find((f) => f.faction !== ship.faction) : undefined
+  const ownFlag = isCtf ? world.flags.find((f) => f.faction === ship.faction) : undefined
+  // Who (if anyone) on our team is carrying the enemy flag?
+  const allyCarrier = isCtf ? world.ships.find((s) => s.alive && s.carryingFlag && s.faction === ship.faction && s.id !== ship.id) : undefined
+  // Who (if anyone) on the enemy team is carrying our flag?
+  const enemyCarrier = isCtf ? world.ships.find((s) => s.alive && s.carryingFlag === ship.faction) : undefined
+  // Am I the flag carrier?
+  const iAmCarrier = ship.carryingFlag !== null
+
   // In KOTH bots hold the point harder — they only flee at very low HP.
   const fleeThreshold = isKoth ? KOTH_FLEE_HP_FRACTION : BOT_FLEE_HP_FRACTION
   const shouldFlee =
@@ -179,7 +195,58 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
 
   switch (ai.state) {
     case 'patrol': {
-      if (isKoth && !disengaging) {
+      if (isCtf && !disengaging) {
+        // ── CTF patrol: objective-driven ──
+        let ctfGoal: { x: number; y: number } | null = null
+
+        if (iAmCarrier && ownFlag) {
+          // I have the flag → run to own base
+          ctfGoal = ownFlag.basePos
+        } else if (enemyCarrier) {
+          // Enemy has our flag → hunt them down
+          ctfGoal = enemyCarrier.pos
+        } else if (allyCarrier && ownFlag) {
+          // Ally carrying enemy flag → escort them toward our base
+          ctfGoal = allyCarrier.pos
+        } else if (enemyFlag && !enemyFlag.carriedBy) {
+          // Enemy flag is free → go grab it
+          ctfGoal = enemyFlag.pos
+        }
+
+        if (ctfGoal) {
+          const distToGoal = distance(ship.pos, ctfGoal)
+          // Grab pickups on the way if they're close to our path
+          const pickup = findPriorityPickup(ship, world, CTF_PICKUP_RANGE, (p) =>
+            nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
+          )
+          if (pickup && distToGoal > CTF_ARRIVE_DIST) {
+            // Only detour for pickup if it's roughly on the way
+            const pickupDist = distance(ship.pos, pickup.pos)
+            const detour = pickupDist + distance(pickup.pos, ctfGoal) - distToGoal
+            if (detour < 200) {
+              ship.moveDir = normalize(sub(pickup.pos, ship.pos))
+            } else {
+              ship.moveDir = normalize(sub(ctfGoal, ship.pos))
+            }
+          } else {
+            ship.moveDir = normalize(sub(ctfGoal, ship.pos))
+          }
+        } else {
+          // Fallback: normal patrol
+          const pickup = findPriorityPickup(ship, world, 600, (p) =>
+            nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
+          )
+          if (pickup) {
+            ship.moveDir = normalize(sub(pickup.pos, ship.pos))
+          } else {
+            if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
+              ai.targetPos = randomPointNear(world, ship.pos, 400)
+              ai.retargetTimer = BOT_RETARGET_INTERVAL
+            }
+            ship.moveDir = normalize(sub(ai.targetPos, ship.pos))
+          }
+        }
+      } else if (isKoth && !disengaging) {
         // ── KOTH patrol: zone is the primary objective ──
         // Only grab pickups that are inside/near the zone; don't wander across the map for loot.
         const pickupRange = inZone ? KOTH_PICKUP_RANGE : 150

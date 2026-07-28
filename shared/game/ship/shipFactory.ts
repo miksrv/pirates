@@ -93,6 +93,7 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     extraCannons: 0,
     collectedPermaBoosts: [],
     faction: overrides.faction ?? null,
+    carryingFlag: null,
   }
 
   applyPerk(ship)

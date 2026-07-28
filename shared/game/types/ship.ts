@@ -116,4 +116,6 @@ export interface Ship {
   collectedPermaBoosts: string[]
   /** Team faction for team modes; null in FFA. */
   faction: Faction | null
+  /** CTF: which team's flag this ship is carrying; null if none. */
+  carryingFlag: Faction | null
 }

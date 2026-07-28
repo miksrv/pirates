@@ -27,6 +27,7 @@ import { sameFaction, updateEscort } from './escort'
 import { applyPerk } from './perks'
 import type { PerkType, Pickup, PlayerInputs, Ship, World, Faction } from './types'
 import type { GameMode } from './modes/types'
+import { CTF_BASE_RADIUS } from './modes/captureTheFlag'
 import { circlesOverlap } from './physics'
 
 export interface WorldOptions {
@@ -65,25 +66,44 @@ export function createWorld(options: WorldOptions = {}): World {
     shrinkInset: 0,
     teamScores: {},
     captureZone: null,
+    flags: [],
   }
 
   const isTeamMode = options.mode?.teamMode === true
+  const isCtf = options.mode?.id === 'captureTheFlag'
+
+  // CTF: bases on opposite sides of the map
+  const redBase = { x: CTF_BASE_RADIUS + 60, y: MAP_HEIGHT / 2 }
+  const blueBase = { x: MAP_WIDTH - CTF_BASE_RADIUS - 60, y: MAP_HEIGHT / 2 }
 
   const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
   if (withPlayer) {
     const faction: Faction | null = isTeamMode ? 'red' : null
     const variant = isTeamMode ? 'red' as const : undefined
-    world.ships.push(createShip('player', center, 0, { perk: options.playerPerk ?? null, faction, variant }))
+    const spawnPos = isCtf ? { x: redBase.x, y: redBase.y + 40 } : center
+    world.ships.push(createShip('player', spawnPos, 0, { perk: options.playerPerk ?? null, faction, variant }))
   }
 
   const botSpawns: { x: number; y: number }[] = []
   for (let i = 0; i < botCount; i += 1) {
-    const angle = (i / Math.max(botCount, 1)) * Math.PI * 2
-    const dist = 600 + Math.random() * 400
-    botSpawns.push({
-      x: Math.max(60, Math.min(MAP_WIDTH - 60, center.x + Math.cos(angle) * dist)),
-      y: Math.max(60, Math.min(MAP_HEIGHT - 60, center.y + Math.sin(angle) * dist)),
-    })
+    if (isCtf) {
+      // Alternate bots between factions, spawn near their base
+      const factionForBot = i % 2 === 0 ? 'blue' : 'red'
+      const base = factionForBot === 'red' ? redBase : blueBase
+      const offsetAngle = ((i / 2) / Math.max(botCount / 2, 1)) * Math.PI * 2
+      const dist = 60 + Math.random() * 80
+      botSpawns.push({
+        x: Math.max(60, Math.min(MAP_WIDTH - 60, base.x + Math.cos(offsetAngle) * dist)),
+        y: Math.max(60, Math.min(MAP_HEIGHT - 60, base.y + Math.sin(offsetAngle) * dist)),
+      })
+    } else {
+      const angle = (i / Math.max(botCount, 1)) * Math.PI * 2
+      const dist = 600 + Math.random() * 400
+      botSpawns.push({
+        x: Math.max(60, Math.min(MAP_WIDTH - 60, center.x + Math.cos(angle) * dist)),
+        y: Math.max(60, Math.min(MAP_HEIGHT - 60, center.y + Math.sin(angle) * dist)),
+      })
+    }
   }
 
   world.obstacles = generateObstacles(world, MAP_ISLAND_COUNT, MAP_ROCK_COUNT, [center, ...botSpawns])
@@ -91,21 +111,32 @@ export function createWorld(options: WorldOptions = {}): World {
   botSpawns.forEach((pos, i) => {
     let faction: Faction | null = null
     if (isTeamMode) {
-      // Balance teams: assign each bot to the smaller faction.
-      const captains = world.ships.filter((s) => !s.escortOf)
-      const redCount = captains.filter((s) => s.faction === 'red').length
-      const blueCount = captains.filter((s) => s.faction === 'blue').length
-      faction = redCount <= blueCount ? 'red' : 'blue'
+      if (isCtf) {
+        // CTF: faction was pre-decided based on spawn side
+        faction = i % 2 === 0 ? 'blue' : 'red'
+      } else {
+        // Balance teams: assign each bot to the smaller faction.
+        const captains = world.ships.filter((s) => !s.escortOf)
+        const redCount = captains.filter((s) => s.faction === 'red').length
+        const blueCount = captains.filter((s) => s.faction === 'blue').length
+        faction = redCount <= blueCount ? 'red' : 'blue'
+      }
     }
     const variant = isTeamMode ? (faction === 'red' ? 'red' as const : 'blue' as const) : undefined
     world.ships.push(createShip('bot', pos, i, { faction, variant }))
   })
 
-  // Team mode: init team scores; KOTH also gets a capture zone.
+  // Team mode: init team scores; KOTH also gets a capture zone; CTF gets flags.
   if (isTeamMode) {
     world.teamScores = { red: 0, blue: 0 }
     if (options.mode?.id === 'kingOfTheHill') {
       world.captureZone = { pos: { ...center }, radius: 300 }
+    }
+    if (isCtf) {
+      world.flags = [
+        { faction: 'red', pos: { ...redBase }, basePos: { ...redBase }, carriedBy: null, returnTimer: 0 },
+        { faction: 'blue', pos: { ...blueBase }, basePos: { ...blueBase }, carriedBy: null, returnTimer: 0 },
+      ]
     }
   }
 
@@ -161,6 +192,7 @@ function respawnShip(world: World, ship: Ship): void {
   ship.bombDropTimer = 0
   ship.extraCannons = 0
   ship.collectedPermaBoosts = []
+  ship.carryingFlag = null
   ship.moveDir = { x: 0, y: 0 }
   ship.currentSpeed = 0
   ship.throttle = 0

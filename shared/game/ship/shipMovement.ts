@@ -1,6 +1,7 @@
 import { updateBoostMeter } from '../boosts/boostMeter'
 import { applyTemporaryEffect, decayEffects, getEffectMagnitude, hasEffect } from '../boosts/effects'
 import { BOOST_SPEED_MULT, ESCORT_RADIUS, MAP_SHALLOW_SPEED_MULT, MEGA_SIZE_MULT, MEGA_SPEED_MULT, SHIP_BASE_ACCELERATION, SHIP_BASE_MANEUVER, SHIP_RADIUS } from '../constants'
+import { CTF_CARRIER_SPEED_MULT } from '../modes/captureTheFlag'
 import { circleRectOverlap } from '../physics'
 import { resolveObstacle } from '../physics'
 import type { Obstacle, Ship, World } from '../types'
@@ -34,7 +35,7 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
   const baseRadius = ship.escortOf ? ESCORT_RADIUS : SHIP_RADIUS
   ship.radius = baseRadius * (mega ? MEGA_SIZE_MULT : 1)
 
-  const speedMult = getEffectMagnitude(ship, 'speedBoost', 1) * (mega ? MEGA_SPEED_MULT : 1)
+  const speedMult = getEffectMagnitude(ship, 'speedBoost', 1) * (mega ? MEGA_SPEED_MULT : 1) * (ship.carryingFlag ? CTF_CARRIER_SPEED_MULT : 1)
   const shallowMult = getEffectMagnitude(ship, 'shallowWater', 1)
   const turnMult = getEffectMagnitude(ship, 'turnBoost', 1)
   const invertControls = hasEffect(ship, 'krakenJitter')

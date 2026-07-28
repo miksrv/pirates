@@ -3,7 +3,7 @@ import type { FortTile } from '../fortGeneration'
 import type { GameMode } from '../modes/types'
 import type { Vec2 } from '../vector'
 import type { Bomb, Bullet } from './combat'
-import type { Ship, Team } from './ship'
+import type { Faction, Ship, Team } from './ship'
 
 export type ObstacleKind = 'crate' | 'rock'
 export type ObstacleVariant = 'island' | 'reef' | 'driftBarrel' | 'rockyShore'
@@ -114,6 +114,22 @@ export interface World {
   teamScores: Record<string, number>
   /** Capture zone for King of the Hill and similar modes. */
   captureZone: { pos: Vec2; radius: number } | null
+  /** CTF flags — one per team. */
+  flags: CtfFlag[]
+}
+
+/** A flag in Capture the Flag mode. */
+export interface CtfFlag {
+  /** Which team owns this flag (i.e. it sits at that team's base). */
+  faction: Faction
+  /** Current world position (moves with carrier or sits at base/drop spot). */
+  pos: Vec2
+  /** Home base position — where it returns to. */
+  basePos: Vec2
+  /** Ship id currently carrying this flag, or null. */
+  carriedBy: string | null
+  /** Seconds left before a dropped flag auto-returns to base. 0 when at base or carried. */
+  returnTimer: number
 }
 
 export interface PlayerInput {
