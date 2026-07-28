@@ -6,6 +6,7 @@ import { buildStats } from '../../../shared/game/stats'
 import type { PerkType, PickupType, World } from '../../../shared/game/types'
 import { createWorld, stepWorld } from '../../../shared/game/world'
 import type { GameMode } from '../../../shared/game/modes/types'
+import { CTF_BASE_RADIUS } from '../../../shared/game/modes/captureTheFlag'
 import { NetClient } from '../net/client'
 import { handleEvents } from './eventEffects'
 import { createInputKeys, readPlayerInput, type SceneKeys } from './input'
@@ -43,6 +44,7 @@ export class MainScene extends Phaser.Scene {
   private minimapCam!: Phaser.Cameras.Scene2D.Camera
   private minimapMaskShape!: Phaser.GameObjects.Graphics
   private captureZoneGfx: Phaser.GameObjects.Graphics | null = null
+  private flagGfx: Phaser.GameObjects.Graphics | null = null
 
   private shipViews = new Map<string, ShipView>()
   private bulletViews = new Map<string, BulletView>()
@@ -195,6 +197,10 @@ export class MainScene extends Phaser.Scene {
       this.captureZoneGfx.destroy()
       this.captureZoneGfx = null
     }
+    if (this.flagGfx) {
+      this.flagGfx.destroy()
+      this.flagGfx = null
+    }
   }
 
   private startNewWorld(): void {
@@ -252,6 +258,45 @@ export class MainScene extends Phaser.Scene {
     } else if (this.captureZoneGfx) {
       this.captureZoneGfx.destroy()
       this.captureZoneGfx = null
+    }
+
+    // CTF: render base zones and flags
+    if (this.world.flags && this.world.flags.length > 0) {
+      if (!this.flagGfx) {
+        this.flagGfx = this.add.graphics().setDepth(1)
+      }
+      this.flagGfx.clear()
+      for (const flag of this.world.flags) {
+        const baseColor = flag.faction === 'red' ? 0xe05252 : 0x52a5e0
+        // Draw base zone
+        const basePulse = 0.08 + 0.04 * Math.sin(this.world.time * 1.5)
+        this.flagGfx.fillStyle(baseColor, basePulse)
+        this.flagGfx.fillCircle(flag.basePos.x, flag.basePos.y, CTF_BASE_RADIUS)
+        this.flagGfx.lineStyle(2, baseColor, 0.4)
+        this.flagGfx.strokeCircle(flag.basePos.x, flag.basePos.y, CTF_BASE_RADIUS)
+
+        // Draw flag (if not carried)
+        if (!flag.carriedBy) {
+          const flagPulse = 0.7 + 0.3 * Math.sin(this.world.time * 4)
+          this.flagGfx.fillStyle(baseColor, flagPulse)
+          this.flagGfx.fillCircle(flag.pos.x, flag.pos.y, 12)
+          this.flagGfx.lineStyle(2, 0xffffff, 0.8)
+          this.flagGfx.strokeCircle(flag.pos.x, flag.pos.y, 12)
+          // Flag pole
+          this.flagGfx.lineStyle(3, 0xffffff, 0.9)
+          this.flagGfx.lineBetween(flag.pos.x, flag.pos.y, flag.pos.x, flag.pos.y - 20)
+          // Flag cloth
+          this.flagGfx.fillStyle(baseColor, 0.9)
+          this.flagGfx.fillTriangle(
+            flag.pos.x, flag.pos.y - 20,
+            flag.pos.x + 14, flag.pos.y - 14,
+            flag.pos.x, flag.pos.y - 8,
+          )
+        }
+      }
+    } else if (this.flagGfx) {
+      this.flagGfx.destroy()
+      this.flagGfx = null
     }
 
     // Battle Royale: shrink the visible ground tile symmetrically from all sides.

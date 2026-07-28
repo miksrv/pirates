@@ -60,6 +60,7 @@ function buildBuffIconText(ship: Ship): string {
     .map((e) => EFFECT_EMOJI[e.type])
     .filter((e): e is string => !!e)
   if (ship.shieldCharges > 0) icons.push('🛡️'.repeat(ship.shieldCharges))
+  if (ship.carryingFlag) icons.push(ship.carryingFlag === 'red' ? '🔴🚩' : '🔵🚩')
   return icons.join(' ')
 }
 
