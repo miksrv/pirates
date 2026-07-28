@@ -7,6 +7,18 @@ export interface EndResult {
   winner: Ship | null
   /** Short reason string for the HUD. */
   reason: string
+  /** Full scoreboard for modes that show all participants at the end (e.g. deathmatch). */
+  scoreboard?: ScoreEntry[]
+  /** Personal stats for the local player (shown in victory screen for single-elimination modes). */
+  playerStats?: { duration: number; shotsFired: number; hits: number; kills: number }
+}
+
+/** One row in the end-of-match scoreboard. */
+export interface ScoreEntry {
+  name: string
+  kills: number
+  deaths: number
+  isPlayer: boolean
 }
 
 /** Data a mode wants displayed in the HUD overlay. All fields optional — omit what you don't need. */

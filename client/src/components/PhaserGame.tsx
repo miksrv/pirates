@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
-import { getGameMode, type ModeHudState } from '../../../shared/game/modes'
+import { getGameMode, type ModeHudState, type EndResult } from '../../../shared/game/modes'
 import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
 import { defaultServerUrl } from '../net/config'
@@ -31,6 +31,7 @@ export default function PhaserGame() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [victory, setVictory] = useState<VictoryData | null>(null)
   const [modeHud, setModeHud] = useState<ModeHudState | null>(null)
+  const [matchEnd, setMatchEnd] = useState<EndResult | null>(null)
 
   const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => {
     if (gameRef.current) return
@@ -86,6 +87,7 @@ export default function PhaserGame() {
         setRoundStatus(null)
         setLeaderboard([])
         setModeHud(null)
+        setMatchEnd(null)
       })
       scene.events.on('log', (entry: { text: string; kind: LogEntryKind }) => {
         logIdRef.current += 1
@@ -97,6 +99,7 @@ export default function PhaserGame() {
         setLeaderboard(leaderboard)
       })
       scene.events.on('mode-hud', (state: ModeHudState | null) => setModeHud(state))
+      scene.events.on('match-end', (result: EndResult) => setMatchEnd(result))
     })
 
     setMode(mode)
@@ -155,6 +158,7 @@ export default function PhaserGame() {
         roundStatus={roundStatus}
         leaderboard={leaderboard}
         modeHud={modeHud}
+        matchEnd={matchEnd}
         onStart={handleStart}
         onRestart={handleRestart}
       />

@@ -15,6 +15,19 @@
 | `onStep(world, dt)` | Per-tick logic (zones, timers, scoring) |
 | `checkEnd(world)` | Returns `EndResult` or null |
 | `onShipSunk(world, ship, killer?)` | React to death (drop flag, transfer crown, etc.) |
+| `getHudState(world)` | Returns `ModeHudState` (timer, status) for in-game overlay |
+
+### EndResult structure
+- `winner` — winning Ship or null (draw/loss)
+- `reason` — display string
+- `scoreboard?` — array of `{ name, kills, deaths, isPlayer }` for full-table modes
+- `playerStats?` — `{ duration, shotsFired, hits, kills }` for personal stat screen
+
+### End-screen behavior
+- `matchEnd` event emitted from MainScene → rendered by HUD
+- If `scoreboard` present → show full table (deathmatch, team modes)
+- If only `playerStats` present → show personal victory stats (last ship standing)
+- If neither → show only the `reason` text (e.g. "Ваш корабль потоплен")
 
 ### Implemented
 - `lastShipStanding.ts` — no respawn, last alive wins

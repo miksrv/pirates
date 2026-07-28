@@ -688,3 +688,43 @@
   padding: 4px 0;
 }
 
+.match-scoreboard {
+  margin: 16px 0 20px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.scoreboard-header {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 6px;
+  border-bottom: 1px solid #2a3142;
+  color: #8892a4;
+  font-size: 12px;
+}
+
+.scoreboard-row {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0;
+  color: #c8d0de;
+}
+
+.scoreboard-row-player {
+  color: #3ee06f;
+  font-weight: 600;
+}
+
+.sb-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sb-kills,
+.sb-deaths {
+  width: 36px;
+  text-align: center;
+}
+

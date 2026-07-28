@@ -1,4 +1,4 @@
-export type { GameMode, EndResult, ModeHudState } from './types'
+export type { GameMode, EndResult, ModeHudState, ScoreEntry } from './types'
 export { lastShipStanding } from './lastShipStanding'
 export { deathmatch } from './deathmatch'
 

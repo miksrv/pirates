@@ -237,16 +237,21 @@ export class MainScene extends Phaser.Scene {
         const result = this.gameMode.checkEnd(this.world)
         if (result) {
           this.gameOverEmitted = true
-          if (result.winner?.id === this.playerId) {
-            this.events.emit('victory', {
+          if (player) {
+            result.playerStats = {
               duration: this.world.time,
-              shotsFired: player!.shotsFired,
-              hits: player!.hits,
-              kills: player!.kills,
-            })
-          } else {
-            this.events.emit('game-over')
+              shotsFired: player.shotsFired,
+              hits: player.hits,
+              kills: player.kills,
+            }
           }
+          this.events.emit('match-end', result)
+          return
+        }
+        // Mode is active but game isn't over yet — check if player died (for modes without respawn)
+        if (player && !player.alive && !this.world.respawnEnabled) {
+          this.gameOverEmitted = true
+          this.events.emit('match-end', { winner: null, reason: 'Ваш корабль потоплен' })
           return
         }
       } else {

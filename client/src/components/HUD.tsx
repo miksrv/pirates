@@ -4,7 +4,7 @@ import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
-import { GAME_MODES, type ModeHudState } from '../../../shared/game/modes'
+import { GAME_MODES, type ModeHudState, type EndResult } from '../../../shared/game/modes'
 import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
@@ -35,6 +35,8 @@ interface HUDProps {
   leaderboard: LeaderboardEntry[]
   /** Mode-specific HUD state (timer, status, etc.) — null when no mode is active. */
   modeHud: ModeHudState | null
+  /** End-of-match result from the game mode — null while playing. */
+  matchEnd: EndResult | null
   onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => void
   onRestart: () => void
 }
@@ -86,6 +88,7 @@ export default function HUD({
   roundStatus,
   leaderboard,
   modeHud,
+  matchEnd,
   onStart,
   onRestart,
 }: HUDProps) {
@@ -311,6 +314,45 @@ export default function HUD({
             </div>
           </div>
         )}
+      </div>
+    )
+  }
+
+  if (matchEnd) {
+    const hasScoreboard = matchEnd.scoreboard && matchEnd.scoreboard.length > 0
+    const ps = matchEnd.playerStats
+    const accuracy = ps && ps.shotsFired > 0 ? Math.round((ps.hits / ps.shotsFired) * 100) : 0
+    return (
+      <div className="overlay">
+        <div className="panel">
+          <h1>{matchEnd.winner ? '🏆 Победа!' : matchEnd.reason}</h1>
+          {matchEnd.winner && <p className="subtitle">{matchEnd.reason}</p>}
+          {ps && !hasScoreboard && (
+            <div className="victory-stats">
+              <div className="victory-stat">⏱ Время: {Math.floor(ps.duration / 60)}:{Math.floor(ps.duration % 60).toString().padStart(2, '0')}</div>
+              <div className="victory-stat">💀 Потоплено: {ps.kills}</div>
+              <div className="victory-stat">💣 Выстрелов: {ps.shotsFired}</div>
+              <div className="victory-stat">🎯 Попаданий: {ps.hits} ({accuracy}%)</div>
+            </div>
+          )}
+          {hasScoreboard && (
+            <div className="match-scoreboard">
+              <div className="scoreboard-header">
+                <span className="sb-name">Имя</span>
+                <span className="sb-kills">💀</span>
+                <span className="sb-deaths">☠️</span>
+              </div>
+              {matchEnd.scoreboard!.map((entry, i) => (
+                <div key={i} className={`scoreboard-row${entry.isPlayer ? ' scoreboard-row-player' : ''}`}>
+                  <span className="sb-name">{entry.name}</span>
+                  <span className="sb-kills">{entry.kills}</span>
+                  <span className="sb-deaths">{entry.deaths}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <button className="primary-btn" onClick={onRestart}>Заново (R)</button>
+        </div>
       </div>
     )
   }

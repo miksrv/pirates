@@ -1,6 +1,6 @@
 import type { Ship, World } from '../types'
 import type { WorldOptions } from '../world'
-import type { EndResult, GameMode, ModeHudState } from './types'
+import type { EndResult, GameMode, ModeHudState, ScoreEntry } from './types'
 import { GAMEPLAY_ROUND_DURATION } from '../constants'
 
 function formatTime(seconds: number): string {
@@ -29,19 +29,24 @@ export const deathmatch: GameMode = {
     if (world.time < GAMEPLAY_ROUND_DURATION) return null
 
     const captains = world.ships.filter((s) => !s.escortOf)
-    if (captains.length === 0) return { winner: null, reason: 'Ничья!' }
+    const scoreboard: ScoreEntry[] = captains
+      .map((s) => ({ name: s.name, kills: s.kills, deaths: s.deaths, isPlayer: !s.ai }))
+      .sort((a, b) => b.kills - a.kills)
+
+    if (captains.length === 0) return { winner: null, reason: 'Ничья!', scoreboard }
 
     const sorted = [...captains].sort((a, b) => b.kills - a.kills)
     const top = sorted[0]
 
     // Tie at the top?
     if (sorted.length > 1 && sorted[1].kills === top.kills) {
-      return { winner: null, reason: 'Ничья!' }
+      return { winner: null, reason: 'Ничья!', scoreboard }
     }
 
     return {
       winner: top,
       reason: `${top.name} побеждает с ${top.kills} убийств!`,
+      scoreboard,
     }
   },
 
