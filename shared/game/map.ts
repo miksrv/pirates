@@ -1,5 +1,6 @@
 import { nextId } from './id'
 import { generateIslandShape, generateCollisionTiles } from './islandShape'
+import { generateFortForIsland } from './fortGeneration'
 import { MAP_TILE_SIZE, MEGA_PICKUP_RADIUS } from './constants'
 import { rollRandomPickupType } from './pickups'
 import type { IslandProp, Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
@@ -78,6 +79,7 @@ function pushObstacle(obstacles: Obstacle[], variant: ObstacleVariant, pos: { x:
     obstacle.shallowTiles = tiles.shallow
     obstacle.collisionTileSize = MAP_TILE_SIZE
     obstacle.props = generateIslandProps(radius, obstacle.islandShape)
+    obstacle.fortTiles = generateFortForIsland(radius, obstacle.islandShape, MAP_TILE_SIZE)
   }
 
   obstacles.push(obstacle)

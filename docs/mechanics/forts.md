@@ -1,14 +1,15 @@
 # Forts
 
-Code: `shared/game/fortGeneration.ts` · Render: `client/src/phaser/views/obstacleView.ts` (`createIslandView`)
+Code: `shared/game/fortGeneration.ts` · Collision: `shared/game/physics.ts` (`bulletBlockerOverlap`) · Render: `client/src/phaser/views/obstacleView.ts` (`createIslandView`)
 
 ## Overview
-- Decorative walled structures placed on grass tiles of large islands.
-- ~50% chance per grass island (≥9 grass fill cells required).
+- Walled structures placed on grass tiles of large islands (`sandRadius >= 75`).
+- ~50% chance per grass island.
+- **Block cannonballs** — fort tiles are stored server-side on `Obstacle.fortTiles` and checked in `bulletBlockerOverlap` as square blockers (tile-sized).
 - Rendered at depth 5, above grass (4.5) but below props (6).
 
 ## Generation
-1. Collect all grass `fill` cells from the island tile grid.
+1. `generateFortForIsland` (called in `map.ts` during island creation) rasterizes the island shape to find interior (grass) cells.
 2. Shuffle 14 shape **templates** and try each with a random 0/90/180/270° rotation.
 3. For each template, try up to 15 random anchor positions — every template `1` cell must land on an existing grass cell.
 4. **Auto-tiling**: each cell checks its 4 neighbors within the template and picks the matching tile:

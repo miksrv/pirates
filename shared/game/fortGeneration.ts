@@ -1,4 +1,4 @@
-import type { IslandGridCell } from './islandShape'
+import { cellTouchesIslandShape, type IslandShape } from './islandShape'
 
 // ─── Fort tile asset keys ────────────────────────────────────────────────────
 
@@ -233,20 +233,57 @@ function autoTileKey(n: boolean, s: boolean, e: boolean, w: boolean): string {
 
 // ─── Fort layout generation ─────────────────────────────────────────────────
 
-/** A single fort tile to place on the island. */
+/** A single fort tile to place on the island. x/y are relative to island center. */
 export interface FortTile {
-  /** World-relative x (same coordinate space as IslandGridCell.x). */
   x: number
   y: number
   key: string
 }
 
 /**
- * Generates a complex-shaped fort on top of grass tiles.
- * Picks a random template, rotates it, tries to fit it on the grass area.
- * Returns an array of fort tiles to render, or empty if no suitable spot was found.
+ * Generates a fort on a grass island. Rasterizes the island shape to find interior (grass)
+ * cells, then picks a random template and places it. Called server-side during map generation.
+ * Returns empty array if the island is too small or no template fits.
  */
-export function generateFort(grassCells: IslandGridCell[], tileSize: number): FortTile[] {
+export function generateFortForIsland(sandRadius: number, shape: IslandShape, tileSize: number): FortTile[] {
+  if (sandRadius < 75) return []
+  if (Math.random() > 0.5) return []
+
+  // Rasterize the shape to find grass (interior) cells — same logic as generateIslandTileGrid
+  // but only needs cell positions, not full classification.
+  const maxStretch = Math.max(shape.stretchX, shape.stretchY)
+  const maxLobeReach = shape.lobes.reduce((m, l) => Math.max(m, l.distFrac + l.radiusFrac), 0.6)
+  const extent = sandRadius * maxStretch * (maxLobeReach + 0.15)
+  const half = Math.ceil(extent / tileSize) + 1
+
+  const landSet = new Set<string>()
+  const key = (gx: number, gy: number) => `${gx},${gy}`
+
+  for (let gy = -half; gy <= half; gy++)
+    for (let gx = -half; gx <= half; gx++)
+      if (cellTouchesIslandShape(gx, gy, tileSize, sandRadius, shape)) landSet.add(key(gx, gy))
+
+  // Interior cells = land with no water on any orthogonal side = grass fill.
+  const grassCells: { x: number; y: number }[] = []
+  for (const k of landSet) {
+    const [gx, gy] = k.split(',').map(Number)
+    const waterN = !landSet.has(key(gx, gy - 1))
+    const waterS = !landSet.has(key(gx, gy + 1))
+    const waterW = !landSet.has(key(gx - 1, gy))
+    const waterE = !landSet.has(key(gx + 1, gy))
+    if (!waterN && !waterS && !waterW && !waterE) {
+      grassCells.push({ x: (gx + 0.5) * tileSize, y: (gy + 0.5) * tileSize })
+    }
+  }
+
+  return generateFort(grassCells, tileSize)
+}
+
+/**
+ * Generates a complex-shaped fort on top of grass cells.
+ * Picks a random template, rotates it, tries to fit it on the grass area.
+ */
+export function generateFort(grassCells: { x: number; y: number }[], tileSize: number): FortTile[] {
   if (grassCells.length < 9) return []
 
   // Build a set of grass cell grid positions for quick lookup.

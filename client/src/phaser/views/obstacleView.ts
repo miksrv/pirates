@@ -17,7 +17,6 @@ import {
   OBSTACLE_KEY,
 } from '../../../../shared/game/assetKeys'
 import { MAP_TILE_SIZE } from '../../../../shared/game/constants'
-import { generateFort } from '../../../../shared/game/fortGeneration'
 import { generateIslandTileGrid, type IslandGridCell, type ShallowWaterCell } from '../../../../shared/game/islandShape'
 import type { Obstacle, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
@@ -171,11 +170,9 @@ function createIslandView(
   const { land, shallowWater } = generateIslandTileGrid(sandRadius, shape, MAP_TILE_SIZE)
   const tiles = [...placeShallowWaterTiles(scene, cx, cy, shallowWater), ...placeIslandTiles(scene, cx, cy, land)]
 
-  // Fort — a rectangular walled structure placed on grass tiles (≈50% chance on grass islands).
-  const grassFillCells = land.filter((c) => c.layer === 'grass' && c.role === 'fill')
-  if (grassFillCells.length >= 9 && Math.random() < 0.5) {
-    const fortTiles = generateFort(grassFillCells, MAP_TILE_SIZE)
-    for (const ft of fortTiles) {
+  // Fort tiles — generated server-side, stored on the obstacle for collision; just render them.
+  if (obstacle.fortTiles) {
+    for (const ft of obstacle.fortTiles) {
       tiles.push(
         scene.add
           .sprite(cx + ft.x, cy + ft.y, ft.key)

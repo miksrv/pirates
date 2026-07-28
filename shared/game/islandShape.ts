@@ -185,7 +185,7 @@ export interface IslandTiles {
  * below a single cell's center sample while still clearly covering part of that cell; sampling
  * only the center turned real (if thin) land into a full water gap, splitting the island in two
  * with a hard straight cut instead of an organic pinch. */
-function cellTouchesIslandShape(gx: number, gy: number, tileSize: number, radius: number, shape: IslandShape): boolean {
+export function cellTouchesIslandShape(gx: number, gy: number, tileSize: number, radius: number, shape: IslandShape): boolean {
   const x0 = gx * tileSize
   const y0 = gy * tileSize
   const samples: Array<[number, number]> = [

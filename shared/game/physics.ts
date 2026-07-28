@@ -101,18 +101,33 @@ export function resolveObstacle(p: Vec2, radius: number, obstacle: Obstacle): Ve
 }
 
 /** True if a cannonball at `p` with `radius` hits any bullet-blocking obstacle.
- * Blocks on: non-island obstacles (reefs, rockyShore, driftBarrel) and island props (rocks, bushes).
+ * Blocks on: non-island obstacles (reefs, rockyShore, driftBarrel), island props (rocks, bushes),
+ * and fort tiles (walls/towers on grass islands).
  * Returns the hit obstacle (if any) so callers can apply damage to destructibles. */
 export function bulletBlockerOverlap(p: Vec2, radius: number, world: World): Obstacle | null {
   for (const obstacle of world.obstacles) {
     if (obstacle.variant === 'island') {
-      // Island land tiles don't block bullets — only the props on them do.
+      // Island land tiles don't block bullets — only the props and fort tiles on them do.
       if (obstacle.props) {
         for (const prop of obstacle.props) {
           const dx = p.x - (obstacle.pos.x + prop.dx)
           const dy = p.y - (obstacle.pos.y + prop.dy)
           const r = radius + prop.radius
           if (dx * dx + dy * dy < r * r) return obstacle
+        }
+      }
+      if (obstacle.fortTiles && obstacle.collisionTileSize) {
+        const ts = obstacle.collisionTileSize
+        const halfTs = ts / 2
+        for (const ft of obstacle.fortTiles) {
+          const fx = obstacle.pos.x + ft.x
+          const fy = obstacle.pos.y + ft.y
+          // Closest point on the fort tile rect to the bullet center.
+          const cx = clamp(p.x, fx - halfTs, fx + halfTs)
+          const cy = clamp(p.y, fy - halfTs, fy + halfTs)
+          const dx = p.x - cx
+          const dy = p.y - cy
+          if (dx * dx + dy * dy < radius * radius) return obstacle
         }
       }
       continue

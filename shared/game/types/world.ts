@@ -1,4 +1,5 @@
 import type { CollisionTile, IslandShape } from '../islandShape'
+import type { FortTile } from '../fortGeneration'
 import type { GameMode } from '../modes/types'
 import type { Vec2 } from '../vector'
 import type { Bomb, Bullet } from './combat'
@@ -36,6 +37,8 @@ export interface Obstacle {
   collisionTileSize?: number
   /** Only for 'island': rocks and bushes that block cannonballs. */
   props?: IslandProp[]
+  /** Only for 'island': fort wall/tower tiles that block cannonballs. */
+  fortTiles?: FortTile[]
 }
 
 export type PickupType =
