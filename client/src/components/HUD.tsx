@@ -4,6 +4,7 @@ import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
+import { GAME_MODES, type ModeHudState } from '../../../shared/game/modes'
 import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
@@ -32,7 +33,9 @@ interface HUDProps {
   /** Server-authoritative round clock — null in single-player, where there's no round concept. */
   roundStatus: RoundStatus | null
   leaderboard: LeaderboardEntry[]
-  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => void
+  /** Mode-specific HUD state (timer, status, etc.) — null when no mode is active. */
+  modeHud: ModeHudState | null
+  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => void
   onRestart: () => void
 }
 
@@ -82,6 +85,7 @@ export default function HUD({
   log,
   roundStatus,
   leaderboard,
+  modeHud,
   onStart,
   onRestart,
 }: HUDProps) {
@@ -89,6 +93,7 @@ export default function HUD({
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
   /** Set once the player picks a mode — switches the menu to the perk step. */
   const [pendingMode, setPendingMode] = useState<'local' | 'online' | null>(null)
+  const [gameModeId, setGameModeId] = useState(GAME_MODES[0].id)
   const [perk, setPerk] = useState<PerkType>(() => {
     const saved = localStorage.getItem(PERK_LS_KEY)
     return isPerkType(saved) ? saved : 'swiftSails'
@@ -130,7 +135,7 @@ export default function HUD({
   const handleLaunch = () => {
     if (!pendingMode) return
     localStorage.setItem(PERK_LS_KEY, perk)
-    onStart(pendingMode, botCount, nickname, perk)
+    onStart(pendingMode, botCount, nickname, perk, pendingMode === 'local' ? gameModeId : null)
   }
 
   if (netError) {
@@ -165,6 +170,22 @@ export default function HUD({
                 value={botCount}
                 onChange={(e) => setBotCount(Number(e.target.value))}
               />
+            </div>
+          )}
+          {pendingMode === 'local' && (
+            <div className="menu-setting">
+              <label>Режим:</label>
+              <div className="mode-selector">
+                {GAME_MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    className={`mode-btn${gameModeId === m.id ? ' mode-btn-selected' : ''}`}
+                    onClick={() => setGameModeId(m.id)}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div className="perk-grid">
@@ -350,6 +371,12 @@ export default function HUD({
         <div className="hud-badge">Кораблей на плаву: {stats.botsAlive} / {stats.botsTotal}</div>
         {roundStatus && roundStatus.phase === 'playing' && (
           <div className="hud-badge">⏱ {formatRoundTime(roundStatus.timeRemaining)}</div>
+        )}
+        {modeHud?.timer && !roundStatus && (
+          <div className="hud-badge">⏱ {modeHud.timer}</div>
+        )}
+        {modeHud?.status && (
+          <div className="hud-badge">{modeHud.status}</div>
         )}
       </div>
 

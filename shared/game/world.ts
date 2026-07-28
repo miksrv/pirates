@@ -26,6 +26,7 @@ import { resolveShipCollisions, updateShipMovement } from './ship/shipMovement'
 import { sameFleet, updateEscort } from './escort'
 import { applyPerk } from './perks'
 import type { PerkType, Pickup, PlayerInputs, Ship, World } from './types'
+import type { GameMode } from './modes/types'
 import { circlesOverlap } from './physics'
 
 export interface WorldOptions {
@@ -35,11 +36,17 @@ export interface WorldOptions {
   respawnEnabled?: boolean
   /** Loadout perk for the local player ship (single-player only). */
   playerPerk?: PerkType | null
+  /** Game mode to use; if provided, its worldOptions() are merged in. */
+  mode?: GameMode
 }
 
 export function createWorld(options: WorldOptions = {}): World {
-  const botCount = options.botCount ?? BOT_DEFAULT_COUNT
-  const withPlayer = options.withPlayer ?? true
+  // If a mode is set, merge its worldOptions as defaults (explicit options still win).
+  const modeDefaults = options.mode?.worldOptions() ?? {}
+  const merged = { ...modeDefaults, ...options }
+
+  const botCount = merged.botCount ?? BOT_DEFAULT_COUNT
+  const withPlayer = merged.withPlayer ?? true
 
   const world: World = {
     width: MAP_WIDTH,
@@ -53,7 +60,8 @@ export function createWorld(options: WorldOptions = {}): World {
     time: 0,
     pickupSpawnTimer: PICKUP_SPAWN_INTERVAL,
     megaSpawnTimer: MEGA_SPAWN_INTERVAL,
-    respawnEnabled: options.respawnEnabled ?? false,
+    respawnEnabled: merged.respawnEnabled ?? false,
+    mode: options.mode,
   }
 
   const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
@@ -277,4 +285,7 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
       world.events.push({ kind: 'megaSpawned', pos: { ...mega.pos } })
     }
   }
+
+  // Game-mode hook: run after all simulation is done.
+  if (world.mode) world.mode.onStep(world, dt)
 }

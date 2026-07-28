@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
+import { getGameMode, type ModeHudState } from '../../../shared/game/modes'
 import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
 import { defaultServerUrl } from '../net/config'
@@ -29,8 +30,9 @@ export default function PhaserGame() {
   const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [victory, setVictory] = useState<VictoryData | null>(null)
+  const [modeHud, setModeHud] = useState<ModeHudState | null>(null)
 
-  const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => {
+  const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => {
     if (gameRef.current) return
 
     const game = new Phaser.Game({
@@ -51,6 +53,7 @@ export default function PhaserGame() {
       serverUrl: defaultServerUrl(),
       nickname: nickname.trim() || undefined,
       perk,
+      gameMode: gameModeId ? getGameMode(gameModeId) ?? null : null,
     }
     game.registry.set('launch', launch)
     gameRef.current = game
@@ -82,6 +85,7 @@ export default function PhaserGame() {
         setLog([])
         setRoundStatus(null)
         setLeaderboard([])
+        setModeHud(null)
       })
       scene.events.on('log', (entry: { text: string; kind: LogEntryKind }) => {
         logIdRef.current += 1
@@ -92,6 +96,7 @@ export default function PhaserGame() {
         setRoundStatus(round)
         setLeaderboard(leaderboard)
       })
+      scene.events.on('mode-hud', (state: ModeHudState | null) => setModeHud(state))
     })
 
     setMode(mode)
@@ -149,6 +154,7 @@ export default function PhaserGame() {
         log={log}
         roundStatus={roundStatus}
         leaderboard={leaderboard}
+        modeHud={modeHud}
         onStart={handleStart}
         onRestart={handleRestart}
       />

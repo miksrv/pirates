@@ -5,6 +5,7 @@ import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
 import type { PerkType, PickupType, World } from '../../../shared/game/types'
 import { createWorld, stepWorld } from '../../../shared/game/world'
+import type { GameMode } from '../../../shared/game/modes/types'
 import { NetClient } from '../net/client'
 import { handleEvents } from './eventEffects'
 import { createInputKeys, readPlayerInput, type SceneKeys } from './input'
@@ -21,6 +22,7 @@ export interface LaunchConfig {
   serverUrl?: string
   nickname?: string
   perk?: PerkType | null
+  gameMode?: GameMode | null
 }
 
 export class MainScene extends Phaser.Scene {
@@ -32,6 +34,7 @@ export class MainScene extends Phaser.Scene {
   private mode: 'local' | 'online' = 'local'
   private botCount = BOT_DEFAULT_COUNT
   private perk: PerkType | null = null
+  private gameMode: GameMode | null = null
   private net: NetClient | null = null
   private watchdogAccum = 0
   private renderWatchdog = createRenderWatchdog()
@@ -111,6 +114,7 @@ export class MainScene extends Phaser.Scene {
     this.mode = launch.mode ?? 'local'
     this.botCount = launch.botCount ?? BOT_DEFAULT_COUNT
     this.perk = launch.perk ?? null
+    this.gameMode = launch.gameMode ?? null
 
     if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname)
     else this.startNewWorld()
@@ -191,7 +195,7 @@ export class MainScene extends Phaser.Scene {
   private startNewWorld(): void {
     this.clearViews()
 
-    this.world = createWorld({ botCount: this.botCount, playerPerk: this.perk })
+    this.world = createWorld({ botCount: this.botCount, playerPerk: this.perk, mode: this.gameMode ?? undefined })
     this.playerId = this.world.ships.find((t) => t.team === 'player')!.id
     this.gameOverEmitted = false
     this.statsAccum = 0
@@ -229,21 +233,40 @@ export class MainScene extends Phaser.Scene {
     syncShips(this, this.minimapCam, this.world, this.playerId, this.shipViews)
 
     if (this.mode === 'local' && !this.gameOverEmitted) {
-      if (player && !player.alive) {
-        this.gameOverEmitted = true
-        this.events.emit('game-over')
-        return
-      }
-      const bots = this.world.ships.filter((s) => s.team === 'bot' && !s.escortOf)
-      if (bots.length > 0 && bots.every((b) => !b.alive)) {
-        this.gameOverEmitted = true
-        this.events.emit('victory', {
-          duration: this.world.time,
-          shotsFired: player!.shotsFired,
-          hits: player!.hits,
-          kills: player!.kills,
-        })
-        return
+      if (this.gameMode) {
+        const result = this.gameMode.checkEnd(this.world)
+        if (result) {
+          this.gameOverEmitted = true
+          if (result.winner?.id === this.playerId) {
+            this.events.emit('victory', {
+              duration: this.world.time,
+              shotsFired: player!.shotsFired,
+              hits: player!.hits,
+              kills: player!.kills,
+            })
+          } else {
+            this.events.emit('game-over')
+          }
+          return
+        }
+      } else {
+        // Legacy fallback: no mode set → original hardcoded logic.
+        if (player && !player.alive) {
+          this.gameOverEmitted = true
+          this.events.emit('game-over')
+          return
+        }
+        const bots = this.world.ships.filter((s) => s.team === 'bot' && !s.escortOf)
+        if (bots.length > 0 && bots.every((b) => !b.alive)) {
+          this.gameOverEmitted = true
+          this.events.emit('victory', {
+            duration: this.world.time,
+            shotsFired: player!.shotsFired,
+            hits: player!.hits,
+            kills: player!.kills,
+          })
+          return
+        }
       }
     }
 
@@ -253,6 +276,9 @@ export class MainScene extends Phaser.Scene {
       if (player) this.events.emit('stats', buildStats(this.world, player))
       if (this.mode === 'online' && this.net?.round) {
         this.events.emit('round-status', { round: this.net.round, leaderboard: this.net.leaderboard })
+      }
+      if (this.gameMode) {
+        this.events.emit('mode-hud', this.gameMode.getHudState(this.world))
       }
     }
 

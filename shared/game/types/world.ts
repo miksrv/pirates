@@ -1,4 +1,5 @@
 import type { CollisionTile, IslandShape } from '../islandShape'
+import type { GameMode } from '../modes/types'
 import type { Vec2 } from '../vector'
 import type { Bomb, Bullet } from './combat'
 import type { Ship, Team } from './ship'
@@ -102,6 +103,8 @@ export interface World {
   megaSpawnTimer: number
   /** Multiplayer arenas respawn sunk ships (stats reset to base); single-player leaves wrecks. */
   respawnEnabled: boolean
+  /** Active game mode — defines win conditions, respawn rules, etc. */
+  mode?: GameMode
 }
 
 export interface PlayerInput {

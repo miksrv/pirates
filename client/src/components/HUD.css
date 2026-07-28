@@ -236,6 +236,32 @@
   accent-color: #3ee06f;
 }
 
+.mode-selector {
+  display: flex;
+  gap: 6px;
+}
+
+.mode-btn {
+  background: #0f131c;
+  border: 1px solid #2a3142;
+  border-radius: 6px;
+  color: #cfd6e3;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.mode-btn:hover {
+  border-color: #3ee06f;
+}
+
+.mode-btn-selected {
+  background: #1a2e1f;
+  border-color: #3ee06f;
+  color: #3ee06f;
+}
+
 .nickname-input {
   width: 160px;
   background: #0f131c;

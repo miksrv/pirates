@@ -1,8 +1,30 @@
-# Game Modes (planned)
+# Game Modes
 
-Not implemented yet. Priority order = implementation order (simplest first).
+## Architecture
 
-## FFA modes (no team system needed)
+- Interface: `shared/game/modes/types.ts` → `GameMode`
+- Each mode = separate file in `shared/game/modes/`
+- `World.mode` (optional) — active mode instance
+- `stepWorld` calls `mode.onStep()` after all physics/combat
+- Consumers call `mode.checkEnd()` to detect victory
+
+### GameMode hooks
+| Hook | Purpose |
+|------|---------|
+| `worldOptions()` | Defaults for respawn, bots, etc. |
+| `onStep(world, dt)` | Per-tick logic (zones, timers, scoring) |
+| `checkEnd(world)` | Returns `EndResult` or null |
+| `onShipSunk(world, ship, killer?)` | React to death (drop flag, transfer crown, etc.) |
+
+### Implemented
+- `lastShipStanding.ts` — no respawn, last alive wins
+- `deathmatch.ts` — timed round (GAMEPLAY_ROUND_DURATION), respawn on, most kills wins
+
+---
+
+## Planned modes (priority order)
+
+### FFA (no team system needed)
 
 ### 1. Last Ship Standing
 - No respawn, last alive wins
