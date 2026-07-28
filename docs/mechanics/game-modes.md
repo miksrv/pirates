@@ -44,7 +44,8 @@
 - `lastShipStanding.ts` — no respawn, last alive wins
 - `deathmatch.ts` — timed round (GAMEPLAY_ROUND_DURATION), respawn on, most kills wins
 - `battleRoyale.ts` — no respawn, shrinking storm zone (DPS outside), last alive wins
-- `kingOfTheHill.ts` — team mode, capture zone at center, first to 120 pts wins
+- `kingOfTheHill.ts` — team mode, capture zone at center, first to 80 pts wins
+- `teamDeathmatch.ts` — team mode, timed round, respawn on, team with most kills wins
 
 ---
 
@@ -98,9 +99,11 @@
 - **Heal override**: only chase heals far away if HP < 30%; otherwise look nearby
 - **Rare pickups**: only chase if near zone area
 
-### 6. Team Deathmatch
+### 6. Team Deathmatch ✅
 - Team kills scoreboard; friendly fire toggle (on/off)
 - 2 teams (red/blue), spawn on opposite sides
+- `onShipSunk` increments killer's faction score in `world.teamScores`
+- Highest team kills at `GAMEPLAY_ROUND_DURATION` wins
 
 ### 7. Domination (capture points)
 - 3-5 flags on islands; proximity capture (approach → timer ticks)

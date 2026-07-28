@@ -101,10 +101,12 @@ export function createWorld(options: WorldOptions = {}): World {
     world.ships.push(createShip('bot', pos, i, { faction, variant }))
   })
 
-  // Team mode: place a capture zone at the center.
+  // Team mode: init team scores; KOTH also gets a capture zone.
   if (isTeamMode) {
-    world.captureZone = { pos: { ...center }, radius: 300 }
     world.teamScores = { red: 0, blue: 0 }
+    if (options.mode?.id === 'kingOfTheHill') {
+      world.captureZone = { pos: { ...center }, radius: 300 }
+    }
   }
 
   for (let i = 0; i < PICKUP_INITIAL_COUNT; i += 1) spawnRandomPickup(world)

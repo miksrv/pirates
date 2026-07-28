@@ -133,6 +133,8 @@ export function applyDamage(world: World, ship: Ship, damage: number, attackerId
       world.events.push({ kind: 'kill', attackerName, targetName: ship.name })
       // Drop collected permanent boosts as pickups around the wreck.
       dropPermaBoosts(world, ship)
+      // Notify game mode (e.g. team score tracking).
+      world.mode?.onShipSunk(world, ship, attacker)
     }
   } else {
     world.events.push({ kind: 'damage', attackerName, targetName: ship.name, amount: Math.round(mitigated) })
