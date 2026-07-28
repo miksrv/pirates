@@ -67,8 +67,9 @@ export function updateShipMovement(ship: Ship, dt: number, world: World): boolea
     ship.pos.y += dir.y * ship.currentSpeed * dt
   }
 
-  ship.pos.x = clamp(ship.pos.x, ship.radius, world.width - ship.radius)
-  ship.pos.y = clamp(ship.pos.y, ship.radius, world.height - ship.radius)
+  const inset = world.shrinkInset
+  ship.pos.x = clamp(ship.pos.x, inset + ship.radius, world.width - inset - ship.radius)
+  ship.pos.y = clamp(ship.pos.y, inset + ship.radius, world.height - inset - ship.radius)
 
   let hitObstacle = false
   for (const obstacle of world.obstacles) {

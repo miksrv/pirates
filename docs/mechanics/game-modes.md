@@ -32,6 +32,7 @@
 ### Implemented
 - `lastShipStanding.ts` — no respawn, last alive wins
 - `deathmatch.ts` — timed round (GAMEPLAY_ROUND_DURATION), respawn on, most kills wins
+- `battleRoyale.ts` — no respawn, shrinking storm zone (DPS outside), last alive wins
 
 ---
 
@@ -57,6 +58,14 @@
 - Safe zone shrinks every N seconds; outside zone = DPS damage
 - Last alive wins
 - Already mentioned in roadmap-ideas.md
+
+#### Battle Royale — implementation details
+- `world.shrinkInset` увеличивается каждые 20 с на 60 px (отступ с каждой из 4 сторон)
+- Grace period: 5 s
+- Min dimension: 300 px (inset ограничен)
+- `shipMovement` зажимает по `[inset+radius .. width-inset-radius]`
+- Рендерер: groundTile сдвигается на inset и уменьшается — за краями тёмный фон
+- Камера остаётся в оригинальных границах — видно как поле сжимается
 
 ## Team modes (require team system: spawn sides, colored sails, team scoreboard)
 

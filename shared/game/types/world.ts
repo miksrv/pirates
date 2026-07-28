@@ -105,6 +105,8 @@ export interface World {
   respawnEnabled: boolean
   /** Active game mode — defines win conditions, respawn rules, etc. */
   mode?: GameMode
+  /** Symmetric inset from each edge (Battle Royale). Ships/bullets are clamped to inset..width-inset. */
+  shrinkInset: number
 }
 
 export interface PlayerInput {

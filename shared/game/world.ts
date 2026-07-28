@@ -62,6 +62,7 @@ export function createWorld(options: WorldOptions = {}): World {
     megaSpawnTimer: MEGA_SPAWN_INTERVAL,
     respawnEnabled: merged.respawnEnabled ?? false,
     mode: options.mode,
+    shrinkInset: 0,
   }
 
   const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }

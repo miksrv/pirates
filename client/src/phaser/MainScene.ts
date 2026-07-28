@@ -232,6 +232,13 @@ export class MainScene extends Phaser.Scene {
     syncBullets(this, this.minimapCam, this.world, this.bulletViews)
     syncShips(this, this.minimapCam, this.world, this.playerId, this.shipViews)
 
+    // Battle Royale: shrink the visible ground tile symmetrically from all sides.
+    if (this.gameMode?.id === 'battleRoyale') {
+      const inset = this.world.shrinkInset
+      this.groundTile.setPosition(inset, inset)
+      this.groundTile.setSize(this.world.width - inset * 2, this.world.height - inset * 2)
+    }
+
     if (this.mode === 'local' && !this.gameOverEmitted) {
       if (this.gameMode) {
         const result = this.gameMode.checkEnd(this.world)

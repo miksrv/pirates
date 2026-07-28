@@ -123,5 +123,6 @@ export function wireToWorld(wire: WireWorld): World {
     // Client-side copies are display-only; the server owns both spawn clocks.
     megaSpawnTimer: MEGA_SPAWN_INTERVAL,
     respawnEnabled: true,
+    shrinkInset: 0,
   }
 }
