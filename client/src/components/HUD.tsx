@@ -5,6 +5,7 @@ import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
+import type { VictoryData } from './victoryData'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
@@ -19,6 +20,7 @@ function formatLastSeen(iso: string): string {
 interface HUDProps {
   started: boolean
   gameOver: boolean
+  victory: VictoryData | null
   netError: string | null
   megaAnnounce: boolean
   /** iddqd debug panel — single-player only, wired up in PhaserGame. */
@@ -70,6 +72,7 @@ function EventLog({ log }: { log: LogEntry[] }) {
 export default function HUD({
   started,
   gameOver,
+  victory,
   netError,
   megaAnnounce,
   adminOpen,
@@ -297,6 +300,27 @@ export default function HUD({
         <div className="panel">
           <h1>Корабль потоплен</h1>
           {stats && <p className="subtitle">Убийств: {stats.kills}</p>}
+          <button className="primary-btn" onClick={onRestart}>Заново (R)</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (victory) {
+    const accuracy = victory.shotsFired > 0 ? Math.round((victory.hits / victory.shotsFired) * 100) : 0
+    const mins = Math.floor(victory.duration / 60)
+    const secs = Math.floor(victory.duration % 60)
+    return (
+      <div className="overlay">
+        <div className="panel">
+          <h1>🏆 Победа!</h1>
+          <p className="subtitle">Все вражеские корабли потоплены</p>
+          <div className="victory-stats">
+            <div className="victory-stat">⏱ Время: {mins}:{secs.toString().padStart(2, '0')}</div>
+            <div className="victory-stat">💀 Потоплено: {victory.kills}</div>
+            <div className="victory-stat">💣 Выстрелов: {victory.shotsFired}</div>
+            <div className="victory-stat">🎯 Попаданий: {victory.hits} ({accuracy}%)</div>
+          </div>
           <button className="primary-btn" onClick={onRestart}>Заново (R)</button>
         </div>
       </div>

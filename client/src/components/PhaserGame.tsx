@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
+import type { VictoryData } from './victoryData'
 import { defaultServerUrl } from '../net/config'
 import { MainScene, type LaunchConfig } from '../phaser/MainScene'
 import HUD from './HUD'
@@ -27,6 +28,7 @@ export default function PhaserGame() {
   const [log, setLog] = useState<LogEntry[]>([])
   const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [victory, setVictory] = useState<VictoryData | null>(null)
 
   const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType) => {
     if (gameRef.current) return
@@ -66,6 +68,7 @@ export default function PhaserGame() {
 
       scene.events.on('stats', (next: Stats) => setStats(next))
       scene.events.on('game-over', () => setGameOver(true))
+      scene.events.on('victory', (data: VictoryData) => setVictory(data))
       scene.events.on('net-error', (message: string) => setNetError(message))
       scene.events.on('mega-announce', () => {
         setMegaAnnounce(true)
@@ -74,6 +77,7 @@ export default function PhaserGame() {
       })
       scene.events.on('restarted', () => {
         setGameOver(false)
+        setVictory(null)
         setStats(null)
         setLog([])
         setRoundStatus(null)
@@ -135,6 +139,7 @@ export default function PhaserGame() {
       <HUD
         started={started}
         gameOver={gameOver}
+        victory={victory}
         netError={netError}
         megaAnnounce={megaAnnounce}
         adminOpen={adminOpen}

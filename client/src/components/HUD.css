@@ -643,3 +643,15 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
   pointer-events: none;
 }
+
+.victory-stats {
+  margin: 12px 0 20px;
+  text-align: left;
+}
+
+.victory-stat {
+  color: #c8d0de;
+  font-size: 15px;
+  padding: 4px 0;
+}
+

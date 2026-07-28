@@ -228,10 +228,23 @@ export class MainScene extends Phaser.Scene {
     syncBullets(this, this.minimapCam, this.world, this.bulletViews)
     syncShips(this, this.minimapCam, this.world, this.playerId, this.shipViews)
 
-    if (this.mode === 'local' && player && !player.alive && !this.gameOverEmitted) {
-      this.gameOverEmitted = true
-      this.events.emit('game-over')
-      return
+    if (this.mode === 'local' && !this.gameOverEmitted) {
+      if (player && !player.alive) {
+        this.gameOverEmitted = true
+        this.events.emit('game-over')
+        return
+      }
+      const bots = this.world.ships.filter((s) => s.team === 'bot' && !s.escortOf)
+      if (bots.length > 0 && bots.every((b) => !b.alive)) {
+        this.gameOverEmitted = true
+        this.events.emit('victory', {
+          duration: this.world.time,
+          shotsFired: player!.shotsFired,
+          hits: player!.hits,
+          kills: player!.kills,
+        })
+        return
+      }
     }
 
     this.statsAccum -= dt
