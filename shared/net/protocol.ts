@@ -77,6 +77,10 @@ export interface SnapshotMsg {
   leaderboard: LeaderboardEntry[]
   /** Battle Royale: symmetric inset from each edge (px). */
   shrinkInset?: number
+  /** Team mode scores (keyed by faction). */
+  teamScores?: Record<string, number>
+  /** Capture zone position and radius (KOTH). */
+  captureZone?: { pos: { x: number; y: number }; radius: number } | null
 }
 
 export interface ErrorMsg {
@@ -126,5 +130,7 @@ export function wireToWorld(wire: WireWorld): World {
     megaSpawnTimer: MEGA_SPAWN_INTERVAL,
     respawnEnabled: true,
     shrinkInset: 0,
+    teamScores: {},
+    captureZone: null,
   }
 }

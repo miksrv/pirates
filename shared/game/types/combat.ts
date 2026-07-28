@@ -1,5 +1,5 @@
 import type { Vec2 } from '../vector'
-import type { ShipVariant, Team } from './ship'
+import type { Faction, ShipVariant, Team } from './ship'
 
 export interface Bullet {
   id: string
@@ -12,6 +12,8 @@ export interface Bullet {
   ownerFleetId: string
   ownerTeam: Team
   ownerVariant: ShipVariant
+  /** Faction of the shooter; null in FFA modes. */
+  ownerFaction: Faction | null
   life: number
   /** Hellfire round: drawn wreathed in flame, and lethal on contact. */
   inferno: boolean

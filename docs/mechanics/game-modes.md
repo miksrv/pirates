@@ -17,6 +17,17 @@
 | `onShipSunk(world, ship, killer?)` | React to death (drop flag, transfer crown, etc.) |
 | `getHudState(world)` | Returns `ModeHudState` (timer, status) for in-game overlay |
 
+### Team system
+- `Ship.faction: 'red' | 'blue' | null` — null in FFA modes
+- `GameMode.teamMode?: boolean` — when true, engine assigns factions to all ships
+- `sameFaction(a, b)` — true if same fleet OR same faction (used for friendly fire, targeting, ramming)
+- Bullet stores `ownerFaction` — same-faction bullets pass through teammates
+- Bot AI skips same-faction ships in `selectTarget()`
+- `World.teamScores: Record<string, number>` — faction point totals
+- `World.captureZone: { pos, radius } | null` — objective zone (KOTH etc.)
+- Factions auto-balanced: new ships join the smaller faction
+- Ship variant forced to match faction color (red/blue)
+
 ### EndResult structure
 - `winner` — winning Ship or null (draw/loss)
 - `reason` — display string
@@ -33,6 +44,7 @@
 - `lastShipStanding.ts` — no respawn, last alive wins
 - `deathmatch.ts` — timed round (GAMEPLAY_ROUND_DURATION), respawn on, most kills wins
 - `battleRoyale.ts` — no respawn, shrinking storm zone (DPS outside), last alive wins
+- `kingOfTheHill.ts` — team mode, capture zone at center, first to 120 pts wins
 
 ---
 
@@ -69,10 +81,22 @@
 
 ## Team modes (require team system: spawn sides, colored sails, team scoreboard)
 
-### 5. King of the Hill
-- One capture point (center of map)
-- Team controlling it accumulates points; first to threshold wins
-- Simplest team objective mode
+### 5. King of the Hill ✅
+- One capture zone (center, radius 300 px)
+- Majority control scores: if 3 blue and 2 red in zone → blue scores; equal count → contested, no points
+- First to 80 pts wins; fallback: highest score at GAMEPLAY_ROUND_DURATION
+- Respawn enabled, timed round
+
+#### KOTH bot AI
+- **Primary goal**: get to zone and hold it
+- **Patrol**: zone is the waypoint; pickups only if inside/near zone (200 px)
+- **In zone, no enemies**: slow patrol (throttle 0.3) within zone, don't wander
+- **Chase**: only pursue enemies inside/near zone; if too far outside → return to zone
+- **Attack**: fight normally but tethered to zone (strong pull back if drifting out)
+- **Flee threshold lowered** (18% vs 25%) — zone is worth tanking extra damage
+- **Flee**: leave zone to find heals, avoid enemies, then return
+- **Heal override**: only chase heals far away if HP < 30%; otherwise look nearby
+- **Rare pickups**: only chase if near zone area
 
 ### 6. Team Deathmatch
 - Team kills scoreboard; friendly fire toggle (on/off)
@@ -99,4 +123,3 @@
 - Asymmetric: team A escorts NPC merchant ship along fixed route
 - Team B tries to sink it before destination
 - Swap sides after round; fastest escort time wins
-

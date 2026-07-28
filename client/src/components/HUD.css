@@ -715,6 +715,14 @@
   font-weight: 600;
 }
 
+.scoreboard-row-red {
+  border-left: 3px solid #e05252;
+}
+
+.scoreboard-row-blue {
+  border-left: 3px solid #52a5e0;
+}
+
 .sb-name {
   flex: 1;
   overflow: hidden;

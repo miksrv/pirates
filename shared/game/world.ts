@@ -23,9 +23,9 @@ import { PICKUP_DEFS } from './pickups'
 import { createShip, PLAYER_VARIANTS } from './ship/shipFactory'
 import { tryFireCannon } from './ship/cannon'
 import { resolveShipCollisions, updateShipMovement } from './ship/shipMovement'
-import { sameFleet, updateEscort } from './escort'
+import { sameFaction, updateEscort } from './escort'
 import { applyPerk } from './perks'
-import type { PerkType, Pickup, PlayerInputs, Ship, World } from './types'
+import type { PerkType, Pickup, PlayerInputs, Ship, World, Faction } from './types'
 import type { GameMode } from './modes/types'
 import { circlesOverlap } from './physics'
 
@@ -63,10 +63,18 @@ export function createWorld(options: WorldOptions = {}): World {
     respawnEnabled: merged.respawnEnabled ?? false,
     mode: options.mode,
     shrinkInset: 0,
+    teamScores: {},
+    captureZone: null,
   }
 
+  const isTeamMode = options.mode?.teamMode === true
+
   const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
-  if (withPlayer) world.ships.push(createShip('player', center, 0, { perk: options.playerPerk ?? null }))
+  if (withPlayer) {
+    const faction: Faction | null = isTeamMode ? 'red' : null
+    const variant = isTeamMode ? 'red' as const : undefined
+    world.ships.push(createShip('player', center, 0, { perk: options.playerPerk ?? null, faction, variant }))
+  }
 
   const botSpawns: { x: number; y: number }[] = []
   for (let i = 0; i < botCount; i += 1) {
@@ -81,8 +89,23 @@ export function createWorld(options: WorldOptions = {}): World {
   world.obstacles = generateObstacles(world, MAP_ISLAND_COUNT, MAP_ROCK_COUNT, [center, ...botSpawns])
 
   botSpawns.forEach((pos, i) => {
-    world.ships.push(createShip('bot', pos, i))
+    let faction: Faction | null = null
+    if (isTeamMode) {
+      // Balance teams: assign each bot to the smaller faction.
+      const captains = world.ships.filter((s) => !s.escortOf)
+      const redCount = captains.filter((s) => s.faction === 'red').length
+      const blueCount = captains.filter((s) => s.faction === 'blue').length
+      faction = redCount <= blueCount ? 'red' : 'blue'
+    }
+    const variant = isTeamMode ? (faction === 'red' ? 'red' as const : 'blue' as const) : undefined
+    world.ships.push(createShip('bot', pos, i, { faction, variant }))
   })
+
+  // Team mode: place a capture zone at the center.
+  if (isTeamMode) {
+    world.captureZone = { pos: { ...center }, radius: 300 }
+    world.teamScores = { red: 0, blue: 0 }
+  }
 
   for (let i = 0; i < PICKUP_INITIAL_COUNT; i += 1) spawnRandomPickup(world)
 
@@ -92,10 +115,21 @@ export function createWorld(options: WorldOptions = {}): World {
 /** Adds a human-controlled ship (multiplayer join). `index` picks the hull color and default name. */
 export function addPlayerShip(world: World, index: number, name?: string, perk?: PerkType | null): Ship {
   const pos = findFreeSpawnPoint(world, 40)
+  const isTeamMode = world.mode?.teamMode === true
+  // In team modes, balance teams by assigning to the faction with fewer captains.
+  let faction: Faction | null = null
+  if (isTeamMode) {
+    const captains = world.ships.filter((s) => !s.escortOf)
+    const redCount = captains.filter((s) => s.faction === 'red').length
+    const blueCount = captains.filter((s) => s.faction === 'blue').length
+    faction = redCount <= blueCount ? 'red' : 'blue'
+  }
+  const variant = isTeamMode ? (faction === 'red' ? 'red' as const : 'blue' as const) : PLAYER_VARIANTS[index % PLAYER_VARIANTS.length]
   const ship = createShip('player', pos, index, {
     name: name ?? `Игрок ${index + 1}`,
-    variant: PLAYER_VARIANTS[index % PLAYER_VARIANTS.length],
+    variant,
     perk: perk ?? null,
+    faction,
   })
   world.ships.push(ship)
   return ship
@@ -228,7 +262,7 @@ export function stepWorld(world: World, dt: number, inputs: PlayerInputs): void 
   for (const ship of world.ships) {
     if (!ship.escortOf || !ship.alive) continue
     for (const other of world.ships) {
-      if (!other.alive || other.id === ship.id || sameFleet(ship, other)) continue
+      if (!other.alive || other.id === ship.id || sameFaction(ship, other)) continue
       if (circlesOverlap(ship.pos, ship.radius, other.pos, other.radius)) {
         sinkEscort(world, ship)
         break

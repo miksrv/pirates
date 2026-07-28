@@ -8,7 +8,7 @@ import {
   BULLET_MAX_LIFE,
   BULLET_RADIUS,
 } from '../constants'
-import { sameFleet } from '../escort'
+import { sameFaction } from '../escort'
 import { PICKUP_DEFS, type PickupCategory } from '../pickups'
 import { bulletBlockerOverlap } from '../physics'
 import type { BotAI, Pickup, PickupType, Ship, World } from '../types'
@@ -113,8 +113,8 @@ export function selectTarget(ship: Ship, world: World, ai: BotAI): Ship | null {
   let currentScore = Infinity
 
   for (const other of world.ships) {
-    // Never pick a fight with your own escorts.
-    if (other.id === ship.id || !other.alive || sameFleet(ship, other)) continue
+    // Never pick a fight with your own escorts or faction teammates.
+    if (other.id === ship.id || !other.alive || sameFaction(ship, other)) continue
     const isCurrent = other.id === ai.targetShipId
     const d = distance(ship.pos, other.pos)
     if (d > (isCurrent ? BOT_SIGHT_RANGE * 1.3 : BOT_SIGHT_RANGE)) continue

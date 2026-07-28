@@ -1,4 +1,4 @@
-import type { Ship, World } from '../types'
+import type { Faction, Ship, World } from '../types'
 import type { WorldOptions } from '../world'
 
 /** Result returned when a game mode decides the match is over. */
@@ -19,6 +19,8 @@ export interface ScoreEntry {
   kills: number
   deaths: number
   isPlayer: boolean
+  /** Faction for team modes (red/blue); null in FFA. */
+  faction?: Faction | null
 }
 
 /** Data a mode wants displayed in the HUD overlay. All fields optional — omit what you don't need. */
@@ -36,6 +38,8 @@ export interface ModeHudState {
 export interface GameMode {
   id: string
   label: string
+  /** Whether this mode splits players into factions (red/blue). */
+  teamMode?: boolean
 
   /** Override default WorldOptions for this mode. */
   worldOptions(): Partial<WorldOptions>

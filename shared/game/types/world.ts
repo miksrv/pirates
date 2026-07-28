@@ -107,6 +107,10 @@ export interface World {
   mode?: GameMode
   /** Symmetric inset from each edge (Battle Royale). Ships/bullets are clamped to inset..width-inset. */
   shrinkInset: number
+  /** Team scores for team modes (keyed by Faction). */
+  teamScores: Record<string, number>
+  /** Capture zone for King of the Hill and similar modes. */
+  captureZone: { pos: Vec2; radius: number } | null
 }
 
 export interface PlayerInput {

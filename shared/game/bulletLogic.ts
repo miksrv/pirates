@@ -34,6 +34,7 @@ export function spawnBullet(
     ownerFleetId: fleetRootId(ship),
     ownerTeam: ship.team,
     ownerVariant: ship.variant,
+    ownerFaction: ship.faction,
     life: 0,
   }
   world.bullets.push(bullet)
@@ -78,7 +79,9 @@ export function updateBullets(world: World, dt: number): void {
 
     for (const ship of world.ships) {
       // A fleet never shoots itself: escorts sail directly in their captain's line of fire.
+      // In team modes, same-faction ships can't hurt each other either.
       if (!ship.alive || fleetRootId(ship) === bullet.ownerFleetId) continue
+      if (bullet.ownerFaction !== null && ship.faction === bullet.ownerFaction) continue
       const dx = ship.pos.x - bullet.pos.x
       const dy = ship.pos.y - bullet.pos.y
       const rr = ship.radius + bullet.radius

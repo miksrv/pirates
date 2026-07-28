@@ -2,6 +2,9 @@ import type { Vec2 } from '../vector'
 
 export type Team = 'player' | 'bot'
 
+/** Red vs Blue faction for team modes; null in FFA modes. */
+export type Faction = 'red' | 'blue'
+
 /** Loadout bonus chosen before the match — see src/game/perks.ts. */
 export type PerkType = 'swiftSails' | 'quickReload' | 'heavyShot'
 
@@ -111,4 +114,6 @@ export interface Ship {
   extraCannons: number
   /** Permanent-category boosts collected since last spawn — dropped as pickups on death. */
   collectedPermaBoosts: string[]
+  /** Team faction for team modes; null in FFA. */
+  faction: Faction | null
 }

@@ -343,8 +343,8 @@ export default function HUD({
                 <span className="sb-deaths">☠️</span>
               </div>
               {matchEnd.scoreboard!.map((entry, i) => (
-                <div key={i} className={`scoreboard-row${entry.isPlayer ? ' scoreboard-row-player' : ''}`}>
-                  <span className="sb-name">{entry.name}</span>
+                <div key={i} className={`scoreboard-row${entry.isPlayer ? ' scoreboard-row-player' : ''}${entry.faction === 'red' ? ' scoreboard-row-red' : ''}${entry.faction === 'blue' ? ' scoreboard-row-blue' : ''}`}>
+                  <span className="sb-name">{entry.faction === 'red' ? '🔴 ' : entry.faction === 'blue' ? '🔵 ' : ''}{entry.name}</span>
                   <span className="sb-kills">{entry.kills}</span>
                   <span className="sb-deaths">{entry.deaths}</span>
                 </div>

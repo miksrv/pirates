@@ -38,6 +38,12 @@ export function sameFleet(a: Ship, b: Ship): boolean {
   return fleetRootId(a) === fleetRootId(b)
 }
 
+/** True when two ships are on the same team (same faction or same fleet). */
+export function sameFaction(a: Ship, b: Ship): boolean {
+  if (sameFleet(a, b)) return true
+  return a.faction !== null && a.faction === b.faction
+}
+
 export function escortsOf(world: World, captainId: string): Ship[] {
   return world.ships.filter((s) => s.escortOf === captainId && s.alive)
 }
@@ -89,7 +95,7 @@ export function grantFleet(world: World, captain: Ship): void {
     const fouled = world.obstacles.some((o) => obstacleOverlap(slotPos, ESCORT_RADIUS, o))
     const pos = fouled ? { ...captain.pos } : slotPos
 
-    const escort = createShip(captain.team, pos, 0, { name: `${captain.name} · эскорт`, variant: captain.variant })
+    const escort = createShip(captain.team, pos, 0, { name: `${captain.name} · эскорт`, variant: captain.variant, faction: captain.faction })
     escort.escortOf = captain.id
     escort.escortSlot = slot
     escort.hp = ESCORT_HP
@@ -110,7 +116,7 @@ function nearestEnemy(escort: Ship, world: World): Ship | null {
   let best: Ship | null = null
   let bestDist = Infinity
   for (const other of world.ships) {
-    if (!other.alive || sameFleet(escort, other)) continue
+    if (!other.alive || sameFaction(escort, other)) continue
     const d = distance(escort.pos, other.pos)
     if (d < bestDist) {
       bestDist = d

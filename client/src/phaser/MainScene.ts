@@ -42,6 +42,7 @@ export class MainScene extends Phaser.Scene {
   private groundTile!: Phaser.GameObjects.TileSprite
   private minimapCam!: Phaser.Cameras.Scene2D.Camera
   private minimapMaskShape!: Phaser.GameObjects.Graphics
+  private captureZoneGfx: Phaser.GameObjects.Graphics | null = null
 
   private shipViews = new Map<string, ShipView>()
   private bulletViews = new Map<string, BulletView>()
@@ -190,6 +191,10 @@ export class MainScene extends Phaser.Scene {
       b.label.destroy()
     }
     this.bombViews.clear()
+    if (this.captureZoneGfx) {
+      this.captureZoneGfx.destroy()
+      this.captureZoneGfx = null
+    }
   }
 
   private startNewWorld(): void {
@@ -231,6 +236,23 @@ export class MainScene extends Phaser.Scene {
     syncBombs(this, this.minimapCam, this.world, this.bombViews)
     syncBullets(this, this.minimapCam, this.world, this.bulletViews)
     syncShips(this, this.minimapCam, this.world, this.playerId, this.shipViews)
+
+    // Capture zone rendering (KOTH and similar team modes).
+    if (this.world.captureZone) {
+      if (!this.captureZoneGfx) {
+        this.captureZoneGfx = this.add.graphics().setDepth(1)
+      }
+      const zone = this.world.captureZone
+      const pulse = 0.15 + 0.1 * Math.sin(this.world.time * 2)
+      this.captureZoneGfx.clear()
+      this.captureZoneGfx.lineStyle(3, 0xffffff, 0.6)
+      this.captureZoneGfx.fillStyle(0xffcc00, pulse)
+      this.captureZoneGfx.fillCircle(zone.pos.x, zone.pos.y, zone.radius)
+      this.captureZoneGfx.strokeCircle(zone.pos.x, zone.pos.y, zone.radius)
+    } else if (this.captureZoneGfx) {
+      this.captureZoneGfx.destroy()
+      this.captureZoneGfx = null
+    }
 
     // Battle Royale: shrink the visible ground tile symmetrically from all sides.
     if (this.gameMode?.id === 'battleRoyale') {

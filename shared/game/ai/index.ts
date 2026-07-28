@@ -66,6 +66,13 @@ import { bombAvoidance, boundaryAvoidance, bulletDodge } from './threats'
 /** First N seconds: bots avoid combat and focus on collecting boosts. */
 const BOT_EARLY_GAME_TIME = 30
 
+/** In KOTH: how far outside the zone a bot will chase/fight before being pulled back. */
+const KOTH_TETHER_MARGIN = 80
+/** In KOTH: pickup seek range is limited to zone area + this margin. */
+const KOTH_PICKUP_RANGE = 200
+/** In KOTH: flee threshold is lower — the zone is worth tanking more damage for. */
+const KOTH_FLEE_HP_FRACTION = 0.18
+
 /** Updates a bot's AI state and steering. Returns true if it wants to fire this frame. */
 export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   const ai = ship.ai
@@ -122,8 +129,18 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   // A shield charge soaks a full hit, so it buys courage; hysteresis (enter low, exit higher)
   // keeps a bot from flip-flopping between flee and attack around the threshold.
   const effectiveHp = hpFraction + ship.shieldCharges * 0.12
+
+  // ─── KOTH context ──────────────────────────────────────────────────────────
+  const zone = world.captureZone
+  const isKoth = zone !== null && ship.faction !== null
+  const distToZone = isKoth ? distance(ship.pos, zone!.pos) : Infinity
+  const inZone = isKoth && distToZone <= zone!.radius
+  const nearZone = isKoth && distToZone <= zone!.radius + KOTH_TETHER_MARGIN
+
+  // In KOTH bots hold the point harder — they only flee at very low HP.
+  const fleeThreshold = isKoth ? KOTH_FLEE_HP_FRACTION : BOT_FLEE_HP_FRACTION
   const shouldFlee =
-    ai.state === 'flee' ? effectiveHp <= BOT_FLEE_RECOVER_FRACTION : effectiveHp <= BOT_FLEE_HP_FRACTION
+    ai.state === 'flee' ? effectiveHp <= BOT_FLEE_RECOVER_FRACTION : effectiveHp <= fleeThreshold
 
   // Early game: avoid combat and focus on collecting boosts (unless needing to flee).
   const earlyGame = world.time < BOT_EARLY_GAME_TIME
@@ -162,21 +179,47 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
 
   switch (ai.state) {
     case 'patrol': {
-      // Priority-weighted search: rarer pickups are worth going further for.
-      // Skip pure-repair pickups at full health — leave them on the map for when they matter.
-      const pickup = disengaging
-        ? null
-        : findPriorityPickup(ship, world, 600, (p) =>
-            nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
-          )
-      if (pickup) {
-        ship.moveDir = normalize(sub(pickup.pos, ship.pos))
-      } else {
-        if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
-          ai.targetPos = randomPointNear(world, ship.pos, 400)
-          ai.retargetTimer = BOT_RETARGET_INTERVAL
+      if (isKoth && !disengaging) {
+        // ── KOTH patrol: zone is the primary objective ──
+        // Only grab pickups that are inside/near the zone; don't wander across the map for loot.
+        const pickupRange = inZone ? KOTH_PICKUP_RANGE : 150
+        const pickup = findPriorityPickup(ship, world, pickupRange, (p) =>
+          nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
+        )
+        if (pickup) {
+          ship.moveDir = normalize(sub(pickup.pos, ship.pos))
+        } else if (!inZone) {
+          // Outside the zone → head straight for it.
+          ship.moveDir = normalize(sub(zone!.pos, ship.pos))
+        } else {
+          // Inside the zone with no pickups, no enemies → slow patrol within zone or idle.
+          if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
+            const angle = Math.random() * Math.PI * 2
+            const r = zone!.radius * 0.5
+            ai.targetPos = {
+              x: zone!.pos.x + Math.cos(angle) * r,
+              y: zone!.pos.y + Math.sin(angle) * r,
+            }
+            ai.retargetTimer = BOT_RETARGET_INTERVAL
+          }
+          ship.moveDir = normalize(sub(ai.targetPos, ship.pos))
         }
-        ship.moveDir = normalize(sub(ai.targetPos, ship.pos))
+      } else {
+        // ── Normal FFA patrol ──
+        const pickup = disengaging
+          ? null
+          : findPriorityPickup(ship, world, 600, (p) =>
+              nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
+            )
+        if (pickup) {
+          ship.moveDir = normalize(sub(pickup.pos, ship.pos))
+        } else {
+          if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
+            ai.targetPos = randomPointNear(world, ship.pos, 400)
+            ai.retargetTimer = BOT_RETARGET_INTERVAL
+          }
+          ship.moveDir = normalize(sub(ai.targetPos, ship.pos))
+        }
       }
       // Opportunistic shooting: fire at nearby enemies while collecting boosts.
       if (target) {
@@ -191,6 +234,10 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     case 'chase': {
       if (target) {
         ship.moveDir = normalize(sub(target.pos, ship.pos))
+        // KOTH: don't chase enemies outside the zone — let them come to you.
+        if (isKoth && !nearZone) {
+          ship.moveDir = normalize(sub(zone!.pos, ship.pos))
+        }
         const shot = computeShot(target)
         desiredAim = shot.angle
         // Cannonballs outrange sight, so lob predicted shots while closing in.
@@ -223,6 +270,15 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
           ship.moveDir = away
         } else {
           ship.moveDir = { x: -away.y * ai.strafeDir, y: away.x * ai.strafeDir }
+        }
+
+        // KOTH: tether to zone — if maneuvering is pulling us out, blend back toward center.
+        if (isKoth && !nearZone) {
+          const toZone = normalize(sub(zone!.pos, ship.pos))
+          ship.moveDir = normalize({
+            x: ship.moveDir.x + toZone.x * 3,
+            y: ship.moveDir.y + toZone.y * 3,
+          })
         }
 
         const shot = computeShot(target)
@@ -268,8 +324,11 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   let overrideActive = false
 
   // 1. Low HP: race for any healing pickup across a wide range, keep shooting.
+  //    In KOTH: only leave zone for heals when really desperate (< 0.3); otherwise look nearby.
+  const healUrgent = isKoth ? hpFraction < 0.3 : hpFraction < 0.5
+  const healRange = healUrgent ? 2000 : (isKoth ? KOTH_PICKUP_RANGE : 2000)
   if (hpFraction < 0.5) {
-    const healOverride = findPriorityPickup(ship, world, 2000, (p) => HEALING_PICKUPS.has(p.type))
+    const healOverride = findPriorityPickup(ship, world, healRange, (p) => HEALING_PICKUPS.has(p.type))
     if (healOverride) {
       ship.moveDir = normalize(sub(healOverride.pos, ship.pos))
       overrideActive = true
@@ -281,9 +340,10 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
       }
     }
   }
-  // 2. Rare pickup on map: drop everything and race for it, keep shooting.
+  // 2. Rare pickup on map: race for it — but in KOTH only if it's near the zone.
   if (!overrideActive && !disengaging) {
-    const rareOverride = findPriorityPickup(ship, world, 2000, (p) => PICKUP_DEFS[p.type].category === 'rare')
+    const rareRange = isKoth ? (zone!?.radius ?? 300) + KOTH_PICKUP_RANGE : 2000
+    const rareOverride = findPriorityPickup(ship, world, rareRange, (p) => PICKUP_DEFS[p.type].category === 'rare')
     if (rareOverride) {
       ship.moveDir = normalize(sub(rareOverride.pos, ship.pos))
       overrideActive = true
@@ -298,8 +358,10 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
 
   // Even mid-fight, bend the heading toward a pickup if it's right there — hurt bots lunge
   // harder for healing ones. Skip when a priority override is already steering.
+  // In KOTH: only grab pickups that are inside/near the zone.
   if (!overrideActive && ai.state !== 'patrol') {
-    const nearbyPickup = findNearestPickup(ship, world, BOT_COMBAT_PICKUP_SEEK_RANGE, (p) =>
+    const combatPickupRange = isKoth ? Math.min(BOT_COMBAT_PICKUP_SEEK_RANGE, KOTH_PICKUP_RANGE) : BOT_COMBAT_PICKUP_SEEK_RANGE
+    const nearbyPickup = findNearestPickup(ship, world, combatPickupRange, (p) =>
       nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
     )
     if (nearbyPickup) {
@@ -312,6 +374,7 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
       })
     }
   }
+
 
   // Layer the survival steering on top of whatever the state decided: sidestep incoming
   // cannonballs, steer around mines, swing around islands, and stay off the map edge.
@@ -366,7 +429,12 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     const desiredAngle = angleOf(ship.moveDir)
     const diff = angleDiff(desiredAngle, ship.bodyAngle)
     ship.turnDir = clamp(diff / 0.5, -1, 1)
-    ship.throttle = 1
+    // KOTH: idle inside the zone when there's nothing to do — slow patrol instead of full speed.
+    if (isKoth && inZone && ai.state === 'patrol' && !target && !overrideActive) {
+      ship.throttle = 0.3
+    } else {
+      ship.throttle = 1
+    }
   } else {
     ship.throttle = 0
     ship.turnDir = 0

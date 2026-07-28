@@ -2,7 +2,7 @@ import type { WebSocket } from 'ws'
 import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_RESTART_DELAY } from '../shared/game/constants'
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
-import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World } from '../shared/game/types'
+import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World, Faction } from '../shared/game/types'
 import { addPlayerShip, createWorld, removeShip, stepWorld } from '../shared/game/world'
 import { getGameMode, deathmatch } from '../shared/game/modes'
 import type { GameMode } from '../shared/game/modes/types'
@@ -133,6 +133,8 @@ function buildSnapshot(): SnapshotMsg {
     round: roundStatus(),
     leaderboard: buildLeaderboard(),
     shrinkInset: w.shrinkInset || undefined,
+    teamScores: Object.keys(w.teamScores).length > 0 ? w.teamScores : undefined,
+    captureZone: w.captureZone ?? undefined,
   }
   pendingEvents = []
   return snapshot
@@ -239,7 +241,16 @@ export function syncBotCount(): void {
     for (const bot of bots.slice(0, bots.length - desired)) removeShip(world, bot.id)
   } else {
     for (let i = bots.length; i < desired; i += 1) {
-      world.ships.push(createShip('bot', findFreeSpawnPoint(world, 40), i))
+      // In team modes, balance factions for new bots.
+      let faction: Faction | null = null
+      if (world.mode?.teamMode) {
+        const captains = world.ships.filter((s) => !s.escortOf)
+        const redCount = captains.filter((s) => s.faction === 'red').length
+        const blueCount = captains.filter((s) => s.faction === 'blue').length
+        faction = redCount <= blueCount ? 'red' : 'blue'
+      }
+      const variant = faction === 'red' ? 'red' as const : faction === 'blue' ? 'blue' as const : undefined
+      world.ships.push(createShip('bot', findFreeSpawnPoint(world, 40), i, { faction, variant }))
     }
   }
 }
