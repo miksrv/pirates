@@ -52,6 +52,43 @@ function formatRoundTime(seconds: number): string {
 const NICKNAME_LS_KEY = 'pirates.nickname'
 const PERK_LS_KEY = 'pirates.perk'
 
+/** Flavor text for the mode-select cards — kept local to the HUD since it's presentational only. */
+const MODE_INFO: Record<string, { icon: string; desc: string }> = {
+  lastShipStanding: { icon: '☠️', desc: 'Без возрождений — побеждает последний на плаву' },
+  deathmatch: { icon: '⚔️', desc: 'Респавн включён, у кого больше потоплений к концу раунда' },
+  battleRoyale: { icon: '🌀', desc: 'Зона сужается — не задерживайтесь на краю карты' },
+  kingOfTheHill: { icon: '⛰️', desc: 'Удерживайте зону в центре дольше соперников' },
+  teamDeathmatch: { icon: '🚩', desc: 'Командный бой 🔴 против 🔵 до конца раунда' },
+  captureTheFlag: { icon: '🏁', desc: 'Захватите флаг соперника и принесите на свою базу' },
+}
+
+function StepHeader({
+  step,
+  total,
+  title,
+  onBack,
+}: {
+  step: number
+  total: number
+  title: string
+  onBack: () => void
+}) {
+  return (
+    <div className="wizard-head">
+      <button className="wizard-back" onClick={onBack} title="Назад">←</button>
+      <div className="wizard-progress">
+        <span className="wizard-step">Шаг {step} из {total}</span>
+        <div className="wizard-dots">
+          {Array.from({ length: total }).map((_, i) => (
+            <span key={i} className={`wizard-dot${i < step ? ' wizard-dot-done' : ''}`} />
+          ))}
+        </div>
+      </div>
+      <h1 className="wizard-title">{title}</h1>
+    </div>
+  )
+}
+
 function EventLog({ log }: { log: LogEntry[] }) {
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -94,8 +131,10 @@ export default function HUD({
 }: HUDProps) {
   const [botCount, setBotCount] = useState(BOT_DEFAULT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
-  /** Set once the player picks a mode — switches the menu to the perk step. */
+  /** Set once the player picks a mode — switches the menu to the config/perk steps. */
   const [pendingMode, setPendingMode] = useState<'local' | 'online' | null>(null)
+  /** Local-only sub-step: game mode + bot count, before the shared perk step. */
+  const [localStep, setLocalStep] = useState<'settings' | 'perk'>('settings')
   const [gameModeId, setGameModeId] = useState(GAME_MODES[0].id)
   const [perk, setPerk] = useState<PerkType>(() => {
     const saved = localStorage.getItem(PERK_LS_KEY)
@@ -153,44 +192,115 @@ export default function HUD({
     )
   }
 
-  if (!started && pendingMode) {
+  const helpFab = (
+    <button className="help-fab" onClick={() => setHelpOpen(true)} title="Как играть">❓</button>
+  )
+
+  const helpModal = helpOpen && (
+    <div className="help-overlay" onClick={() => setHelpOpen(false)}>
+      <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="help-modal-head">
+          <span className="side-panel-title">Как играть</span>
+          <button className="admin-close" onClick={() => setHelpOpen(false)}>✕</button>
+        </div>
+        <ul className="rules">
+          <li><b>WASD / стрелки</b> — управление кораблём</li>
+          <li><b>Мышь</b> — прицеливание пушкой</li>
+          <li><b>ЛКМ / пробел</b> — огонь</li>
+          <li><b>Shift</b> — ускорение</li>
+          <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
+        </ul>
+        <div className="side-panel-title">🎁 Бусты</div>
+        <div className="boosts-list">
+          {PICKUP_TYPES.map((type) => {
+            const def = PICKUP_DEFS[type]
+            return (
+              <div key={type} className="boost-item">
+                <span className="boost-item-emoji">{def.emoji}</span>
+                <div className="boost-item-text">
+                  <span className="boost-item-label">{def.label}</span>
+                  <span className="boost-item-desc">{def.description}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+
+  // Step 2 of 3 (local only): pick the game mode and bot count before the shared perk step.
+  if (!started && pendingMode === 'local' && localStep === 'settings') {
     return (
-      <div className="overlay">
-        <div className="panel">
-          <h1>Выберите перк</h1>
-          <p className="subtitle">
-            {pendingMode === 'online' ? 'Мультиплеер' : 'Одиночная игра'} — бонус действует весь бой
-            {pendingMode === 'online' ? ' и сохраняется после возрождения' : ''}
-          </p>
-          {pendingMode === 'local' && (
-            <div className="menu-setting">
-              <label htmlFor="bot-count">Ботов: <b>{botCount}</b></label>
-              <input
-                id="bot-count"
-                type="range"
-                min={0}
-                max={BOT_MAX_COUNT}
-                value={botCount}
-                onChange={(e) => setBotCount(Number(e.target.value))}
-              />
-            </div>
-          )}
-          {pendingMode === 'local' && (
-            <div className="menu-setting">
-              <label>Режим:</label>
-              <div className="mode-selector">
-                {GAME_MODES.map((m) => (
+      <div className="overlay pirate-bg">
+        <div className="panel wizard-panel" key="settings">
+          <StepHeader step={2} total={3} title="Настройте бой" onBack={() => setPendingMode(null)} />
+
+          <div className="wizard-section">
+            <div className="wizard-section-label">Режим игры</div>
+            <div className="gamemode-grid">
+              {GAME_MODES.map((m) => {
+                const info = MODE_INFO[m.id]
+                return (
                   <button
                     key={m.id}
-                    className={`mode-btn${gameModeId === m.id ? ' mode-btn-selected' : ''}`}
+                    className={`gamemode-card${gameModeId === m.id ? ' gamemode-card-selected' : ''}`}
                     onClick={() => setGameModeId(m.id)}
                   >
-                    {m.label}
+                    <span className="gamemode-icon">{info?.icon ?? '🎮'}</span>
+                    <span className="gamemode-label">{m.label}</span>
+                    <span className="gamemode-desc">{info?.desc ?? ''}</span>
+                    <span className={`gamemode-badge${m.teamMode ? ' gamemode-badge-team' : ''}`}>
+                      {m.teamMode ? '🔴🔵 Команды' : '🆓 Все против всех'}
+                    </span>
                   </button>
-                ))}
-              </div>
+                )
+              })}
             </div>
-          )}
+          </div>
+
+          <div className="wizard-section">
+            <div className="wizard-section-label">Количество ботов: <b className="bot-count-value">{botCount}</b></div>
+            <div className="bot-pills">
+              {Array.from({ length: BOT_MAX_COUNT + 1 }).map((_, n) => (
+                <button
+                  key={n}
+                  className={`bot-pill${botCount === n ? ' bot-pill-selected' : ''}`}
+                  onClick={() => setBotCount(n)}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="menu-buttons">
+            <button className="primary-btn primary-btn-big" onClick={() => setLocalStep('perk')}>Далее →</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Perk step — shared by both modes; last step for online (2/2), final step for local (3/3).
+  if (!started && pendingMode) {
+    const total = pendingMode === 'local' ? 3 : 2
+    const step = total
+    const summary = pendingMode === 'local'
+      ? `${GAME_MODES.find((m) => m.id === gameModeId)?.label ?? ''} · ботов: ${botCount}`
+      : 'Мультиплеер'
+    return (
+      <div className="overlay pirate-bg">
+        <div className="panel wizard-panel" key="perk">
+          <StepHeader
+            step={step}
+            total={total}
+            title="Выберите стартовый буст"
+            onBack={() => (pendingMode === 'local' ? setLocalStep('settings') : setPendingMode(null))}
+          />
+          <p className="subtitle">
+            Бонус действует весь бой{pendingMode === 'online' ? ' и сохраняется после возрождения' : ''}
+          </p>
           <div className="perk-grid">
             {PERK_TYPES.map((type) => {
               const def = PERK_DEFS[type]
@@ -200,16 +310,16 @@ export default function HUD({
                   className={`perk-card${perk === type ? ' perk-card-selected' : ''}`}
                   onClick={() => setPerk(type)}
                 >
-                  <span className="perk-emoji">{def.emoji}</span>
+                  <span className="perk-icon-wrap"><span className="perk-emoji">{def.emoji}</span></span>
                   <span className="perk-label">{def.label}</span>
                   <span className="perk-desc">{def.description}</span>
                 </button>
               )
             })}
           </div>
+          <div className="wizard-summary">{summary}{nickname ? ` · ${nickname}` : ''}</div>
           <div className="menu-buttons">
-            <button className="primary-btn" onClick={handleLaunch}>В бой</button>
-            <button className="secondary-btn" onClick={() => setPendingMode(null)}>Назад</button>
+            <button className="primary-btn primary-btn-big" onClick={handleLaunch}>В бой ⚓</button>
           </div>
         </div>
       </div>
@@ -218,54 +328,80 @@ export default function HUD({
 
   if (!started) {
     return (
-      <div className="overlay">
+      <div className="overlay pirate-bg">
+        <div className="start-deco" aria-hidden="true">
+          <span className="start-deco-item start-deco-1">🧭</span>
+          <span className="start-deco-item start-deco-2">☠️</span>
+          <span className="start-deco-item start-deco-3">⚓</span>
+          <span className="start-deco-item start-deco-4">🌊</span>
+        </div>
         <div className="menu-columns">
           <div className="panel menu-panel">
-            <button className="help-fab" onClick={() => setHelpOpen(true)} title="Как играть">❓</button>
+            {helpFab}
 
-            <h1>Pirates Arena</h1>
+            <div className="start-badge">🏴‍☠️ Морская арена</div>
+            <h1 className="start-title">Pirates Arena</h1>
             <p className="subtitle">Морской бой на выживание — потопите все корабли на арене</p>
 
-            <input
-              className="nickname-input nickname-input-big"
-              type="text"
-              maxLength={16}
-              placeholder="Ваш ник"
-              value={nickname}
-              onChange={(e) => handleNickname(e.target.value)}
-              autoFocus
-            />
+            <label className="start-field">
+              <span className="start-field-label">Имя капитана</span>
+              <input
+                className="nickname-input nickname-input-big"
+                type="text"
+                maxLength={16}
+                placeholder="Ваш ник"
+                value={nickname}
+                onChange={(e) => handleNickname(e.target.value)}
+                autoFocus
+              />
+            </label>
 
-            <button
-              className="primary-btn primary-btn-big"
-              disabled={serverUnreachable || serverStatus?.full}
-              onClick={() => setPendingMode('online')}
-            >
-              ⚓ Играть онлайн
-            </button>
-            <p className={`server-status${serverUnreachable ? ' server-status-offline' : ''}${serverStatus?.full ? ' server-status-full' : ''}`}>
-              {serverUnreachable && 'Сервер недоступен — попробуйте одиночную игру'}
-              {!serverUnreachable && !serverStatus && 'Проверка сервера...'}
-              {!serverUnreachable && serverStatus && (
-                serverStatus.full
-                  ? `Сервер полон (${serverStatus.players}/${serverStatus.maxPlayers})`
-                  : `Сервер: ${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots}`
-              )}
-            </p>
+            <div className="mode-cards">
+              <button
+                className="mode-card mode-card-online"
+                disabled={serverUnreachable || serverStatus?.full}
+                onClick={() => setPendingMode('online')}
+              >
+                <span className="mode-card-icon">🌐</span>
+                <span className="mode-card-title">Играть онлайн</span>
+                <span className="mode-card-desc">Живые соперники, общий рейтинг</span>
+                <span className={`mode-card-status${serverUnreachable ? ' mode-card-status-offline' : ''}${serverStatus?.full ? ' mode-card-status-full' : ''}`}>
+                  <span className="mode-card-dot" />
+                  {serverUnreachable && 'Сервер недоступен'}
+                  {!serverUnreachable && !serverStatus && 'Проверка сервера...'}
+                  {!serverUnreachable && serverStatus && (
+                    serverStatus.full
+                      ? `Полон (${serverStatus.players}/${serverStatus.maxPlayers})`
+                      : `${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots}`
+                  )}
+                </span>
+              </button>
 
-            <button className="secondary-btn secondary-btn-block" onClick={() => setPendingMode('local')}>
-              🏝 Играть с ботами
-            </button>
+              <button
+                className="mode-card mode-card-local"
+                onClick={() => {
+                  setLocalStep('settings')
+                  setPendingMode('local')
+                }}
+              >
+                <span className="mode-card-icon">🏝</span>
+                <span className="mode-card-title">Играть с ботами</span>
+                <span className="mode-card-desc">Оффлайн, настройте режим и число соперников</span>
+              </button>
+            </div>
           </div>
 
-          <div className="side-panel leaderboard-panel">
+          <div className="side-panel leaderboard-panel start-leaderboard">
             <div className="side-panel-title">🏆 Топ-10 игроков</div>
             {serverStatus && serverStatus.leaderboard.length > 0 ? (
               <div className="leaderboard">
                 {serverStatus.leaderboard.map((entry, i) => (
                   <div key={entry.playerId} className="leaderboard-row">
                     <span className="leaderboard-name">
-                      <span className="leaderboard-rank">#{i + 1}</span> {entry.name}
+                      <span className={`leaderboard-rank${i < 3 ? ` leaderboard-rank-${i + 1}` : ''}`}>
+                        {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+                      </span>{' '}
+                      {entry.name}
                     </span>
                     <span
                       className="leaderboard-kills"
@@ -282,38 +418,7 @@ export default function HUD({
           </div>
         </div>
 
-        {helpOpen && (
-          <div className="help-overlay" onClick={() => setHelpOpen(false)}>
-            <div className="help-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="help-modal-head">
-                <span className="side-panel-title">Как играть</span>
-                <button className="admin-close" onClick={() => setHelpOpen(false)}>✕</button>
-              </div>
-              <ul className="rules">
-                <li><b>WASD / стрелки</b> — управление кораблём</li>
-                <li><b>Мышь</b> — прицеливание пушкой</li>
-                <li><b>ЛКМ / пробел</b> — огонь</li>
-                <li><b>Shift</b> — ускорение</li>
-                <li>Разбивайте бочки и обломки, собирайте предметы, чтобы усилить корабль</li>
-              </ul>
-              <div className="side-panel-title">🎁 Бусты</div>
-              <div className="boosts-list">
-                {PICKUP_TYPES.map((type) => {
-                  const def = PICKUP_DEFS[type]
-                  return (
-                    <div key={type} className="boost-item">
-                      <span className="boost-item-emoji">{def.emoji}</span>
-                      <div className="boost-item-text">
-                        <span className="boost-item-label">{def.label}</span>
-                        <span className="boost-item-desc">{def.description}</span>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </div>
-        )}
+        {helpModal}
       </div>
     )
   }
