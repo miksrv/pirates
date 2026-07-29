@@ -38,7 +38,14 @@ export default function PhaserGame() {
   const [levelUp, setLevelUp] = useState<number | null>(null)
   const levelUpTimerRef = useRef<number | undefined>(undefined)
 
-  const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => {
+  const handleStart = useCallback((
+    mode: 'local' | 'online',
+    botCount: number,
+    nickname: string,
+    perk: PerkType,
+    gameModeId: string | null,
+    authToken: string | null,
+  ) => {
     if (gameRef.current) return
 
     const game = new Phaser.Game({
@@ -60,6 +67,7 @@ export default function PhaserGame() {
       nickname: nickname.trim() || undefined,
       perk,
       gameMode: gameModeId ? getGameMode(gameModeId) ?? null : null,
+      authToken,
     }
     game.registry.set('launch', launch)
     gameRef.current = game

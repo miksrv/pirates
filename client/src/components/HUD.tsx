@@ -9,6 +9,7 @@ import type { PerkType, PickupType } from '../../../shared/game/types'
 import { GAME_MODES, type ModeHudState, type EndResult } from '../../../shared/game/modes'
 import type { LeaderboardEntry, RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
+import { clearStoredAuth, fetchProfile, getStoredAuth, login, setStoredAuth, UnauthorizedError, type ProfileData, type StoredAuth } from '../net/auth'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
 import type { LogEntry } from './logEntry'
 import './HUD.css'
@@ -45,7 +46,7 @@ interface HUDProps {
   rank: RankProgress | null
   /** Level just reached (round-transition welcome), shown as a celebration toast; null otherwise. */
   levelUp: number | null
-  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => void
+  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null, authToken: string | null) => void
   onRestart: () => void
   /** Casts this player's vote for the next round's mode/bot count (online only). */
   onVote: (gameModeId: string, botCount: number) => void
@@ -206,6 +207,53 @@ function RankWidget({ rank }: { rank: RankProgress }) {
   )
 }
 
+/** Personal profile page: full lifetime stats + rank progress for the logged-in account. */
+function ProfileModal({ auth, profile, onClose }: { auth: StoredAuth; profile: ProfileData | null; onClose: () => void }) {
+  const p = profile?.profile
+  const maxed = !!p && p.xpForNextLevel <= 0
+  const pct = p ? (maxed ? 100 : Math.min(100, Math.round((p.xpIntoLevel / p.xpForNextLevel) * 100))) : 0
+
+  return (
+    <div className="help-overlay" onClick={onClose}>
+      <div className="help-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="help-modal-head">
+          <span className="side-panel-title">👤 {auth.username}</span>
+          <button className="admin-close" onClick={onClose}>✕</button>
+        </div>
+        {!p ? (
+          <p className="subtitle">Пока нет данных — сыграйте хотя бы один раунд онлайн</p>
+        ) : (
+          <>
+            <div className="profile-rank">
+              <RankBadge level={p.level} />
+              <div className="profile-rank-text">
+                <span className="hud-rank-level">Уровень {p.level}</span>
+                <div className="hud-rank-bar profile-rank-bar">
+                  <div className="hud-rank-bar-fill" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="profile-rank-sub">
+                  {maxed ? `Максимальный уровень · ${p.xp} XP всего` : `${p.xpIntoLevel} / ${p.xpForNextLevel} XP до следующего уровня`}
+                </span>
+              </div>
+            </div>
+            <div className="profile-stats-grid">
+              <div className="profile-stat"><span className="profile-stat-value">{p.kills}</span><span className="profile-stat-label">Потоплено</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{p.deaths}</span><span className="profile-stat-label">Потоплен сам</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{p.wins}</span><span className="profile-stat-label">Побед</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{p.losses}</span><span className="profile-stat-label">Поражений</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{Math.round(p.accuracy * 100)}%</span><span className="profile-stat-label">Точность</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{p.roundsPlayed}</span><span className="profile-stat-label">Раундов</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{Math.floor(p.playTimeSeconds / 60)} мин</span><span className="profile-stat-label">В игре</span></div>
+              <div className="profile-stat"><span className="profile-stat-value">{p.xp}</span><span className="profile-stat-label">Всего XP</span></div>
+            </div>
+            <p className="subtitle profile-updated">Обновлено: {formatLastSeen(p.updatedAt)}</p>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function HUD({
   started,
   gameOver,
@@ -252,10 +300,52 @@ export default function HUD({
   const [voteGameModeId, setVoteGameModeId] = useState(GAME_MODES[0].id)
   const [voteBotCount, setVoteBotCount] = useState(BOT_DEFAULT_COUNT)
   const [voteCast, setVoteCast] = useState(false)
+  const [auth, setAuth] = useState<StoredAuth | null>(() => getStoredAuth())
+  const [authProfile, setAuthProfile] = useState<ProfileData | null>(null)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [authBusy, setAuthBusy] = useState(false)
+  const [authError, setAuthError] = useState<string | null>(null)
 
   useEffect(() => {
     if (roundStatus?.phase === 'playing') setVoteCast(false)
   }, [roundStatus?.phase])
+
+  // Resyncs from localStorage whenever we return to the menu — picks up a token dropped
+  // mid-match (see MainScene: an authToken the server rejected clears storage directly, since
+  // this component isn't mounted-away during a match to react to it any other way).
+  useEffect(() => {
+    if (started) return
+    const stored = getStoredAuth()
+    setAuth(stored)
+    if (!stored) setAuthProfile(null)
+  }, [started])
+
+  // Refetch whenever we (re)gain an account, or when the profile modal is opened — cheap enough
+  // (one GET) to just always refresh on open rather than cache stale rank/XP.
+  useEffect(() => {
+    if (!auth || (!profileOpen && authProfile)) return
+    let cancelled = false
+    fetchProfile(auth.token)
+      .then((data) => { if (!cancelled) setAuthProfile(data) })
+      .catch((e: unknown) => {
+        if (cancelled) return
+        setAuthProfile(null)
+        // The token itself is dead server-side (not just a network blip) — drop it so the menu
+        // stops claiming we're logged in while every request would keep silently 401ing.
+        if (e instanceof UnauthorizedError) {
+          clearStoredAuth()
+          setAuth(null)
+        }
+      })
+    return () => { cancelled = true }
+  }, [auth, profileOpen])
+
+  const handleLogout = () => {
+    clearStoredAuth()
+    setAuth(null)
+    setAuthProfile(null)
+  }
 
   // Polled only while the mode-select screen is up — no point pinging the server mid-match.
   useEffect(() => {
@@ -291,7 +381,25 @@ export default function HUD({
     if (!pendingMode) return
     localStorage.setItem(PERK_LS_KEY, perk)
     const requestedMode = pendingMode === 'local' || (pendingMode === 'online' && onlineCreating) ? gameModeId : null
-    onStart(pendingMode, botCount, nickname, perk, requestedMode)
+    onStart(pendingMode, botCount, auth?.username ?? nickname, perk, requestedMode, auth?.token ?? null)
+  }
+
+  /** "Войти" both logs in and creates the account on the spot if `nickname` hasn't been used
+   * before — see server/index.ts: handleLogin. Reuses the nickname field as the username, so
+   * there's nothing to fill in beyond the password. */
+  const handleLoginSubmit = () => {
+    if (!nickname || !password || authBusy) return
+    setAuthError(null)
+    setAuthBusy(true)
+    login(nickname, password)
+      .then((next) => {
+        setStoredAuth(next)
+        setAuth(next)
+        setAuthProfile(null)
+        setPassword('')
+      })
+      .catch((e: unknown) => setAuthError(e instanceof Error ? e.message : 'Ошибка'))
+      .finally(() => setAuthBusy(false))
   }
 
   /** Checks live server occupancy right before deciding whether "Играть онлайн" needs a
@@ -478,18 +586,57 @@ export default function HUD({
             <h1 className="start-title">Pirates Arena</h1>
             <p className="subtitle">Морской бой на выживание — потопите все корабли на арене</p>
 
-            <label className="start-field">
-              <span className="start-field-label">Имя капитана</span>
-              <input
-                className="nickname-input nickname-input-big"
-                type="text"
-                maxLength={16}
-                placeholder="Ваш ник"
-                value={nickname}
-                onChange={(e) => handleNickname(e.target.value)}
-                autoFocus
-              />
-            </label>
+            {auth ? (
+              <div className="account-bar">
+                <div className="account-identity">
+                  {authProfile?.profile && <RankBadge level={authProfile.profile.level} />}
+                  <span className="account-name">{auth.username}</span>
+                </div>
+                <div className="account-actions">
+                  <button className="secondary-btn account-btn" onClick={() => setProfileOpen(true)}>Профиль</button>
+                  <button className="secondary-btn account-btn" onClick={handleLogout}>Выйти</button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="account-fields">
+                  <label className="start-field start-field-half">
+                    <span className="start-field-label">Имя капитана</span>
+                    <input
+                      className="nickname-input nickname-input-big"
+                      type="text"
+                      maxLength={16}
+                      placeholder="Ваш ник"
+                      value={nickname}
+                      onChange={(e) => handleNickname(e.target.value)}
+                      autoFocus
+                    />
+                  </label>
+                  <label className="start-field start-field-half">
+                    <span className="start-field-label">Пароль</span>
+                    <input
+                      className="nickname-input nickname-input-big"
+                      type="password"
+                      maxLength={200}
+                      placeholder="По желанию"
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setAuthError(null) }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleLoginSubmit() }}
+                      disabled={serverUnreachable}
+                    />
+                  </label>
+                </div>
+                <p className="account-hint">Пароль — по желанию: сохранит ник, ранг и статистику за аккаунтом</p>
+                {authError && <p className="auth-error">{authError}</p>}
+                <button
+                  className="secondary-btn secondary-btn-block account-login-btn"
+                  disabled={serverUnreachable || authBusy || !nickname || !password}
+                  onClick={handleLoginSubmit}
+                >
+                  {authBusy ? 'Подождите…' : '🔑 Войти'}
+                </button>
+              </>
+            )}
 
             <div className="mode-cards">
               <button
@@ -553,12 +700,22 @@ export default function HUD({
                 ))}
               </div>
             ) : (
-              <p className="subtitle">Пока нет данных</p>
+              <div className="leaderboard-empty">
+                <span className="leaderboard-empty-icon">{serverUnreachable ? '📡' : '🏆'}</span>
+                <p className="leaderboard-empty-text">
+                  {serverUnreachable
+                    ? 'Сервер недоступен — рейтинг появится, когда он будет в сети'
+                    : !serverStatus
+                      ? 'Загружаем рейтинг…'
+                      : 'Пока никто не в топе — сыграйте первым и попадите в рейтинг!'}
+                </p>
+              </div>
             )}
           </div>
         </div>
 
         {helpModal}
+        {profileOpen && auth && <ProfileModal auth={auth} profile={authProfile} onClose={() => setProfileOpen(false)} />}
       </div>
     )
   }
