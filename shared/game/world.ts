@@ -29,6 +29,7 @@ import type { PerkType, Pickup, PlayerInputs, Ship, World, Faction } from './typ
 import type { GameMode } from './modes/types'
 import { CTF_BASE_RADIUS } from './modes/captureTheFlag'
 import { circlesOverlap } from './physics'
+import type { Vec2 } from './vector'
 
 export interface WorldOptions {
   botCount?: number
@@ -39,6 +40,18 @@ export interface WorldOptions {
   playerPerk?: PerkType | null
   /** Game mode to use; if provided, its worldOptions() are merged in. */
   mode?: GameMode
+}
+
+/** A random point around `origin` at a distance in [minDist, maxDist], clamped inside the map
+ * bounds — gives the initial player ship the same non-deterministic spawn spread as bots instead
+ * of always landing on the exact same spot (e.g. the map center, which in KOTH is the zone). */
+function randomSpawnAround(origin: Vec2, minDist: number, maxDist: number, mapWidth: number, mapHeight: number): Vec2 {
+  const angle = Math.random() * Math.PI * 2
+  const dist = minDist + Math.random() * (maxDist - minDist)
+  return {
+    x: Math.max(60, Math.min(mapWidth - 60, origin.x + Math.cos(angle) * dist)),
+    y: Math.max(60, Math.min(mapHeight - 60, origin.y + Math.sin(angle) * dist)),
+  }
 }
 
 export function createWorld(options: WorldOptions = {}): World {
@@ -77,11 +90,17 @@ export function createWorld(options: WorldOptions = {}): World {
   const blueBase = { x: MAP_WIDTH - CTF_BASE_RADIUS - 60, y: MAP_HEIGHT / 2 }
 
   const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
+  let playerSpawnPos: Vec2 | null = null
   if (withPlayer) {
     const faction: Faction | null = isTeamMode ? 'red' : null
     const variant = isTeamMode ? 'red' as const : undefined
-    const spawnPos = isCtf ? { x: redBase.x, y: redBase.y + 40 } : center
-    world.ships.push(createShip('player', spawnPos, 0, { perk: options.playerPerk ?? null, faction, variant }))
+    // Same spawn spread as bots (ring near own base in CTF, ring around the map center
+    // otherwise) — landing on a fixed point (e.g. dead center, which is KOTH's zone) would be an
+    // unearned head start.
+    playerSpawnPos = isCtf
+      ? randomSpawnAround(redBase, 60, 140, MAP_WIDTH, MAP_HEIGHT)
+      : randomSpawnAround(center, 600, 1000, MAP_WIDTH, MAP_HEIGHT)
+    world.ships.push(createShip('player', playerSpawnPos, 0, { perk: options.playerPerk ?? null, faction, variant }))
   }
 
   const botSpawns: { x: number; y: number }[] = []
@@ -106,7 +125,11 @@ export function createWorld(options: WorldOptions = {}): World {
     }
   }
 
-  world.obstacles = generateObstacles(world, MAP_ISLAND_COUNT, MAP_ROCK_COUNT, [center, ...botSpawns])
+  world.obstacles = generateObstacles(world, MAP_ISLAND_COUNT, MAP_ROCK_COUNT, [
+    center,
+    ...(playerSpawnPos ? [playerSpawnPos] : []),
+    ...botSpawns,
+  ])
 
   botSpawns.forEach((pos, i) => {
     let faction: Faction | null = null
