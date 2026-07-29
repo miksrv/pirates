@@ -33,6 +33,42 @@ db.exec(`
 const hasXpColumn = (db.prepare(`PRAGMA table_info(players)`).all() as { name: string }[]).some((c) => c.name === 'xp')
 if (!hasXpColumn) db.exec(`ALTER TABLE players ADD COLUMN xp INTEGER NOT NULL DEFAULT 0`)
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT NOT NULL,
+    password_salt TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )
+`)
+
+export interface User {
+  id: string
+  username: string
+  passwordHash: string
+  passwordSalt: string
+}
+
+const insertUserStmt = db.prepare(`
+  INSERT INTO users (id, username, password_hash, password_salt, created_at) VALUES (?, ?, ?, ?, ?)
+`)
+const findUserByUsernameStmt = db.prepare(`
+  SELECT id, username, password_hash AS passwordHash, password_salt AS passwordSalt
+  FROM users WHERE username = ? COLLATE NOCASE
+`)
+
+/** Throws (better-sqlite3's SqliteError, code SQLITE_CONSTRAINT_UNIQUE) if the username is
+ * already taken — callers must catch it themselves; this only guards the race between a
+ * pre-check and the insert, not a substitute for one. */
+export function createUser(id: string, username: string, passwordHash: string, passwordSalt: string): void {
+  insertUserStmt.run(id, username, passwordHash, passwordSalt, new Date().toISOString())
+}
+
+export function findUserByUsername(username: string): User | null {
+  return (findUserByUsernameStmt.get(username) as User | undefined) ?? null
+}
+
 export interface PlayerStatsDelta {
   playerId: string
   name: string
@@ -78,6 +114,50 @@ const xpStmt = db.prepare(`SELECT xp FROM players WHERE id = ?`)
 export function getPlayerRank(playerId: string): RankProgress | null {
   const row = xpStmt.get(playerId) as { xp: number } | undefined
   return row ? rankProgress(row.xp) : null
+}
+
+export interface PlayerProfile {
+  playerId: string
+  name: string
+  kills: number
+  deaths: number
+  wins: number
+  losses: number
+  /** 0..1 share of shots fired that connected. */
+  accuracy: number
+  playTimeSeconds: number
+  roundsPlayed: number
+  updatedAt: string
+  xp: number
+  level: number
+  xpIntoLevel: number
+  xpForNextLevel: number
+}
+
+const profileStmt = db.prepare(`
+  SELECT
+    id AS playerId,
+    name,
+    kills,
+    deaths,
+    wins,
+    losses,
+    CASE WHEN shots_fired > 0 THEN CAST(hits AS REAL) / shots_fired ELSE 0 END AS accuracy,
+    play_time_seconds AS playTimeSeconds,
+    rounds_played AS roundsPlayed,
+    updated_at AS updatedAt,
+    xp
+  FROM players
+  WHERE id = ?
+`)
+
+/** Full stats for one player's own profile page — null if they have no DB row yet (never
+ * finished or left a round). */
+export function getPlayerProfile(playerId: string): PlayerProfile | null {
+  const row = profileStmt.get(playerId) as (Omit<PlayerProfile, 'level' | 'xpIntoLevel' | 'xpForNextLevel'>) | undefined
+  if (!row) return null
+  const progress = rankProgress(row.xp)
+  return { ...row, level: progress.level, xpIntoLevel: progress.xpIntoLevel, xpForNextLevel: progress.xpForNextLevel }
 }
 
 export interface TopPlayerEntry {

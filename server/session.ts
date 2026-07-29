@@ -5,7 +5,8 @@ import { getGameMode } from '../shared/game/modes'
 import type { PerkType, PlayerInput } from '../shared/game/types'
 import { addPlayerShip } from '../shared/game/world'
 import { worldToWire } from '../shared/net/protocol'
-import { getPlayerRank } from './db'
+import { verifyToken } from './auth'
+import { findUserByUsername, getPlayerRank } from './db'
 import {
   MAX_PLAYERS,
   clients,
@@ -60,9 +61,19 @@ export function sanitizeBotCount(raw: unknown): number {
   return Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(n)))
 }
 
+/** A plausible token string, or null — just bounds the garbage that reaches verifyToken();
+ * actual trust comes from its signature check, not this. */
+export function sanitizeAuthToken(raw: unknown): string | null {
+  return typeof raw === 'string' && raw.length > 0 && raw.length <= 1024 ? raw : null
+}
+
 /** `gameModeId`/`botCount` are the joining client's requested room settings — only honored when
  * this join is the one creating a brand-new arena (nobody connected yet). Once an arena already
- * exists (round playing or between rounds), later joiners just fall into it unchanged. */
+ * exists (round playing or between rounds), later joiners just fall into it unchanged.
+ *
+ * `authToken`, when it verifies, makes this join authoritative: the account's stable id/username
+ * replace the client-supplied `playerId`/`name` entirely (unspoofable, and the account's stats
+ * follow it across browsers/devices) — a guest join keeps today's localStorage-UUID behavior. */
 export function handleJoin(
   socket: WebSocket,
   name: string | undefined,
@@ -70,6 +81,7 @@ export function handleJoin(
   playerId: string,
   gameModeId: string | null,
   botCount: number,
+  authToken: string | null,
 ): void {
   if (clients.size >= MAX_PLAYERS) {
     sendTo(socket, { type: 'error', message: 'Арена заполнена, попробуйте позже' })
@@ -83,21 +95,36 @@ export function handleJoin(
     setActiveBotCount(botCount)
   }
 
+  const auth = verifyToken(authToken)
+  // A token that fails to verify (expired, or signed by a since-restarted server process with a
+  // different AUTH_SECRET) falls back to guest behavior same as no token at all — but the client
+  // thinks it's logged in, so it needs telling: silently playing as a guest would mean this
+  // match's stats vanish into an anonymous row instead of the account the player expects.
+  const authRejected = authToken !== null && auth === null
+  const resolvedPlayerId = auth?.userId ?? playerId
+  // A guest can't claim a name that belongs to a registered account (case-insensitive, same as
+  // login's own username lookup) — otherwise an unauthenticated guest could impersonate a ranked
+  // player's display name in the leaderboard/ship tag. Falls back to the default "Игрок N" name,
+  // same as an empty/invalid nickname already does; the account holder themselves is unaffected —
+  // their name always comes from `auth.username`, never this check.
+  const guestNameTaken = !auth && name !== undefined && findUserByUsername(name) !== null
+  const resolvedName = auth?.username ?? (guestNameTaken ? undefined : name)
+
   const world = ensureWorld()
-  const ship = addPlayerShip(world, nextJoinIndex(), name, perk)
-  const rank = getPlayerRank(playerId)
+  const ship = addPlayerShip(world, nextJoinIndex(), resolvedName, perk)
+  const rank = getPlayerRank(resolvedPlayerId)
   clients.set(socket, {
     socket,
     shipId: ship.id,
     shipName: ship.name,
     perk: perk ?? null,
-    playerId,
+    playerId: resolvedPlayerId,
     joinedAt: Date.now(),
     input: idleInput(),
     rank,
   })
   syncBotCount()
-  sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: getActiveMode().id, rank })
+  sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: getActiveMode().id, rank, authRejected })
   pushEvent({ kind: 'playerJoined', shipName: ship.name })
   console.log(`[join] ${ship.name} (${ship.id}); players: ${clients.size}`)
 }

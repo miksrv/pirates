@@ -264,7 +264,16 @@ function resetRound(): void {
   for (const client of clients.values()) {
     const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
     client.shipId = ship.id
-    sendTo(client.socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: activeMode.id, rank: client.rank })
+    sendTo(client.socket, {
+      type: 'welcome',
+      shipId: ship.id,
+      world: worldToWire(world),
+      gameMode: activeMode.id,
+      rank: client.rank,
+      // Not re-verified here — the token was already checked once at the original join, and this
+      // client's identity doesn't change across round resets.
+      authRejected: false,
+    })
   }
   syncBotCount()
   roundPhase = 'playing'

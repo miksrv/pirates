@@ -36,6 +36,10 @@ export interface JoinMsg {
    * already exists; later joiners just fall into it. */
   gameMode?: string | null
   botCount?: number
+  /** Signed session token (see server/auth.ts) proving an authenticated account. When it
+   * verifies, the server uses the account's stable id/username instead of `playerId`/`name` —
+   * unspoofable, and stats then follow the account across browsers/devices. */
+  authToken?: string | null
 }
 
 export interface InputMsg {
@@ -65,6 +69,11 @@ export interface WelcomeMsg {
   /** This connection's current level/XP, or null if they have no stats DB row yet (brand-new
    * player who hasn't finished/left a round) — the client shows no rank badge in that case. */
   rank: RankProgress | null
+  /** True when this join sent a non-empty authToken that failed to verify (expired, or signed by
+   * a since-restarted server with a different AUTH_SECRET) — the client is playing as a guest
+   * this session even though it still has a stored login, and should drop it. Always false on a
+   * round-reset welcome (only the original join re-verifies the token). */
+  authRejected: boolean
 }
 
 export type RoundPhase = 'playing' | 'ended'
