@@ -17,6 +17,17 @@
 | `onShipSunk(world, ship, killer?)` | React to death (drop flag, transfer crown, etc.) |
 | `getHudState(world)` | Returns `ModeHudState` (timer, status) for in-game overlay |
 
+### Bot AI hooks (all optional — see `docs/mechanics/battle-ship-ai.md`)
+| Hook | Purpose |
+|------|---------|
+| `botPatrolGoal(ship, world, ai)` | Objective for an idle bot (e.g. CTF's flag mission, KOTH's zone) |
+| `botFleeThreshold(ship, world)` | Override the HP fraction at which a bot flees |
+| `botZoneTether(ship, world)` | Keep bots near a zone while fighting (e.g. KOTH) |
+| `botPickupRadius(ship, world, kind, default)` | Restrict a pickup-search radius contextually |
+| `botPriorityTarget(ship, world)` | Force who a bot fights (e.g. CTF's enemy flag carrier) |
+
+A mode that leaves all of these unimplemented gets the default FFA bot behavior — no changes to `shared/game/ai/` needed for a new mode.
+
 ### Team system
 - `Ship.faction: 'red' | 'blue' | null` — null in FFA modes
 - `GameMode.teamMode?: boolean` — when true, engine assigns factions to all ships

@@ -106,17 +106,12 @@ export function interceptPoint(shooter: Ship, target: Ship, bulletSpeed: number)
 /** Picks who to fight: closest wins, but nearly-dead ships count as "closer" (finish them off),
  * and the current target is sticky — both a switch margin and an extended keep-range — so bots
  * commit to a fight instead of ping-ponging between equidistant enemies.
- * In CTF: enemy flag carriers are always the top priority target. */
+ * A mode may force a specific target via `botPriorityTarget` (e.g. CTF's enemy flag carrier). */
 export function selectTarget(ship: Ship, world: World, ai: BotAI): Ship | null {
-  // CTF: if an enemy is carrying our flag, always target them
-  if (world.flags.length > 0 && ship.faction) {
-    const enemyCarrier = world.ships.find(
-      (s) => s.alive && s.carryingFlag === ship.faction && !sameFaction(ship, s),
-    )
-    if (enemyCarrier) {
-      ai.targetShipId = enemyCarrier.id
-      return enemyCarrier
-    }
+  const priority = world.mode?.botPriorityTarget?.(ship, world)
+  if (priority) {
+    ai.targetShipId = priority.id
+    return priority
   }
 
   let best: Ship | null = null

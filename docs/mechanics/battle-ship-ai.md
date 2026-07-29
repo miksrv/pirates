@@ -2,6 +2,13 @@
 
 Code: `shared/game/ai/` (`index.ts` state machine, `targeting.ts`, `threats.ts`) · Tuning: `BOT_*` in `shared/game/constants.ts`
 
+## Mode hooks
+- `ai/index.ts` and `targeting.ts` are mode-agnostic — they only call optional hooks on `GameMode` (`shared/game/modes/types.ts`), never check a mode's id directly.
+- Hooks: `botPatrolGoal` (objective while idle), `botFleeThreshold` (HP fraction to flee at), `botZoneTether` (stay near a zone while fighting), `botPickupRadius` (restrict a pickup search range), `botPriorityTarget` (force who to fight).
+- All optional — a mode implements only what it needs; unimplemented hooks fall back to the default FFA behavior described below.
+- KOTH (`modes/kingOfTheHill.ts`) implements all 5: zone as patrol goal, lower flee threshold (18%), zone tether, pickup-range restriction near the zone. CTF (`modes/captureTheFlag.ts`) implements `botPatrolGoal` (carry/hunt/escort/grab) and `botPriorityTarget` (always fight the enemy flag carrier).
+- Adding a new mode with its own bot behavior means implementing hooks in that mode's file — no changes to `ai/index.ts` needed.
+
 ## States
 - **Patrol** — no enemy within sight (460px), or early game, or combat suppressed. Uses priority-weighted pickup search within 600px (rarer pickups score higher). Shoots at nearby enemies opportunistically while collecting boosts.
 - **Chase** — enemy seen but beyond 320px. Closes in; lobs predicted shots within 430px.

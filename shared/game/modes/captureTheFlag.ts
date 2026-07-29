@@ -1,8 +1,10 @@
-import type { Ship, World } from '../types'
+import type { BotAI, Ship, World } from '../types'
 import type { WorldOptions } from '../world'
 import type { EndResult, GameMode, ModeHudState, ScoreEntry } from './types'
 import { GAMEPLAY_ROUND_DURATION } from '../constants'
-import { distance } from '../vector'
+import { REPAIR_ONLY_PICKUPS, findPriorityPickup } from '../ai/targeting'
+import { sameFaction } from '../escort'
+import { distance, type Vec2 } from '../vector'
 
 // ─── CTF constants ────────────────────────────────────────────────────────────
 /** Captures needed to win. */
@@ -15,6 +17,12 @@ const FLAG_RETURN_TIME = 10
 export const CTF_CARRIER_SPEED_MULT = 0.65
 /** Base zone visual radius. */
 export const CTF_BASE_RADIUS = 120
+
+// ─── Bot AI tuning ────────────────────────────────────────────────────────────
+/** How close to a destination before switching to the next goal. */
+const CTF_ARRIVE_DIST = 50
+/** Pickup seek range while on a flag mission — only grab what's on the way. */
+const CTF_PICKUP_RANGE = 200
 
 function formatTime(seconds: number): string {
   const total = Math.max(0, Math.ceil(seconds))
@@ -150,6 +158,45 @@ export const captureTheFlag: GameMode = {
       timer: formatTime(remaining),
       status: `🚩 🔴 ${red} — ${blue} 🔵 (до ${SCORE_TO_WIN})`,
     }
+  },
+
+  // ─── Bot AI: objective-driven — carry, hunt, escort, or grab the flag ───────
+  botPatrolGoal(ship: Ship, world: World, _ai: BotAI): Vec2 | null {
+    if (!ship.faction || world.flags.length === 0) return null
+
+    const iAmCarrier = ship.carryingFlag !== null
+    const enemyFlag = world.flags.find((f) => f.faction !== ship.faction)
+    const ownFlag = world.flags.find((f) => f.faction === ship.faction)
+    const allyCarrier = world.ships.find(
+      (s) => s.alive && s.carryingFlag && s.faction === ship.faction && s.id !== ship.id,
+    )
+    const enemyCarrier = world.ships.find((s) => s.alive && s.carryingFlag === ship.faction)
+
+    let goal: Vec2 | null = null
+    if (iAmCarrier && ownFlag) goal = ownFlag.basePos
+    else if (enemyCarrier) goal = enemyCarrier.pos
+    else if (allyCarrier && ownFlag) goal = allyCarrier.pos
+    else if (enemyFlag && !enemyFlag.carriedBy) goal = enemyFlag.pos
+    if (!goal) return null
+
+    // Grab a pickup on the way if it's roughly on the way; otherwise beeline for the goal.
+    const distToGoal = distance(ship.pos, goal)
+    const nearFullHp = ship.hp / ship.maxHp > 0.92
+    const pickup =
+      distToGoal > CTF_ARRIVE_DIST
+        ? findPriorityPickup(ship, world, CTF_PICKUP_RANGE, (p) => (nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true))
+        : null
+    if (pickup) {
+      const pickupDist = distance(ship.pos, pickup.pos)
+      const detour = pickupDist + distance(pickup.pos, goal) - distToGoal
+      if (detour < 200) return pickup.pos
+    }
+    return goal
+  },
+
+  botPriorityTarget(ship: Ship, world: World): Ship | null {
+    if (!ship.faction) return null
+    return world.ships.find((s) => s.alive && s.carryingFlag === ship.faction && !sameFaction(ship, s)) ?? null
   },
 }
 

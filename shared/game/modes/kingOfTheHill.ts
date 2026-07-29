@@ -1,14 +1,23 @@
-import type { Ship, World } from '../types'
+import type { BotAI, Ship, World } from '../types'
 import type { WorldOptions } from '../world'
 import type { EndResult, GameMode, ModeHudState, ScoreEntry } from './types'
-import { GAMEPLAY_ROUND_DURATION } from '../constants'
-import { distance } from '../vector'
+import { BOT_RETARGET_INTERVAL, GAMEPLAY_ROUND_DURATION } from '../constants'
+import { REPAIR_ONLY_PICKUPS, findPriorityPickup } from '../ai/targeting'
+import { distance, type Vec2 } from '../vector'
 
 // ─── King of the Hill constants ──────────────────────────────────────────────
 /** Points per second while controlling the zone. */
 const POINTS_PER_SECOND = 1
 /** Points needed to win. */
 const SCORE_TO_WIN = 80
+
+// ─── Bot AI tuning ────────────────────────────────────────────────────────────
+/** How far outside the zone a bot will chase/fight before being pulled back. */
+const KOTH_TETHER_MARGIN = 80
+/** Pickup seek range is limited to zone area + this margin. */
+const KOTH_PICKUP_RANGE = 200
+/** Flee threshold is lower — the zone is worth tanking more damage for. */
+const KOTH_FLEE_HP_FRACTION = 0.18
 
 function formatTime(seconds: number): string {
   const total = Math.max(0, Math.ceil(seconds))
@@ -96,6 +105,49 @@ export const kingOfTheHill: GameMode = {
       timer: formatTime(remaining),
       status: `🔴 ${red} — ${blue} 🔵 (до ${SCORE_TO_WIN})`,
     }
+  },
+
+  // ─── Bot AI: the zone is the primary objective ──────────────────────────────
+  botPatrolGoal(ship: Ship, world: World, ai: BotAI): Vec2 | null {
+    const zone = world.captureZone
+    if (!zone) return null
+
+    const inZone = distance(ship.pos, zone.pos) <= zone.radius
+    const nearFullHp = ship.hp / ship.maxHp > 0.92
+    const pickupRange = inZone ? KOTH_PICKUP_RANGE : 150
+    const pickup = findPriorityPickup(ship, world, pickupRange, (p) =>
+      nearFullHp ? !REPAIR_ONLY_PICKUPS.has(p.type) : true,
+    )
+    if (pickup) return pickup.pos
+    if (!inZone) return zone.pos
+
+    // Inside the zone with no pickups, no enemies → slow patrol within zone.
+    if (!ai.targetPos || ai.retargetTimer <= 0 || distance(ship.pos, ai.targetPos) < 30) {
+      const angle = Math.random() * Math.PI * 2
+      const r = zone.radius * 0.5
+      ai.targetPos = { x: zone.pos.x + Math.cos(angle) * r, y: zone.pos.y + Math.sin(angle) * r }
+      ai.retargetTimer = BOT_RETARGET_INTERVAL
+    }
+    return ai.targetPos
+  },
+
+  botFleeThreshold(): number {
+    return KOTH_FLEE_HP_FRACTION
+  },
+
+  botZoneTether(_ship: Ship, world: World): { pos: Vec2; radius: number; margin: number } | null {
+    const zone = world.captureZone
+    return zone ? { pos: zone.pos, radius: zone.radius, margin: KOTH_TETHER_MARGIN } : null
+  },
+
+  botPickupRadius(ship: Ship, world: World, kind: 'heal' | 'rare' | 'combat', defaultRadius: number): number {
+    if (kind === 'heal') {
+      // Only leave the zone for heals when really desperate; otherwise look nearby.
+      return ship.hp / ship.maxHp < 0.3 ? defaultRadius : KOTH_PICKUP_RANGE
+    }
+    if (kind === 'rare') return (world.captureZone?.radius ?? 300) + KOTH_PICKUP_RANGE
+    if (kind === 'combat') return Math.min(defaultRadius, KOTH_PICKUP_RANGE)
+    return KOTH_PICKUP_RANGE
   },
 }
 

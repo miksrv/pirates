@@ -1,5 +1,6 @@
-import type { Faction, Ship, World } from '../types'
+import type { BotAI, Faction, Ship, World } from '../types'
 import type { WorldOptions } from '../world'
+import type { Vec2 } from '../vector'
 
 /** Result returned when a game mode decides the match is over. */
 export interface EndResult {
@@ -55,5 +56,29 @@ export interface GameMode {
 
   /** Return current HUD state for this mode (timer, score, status). Called every stats tick. */
   getHudState(world: World): ModeHudState | null
+
+  // ─── Bot AI hooks ────────────────────────────────────────────────────────
+  // All optional; a mode implements only what it needs to steer bot decisions.
+  // Undefined/null return = fall back to the default FFA behavior in shared/game/ai/.
+
+  /** Where an idle bot (no combat target, in 'patrol') should head instead of the default
+   * wander+pickup search. The hook owns its own detour/pickup logic and may mutate `ai` (e.g.
+   * cached waypoints). Return null to fall through to the default patrol. */
+  botPatrolGoal?(ship: Ship, world: World, ai: BotAI): Vec2 | null
+
+  /** Override the HP fraction at which a bot enters 'flee'. Return null for the default. */
+  botFleeThreshold?(ship: Ship, world: World): number | null
+
+  /** A zone the bot should stay tethered to while fighting (e.g. KOTH's capture zone). Return
+   * null for modes with no zone. `radius` is the zone itself; `margin` is how far outside it a
+   * bot may still chase/fight before being pulled back. */
+  botZoneTether?(ship: Ship, world: World): { pos: Vec2; radius: number; margin: number } | null
+
+  /** Override a pickup-search radius for a given context. Return null to keep `defaultRadius`. */
+  botPickupRadius?(ship: Ship, world: World, kind: 'heal' | 'rare' | 'combat', defaultRadius: number): number | null
+
+  /** Force a specific target regardless of normal proximity scoring (e.g. CTF's enemy flag
+   * carrier). Return null to fall through to the default proximity-based selection. */
+  botPriorityTarget?(ship: Ship, world: World): Ship | null
 }
 
