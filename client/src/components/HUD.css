@@ -606,37 +606,6 @@
   color: #5fd0ff;
 }
 
-.wizard-progress {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.wizard-step {
-  font-size: 11px;
-  font-weight: 700;
-  color: #9aa5b8;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-
-.wizard-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.wizard-dot {
-  width: 20px;
-  height: 4px;
-  border-radius: 2px;
-  background: #2a3142;
-}
-
-.wizard-dot-done {
-  background: #3ee06f;
-}
-
 .wizard-title {
   margin: 8px 0 0;
   font-size: 24px;

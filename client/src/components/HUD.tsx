@@ -79,27 +79,15 @@ const MODE_INFO: Record<string, { icon: string; desc: string }> = {
 }
 
 function StepHeader({
-  step,
-  total,
   title,
   onBack,
 }: {
-  step: number
-  total: number
   title: string
   onBack: () => void
 }) {
   return (
     <div className="wizard-head">
       <button className="wizard-back" onClick={onBack} title="Назад">←</button>
-      <div className="wizard-progress">
-        <span className="wizard-step">Шаг {step} из {total}</span>
-        <div className="wizard-dots">
-          {Array.from({ length: total }).map((_, i) => (
-            <span key={i} className={`wizard-dot${i < step ? ' wizard-dot-done' : ''}`} />
-          ))}
-        </div>
-      </div>
       <h1 className="wizard-title">{title}</h1>
     </div>
   )
@@ -521,7 +509,7 @@ export default function HUD({
     return (
       <div className="overlay pirate-bg">
         <div className="panel wizard-panel" key="settings">
-          <StepHeader step={2} total={2} title="Настройте бой" onBack={() => setPendingMode(null)} />
+          <StepHeader title="Настройте бой" onBack={() => setPendingMode(null)} />
           <GameModeAndBots
             gameModeId={gameModeId}
             onGameModeChange={setGameModeId}
@@ -544,12 +532,7 @@ export default function HUD({
     return (
       <div className="overlay pirate-bg">
         <div className="panel wizard-panel" key="online-settings">
-          <StepHeader
-            step={2}
-            total={2}
-            title="Создайте комнату"
-            onBack={() => setPendingMode(null)}
-          />
+          <StepHeader title="Создайте комнату" onBack={() => setPendingMode(null)} />
           <p className="subtitle">Сервер свободен — вы задаёте правила боя для всех, кто подключится следом</p>
           <GameModeAndBots
             gameModeId={gameModeId}
