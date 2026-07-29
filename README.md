@@ -108,8 +108,9 @@ The dev client automatically connects to `ws://localhost:8081`.
 - One shared arena is created when the first player joins and torn down when the last leaves; max **10 players** — further joins are rejected with an "arena full" error.
 - The server runs the authoritative simulation at 30Hz and broadcasts snapshots at 15Hz; clients render 120ms in the past with no client-side prediction.
 - Bots always fill the arena, baseline 5 (override with the `BOTS` env var, `0` for pure PvP), but make way for humans live: bot count = `clamp(baseline, 0, 10 - players)`, so players + bots never exceed 10. Bots return if players leave again.
+- Mode and bot count are chosen, not just configured: joining an empty server lets you create the room (pick mode + bot count); joining a running one just falls into it; between rounds, everyone connected votes and the majority wins (ties broken at random). `GAME_MODE`/`BOTS` env vars are just the starting baseline, restored once the server goes empty.
 - Sunk ships respawn after 4s with base stats — pickups are lost, perks and kills persist.
-- A plain HTTP GET on the server's host/port returns live status as JSON (`{ players, maxPlayers, bots, full, leaderboard }`); the client polls this on the mode-select screen to show server occupancy and the top-10 leaderboard before joining.
+- A plain HTTP GET on the server's host/port returns live status as JSON (`{ players, maxPlayers, bots, full, gameMode, leaderboard }`); the client polls this on the mode-select screen to show server occupancy, the active mode, and the top-10 leaderboard before joining.
 - Persistent stats: each player is identified by a random id the client generates once and keeps in localStorage (not by nickname, which can collide), and is tracked in a SQLite DB — kills, deaths, wins/losses (most kills when a round ends wins, ties all win), shots fired, accuracy, total play time, and last-seen timestamp.
 
 Details: [`docs/mechanics/multiplayer.md`](docs/mechanics/multiplayer.md)

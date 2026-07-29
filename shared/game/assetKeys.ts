@@ -1,10 +1,14 @@
 import type { ObstacleVariant, ShipHealthState, ShipVariant } from './types'
 import { ALL_FORT_TILE_KEYS } from './fortGeneration'
 
-export const IMG_BASE = `${import.meta.env.BASE_URL}assets/img`
-export const TILES_BASE = `${import.meta.env.BASE_URL}assets/tiles`
-export const SHIPS_BASE = `${import.meta.env.BASE_URL}assets/ships`
-export const SFX_BASE = `${import.meta.env.BASE_URL}assets/sfx`
+// This file is shared with the server (via map.ts → islandShape.ts, for its tile-key constants
+// below) which runs under plain tsx/node, not Vite — import.meta.env doesn't exist there, so the
+// asset-path constants below (client-only, used by MainScene's preload) must tolerate that.
+const BASE_URL = import.meta.env?.BASE_URL ?? '/'
+export const IMG_BASE = `${BASE_URL}assets/img`
+export const TILES_BASE = `${BASE_URL}assets/tiles`
+export const SHIPS_BASE = `${BASE_URL}assets/ships`
+export const SFX_BASE = `${BASE_URL}assets/sfx`
 
 /** Maps our ship variants onto the "type" number in ship_<type>_<state>.png. */
 export const SHIP_TYPE_NUMBER: Record<ShipVariant, number> = {

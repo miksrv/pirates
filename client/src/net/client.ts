@@ -7,6 +7,7 @@ import {
   type RoundStatus,
   type ServerMsg,
   type SnapshotMsg,
+  type VoteTallyEntry,
 } from '../../../shared/net/protocol'
 import { getPlayerId } from './playerId'
 
@@ -57,13 +58,17 @@ export class NetClient {
   /** Server-authoritative round clock + per-ship kill table; null until the first snapshot arrives. */
   round: RoundStatus | null = null
   leaderboard: LeaderboardEntry[] = []
+  /** Live tally for the next round's (mode, bot count) vote; only populated while round is 'ended'. */
+  voteTally: VoteTallyEntry[] = []
 
   onReady: (() => void) | null = null
   onError: ((message: string) => void) | null = null
 
-  constructor(url: string, name?: string, perk?: PerkType | null) {
+  /** `gameMode`/`botCount` are only honored by the server when this join creates a brand-new
+   * arena (nobody connected yet) — see JoinMsg. */
+  constructor(url: string, name?: string, perk?: PerkType | null, gameMode?: string | null, botCount?: number) {
     this.ws = new WebSocket(url)
-    this.ws.onopen = () => this.send({ type: 'join', name, perk, playerId: getPlayerId() })
+    this.ws.onopen = () => this.send({ type: 'join', name, perk, playerId: getPlayerId(), gameMode, botCount })
     this.ws.onmessage = (ev) => {
       try {
         this.handleMessage(JSON.parse(String(ev.data)) as ServerMsg)
@@ -102,6 +107,7 @@ export class NetClient {
       this.pendingEvents.push(...msg.events)
       this.round = msg.round
       this.leaderboard = msg.leaderboard
+      this.voteTally = msg.voteTally ?? []
     } else {
       this.fail(msg.message)
     }
@@ -115,6 +121,12 @@ export class NetClient {
     this.lastInputAt = now
     this.lastInputJson = json
     this.send({ type: 'input', input })
+  }
+
+  /** Casts (or replaces) this connection's vote for the next round's mode/bot count. Only has an
+   * effect while the current round is 'ended' — the server applies the majority at restart. */
+  vote(gameMode: string, botCount: number): void {
+    this.send({ type: 'vote', gameMode, botCount })
   }
 
   /** One-shot delivery of SFX/log events accumulated from received snapshots. */

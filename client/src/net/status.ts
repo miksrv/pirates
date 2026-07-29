@@ -19,6 +19,8 @@ export interface ServerStatus {
   maxPlayers: number
   bots: number
   full: boolean
+  /** Currently running mode's id (shared/game/modes) — the one a new joiner would fall into. */
+  gameMode: string
   leaderboard: TopPlayerEntry[]
 }
 

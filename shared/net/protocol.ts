@@ -30,6 +30,11 @@ export interface JoinMsg {
   perk?: PerkType | null
   /** Persistent client-generated id (localStorage) — the stats DB key, since names can collide. */
   playerId?: string
+  /** Host settings, only honored when this join creates a brand-new arena (nobody connected
+   * yet) — lets the first player pick the mode/bot count for the room. Ignored once an arena
+   * already exists; later joiners just fall into it. */
+  gameMode?: string | null
+  botCount?: number
 }
 
 export interface InputMsg {
@@ -37,7 +42,16 @@ export interface InputMsg {
   input: PlayerInput
 }
 
-export type ClientMsg = JoinMsg | InputMsg
+export interface VoteMsg {
+  type: 'vote'
+  /** Casts (or replaces) this connection's vote for the next round's mode/bot count. Only takes
+   * effect while the current round is 'ended' — the server applies the majority at restart,
+   * breaking ties at random. */
+  gameMode: string
+  botCount: number
+}
+
+export type ClientMsg = JoinMsg | InputMsg | VoteMsg
 
 export interface WelcomeMsg {
   type: 'welcome'
@@ -83,6 +97,16 @@ export interface SnapshotMsg {
   captureZone?: { pos: { x: number; y: number }; radius: number } | null
   /** CTF flag state. */
   flags?: CtfFlag[]
+  /** Live vote tally for the next round's (mode, bot count); present only while round.phase is
+   * 'ended'. Sorted by votes descending. */
+  voteTally?: VoteTallyEntry[]
+}
+
+/** One (mode, bot count) combo and how many connected players are currently voting for it. */
+export interface VoteTallyEntry {
+  gameMode: string
+  botCount: number
+  votes: number
 }
 
 export interface ErrorMsg {

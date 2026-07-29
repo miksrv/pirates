@@ -1,9 +1,23 @@
 import { randomUUID } from 'node:crypto'
 import type { WebSocket } from 'ws'
+import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT } from '../shared/game/constants'
+import { getGameMode } from '../shared/game/modes'
 import type { PerkType, PlayerInput } from '../shared/game/types'
 import { addPlayerShip } from '../shared/game/world'
 import { worldToWire } from '../shared/net/protocol'
-import { MAX_PLAYERS, clients, ensureWorld, idleInput, nextJoinIndex, pushEvent, sendTo, syncBotCount } from './gameState'
+import {
+  MAX_PLAYERS,
+  clients,
+  ensureWorld,
+  getWorld,
+  idleInput,
+  nextJoinIndex,
+  pushEvent,
+  sendTo,
+  setActiveBotCount,
+  setServerMode,
+  syncBotCount,
+} from './gameState'
 
 /** Clamps every number a client can send us — never trust remote floats. */
 export function sanitizeInput(raw: unknown): PlayerInput {
@@ -32,11 +46,39 @@ export function sanitizePlayerId(raw: unknown): string {
   return randomUUID()
 }
 
-export function handleJoin(socket: WebSocket, name: string | undefined, perk: PerkType | null, playerId: string): void {
+/** A known mode id, or null — used both for a host's room settings and for a vote; the client
+ * only ever sends ids from its own mode list, so null just means "not requested"/"invalid". */
+export function sanitizeGameModeId(raw: unknown): string | null {
+  return typeof raw === 'string' && getGameMode(raw) ? raw : null
+}
+
+/** Always a valid, clamped bot count — defaults to BOT_DEFAULT_COUNT for garbage input. */
+export function sanitizeBotCount(raw: unknown): number {
+  const n = typeof raw === 'number' && Number.isFinite(raw) ? raw : BOT_DEFAULT_COUNT
+  return Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(n)))
+}
+
+/** `gameModeId`/`botCount` are the joining client's requested room settings — only honored when
+ * this join is the one creating a brand-new arena (nobody connected yet). Once an arena already
+ * exists (round playing or between rounds), later joiners just fall into it unchanged. */
+export function handleJoin(
+  socket: WebSocket,
+  name: string | undefined,
+  perk: PerkType | null,
+  playerId: string,
+  gameModeId: string | null,
+  botCount: number,
+): void {
   if (clients.size >= MAX_PLAYERS) {
     sendTo(socket, { type: 'error', message: 'Арена заполнена, попробуйте позже' })
     socket.close()
     return
+  }
+
+  // gameModeId is only ever a valid id here (sanitizeGameModeId already checked it) or null.
+  if (!getWorld() && gameModeId) {
+    setServerMode(getGameMode(gameModeId)!)
+    setActiveBotCount(botCount)
   }
 
   const world = ensureWorld()

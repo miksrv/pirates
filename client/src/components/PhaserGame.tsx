@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import { getGameMode, type ModeHudState, type EndResult } from '../../../shared/game/modes'
-import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
+import type { LeaderboardEntry, RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
 import { defaultServerUrl } from '../net/config'
 import { MainScene, type LaunchConfig } from '../phaser/MainScene'
@@ -29,6 +29,7 @@ export default function PhaserGame() {
   const [log, setLog] = useState<LogEntry[]>([])
   const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
+  const [voteTally, setVoteTally] = useState<VoteTallyEntry[]>([])
   const [victory, setVictory] = useState<VictoryData | null>(null)
   const [modeHud, setModeHud] = useState<ModeHudState | null>(null)
   const [matchEnd, setMatchEnd] = useState<EndResult | null>(null)
@@ -86,6 +87,7 @@ export default function PhaserGame() {
         setLog([])
         setRoundStatus(null)
         setLeaderboard([])
+        setVoteTally([])
         setModeHud(null)
         setMatchEnd(null)
       })
@@ -94,10 +96,14 @@ export default function PhaserGame() {
         const id = logIdRef.current
         setLog((prev) => [...prev.slice(-(LOG_LIMIT - 1)), { id, ...entry }])
       })
-      scene.events.on('round-status', ({ round, leaderboard }: { round: RoundStatus; leaderboard: LeaderboardEntry[] }) => {
-        setRoundStatus(round)
-        setLeaderboard(leaderboard)
-      })
+      scene.events.on(
+        'round-status',
+        ({ round, leaderboard, voteTally }: { round: RoundStatus; leaderboard: LeaderboardEntry[]; voteTally: VoteTallyEntry[] }) => {
+          setRoundStatus(round)
+          setLeaderboard(leaderboard)
+          setVoteTally(voteTally)
+        },
+      )
       scene.events.on('mode-hud', (state: ModeHudState | null) => setModeHud(state))
       scene.events.on('match-end', (result: EndResult) => setMatchEnd(result))
     })
@@ -133,6 +139,10 @@ export default function PhaserGame() {
     sceneRef.current?.restart()
   }, [])
 
+  const handleVote = useCallback((gameModeId: string, botCount: number) => {
+    sceneRef.current?.castVote(gameModeId, botCount)
+  }, [])
+
   useEffect(() => {
     return () => {
       window.clearTimeout(megaTimerRef.current)
@@ -157,10 +167,12 @@ export default function PhaserGame() {
         log={log}
         roundStatus={roundStatus}
         leaderboard={leaderboard}
+        voteTally={voteTally}
         modeHud={modeHud}
         matchEnd={matchEnd}
         onStart={handleStart}
         onRestart={handleRestart}
+        onVote={handleVote}
       />
     </div>
   )

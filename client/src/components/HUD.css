@@ -1086,6 +1086,43 @@
   text-align: center;
 }
 
+.round-end-panel {
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.vote-section {
+  border-top: 1px solid #2a3142;
+  padding-top: 16px;
+  margin-top: 12px;
+}
+
+.vote-tally {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.vote-tally-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: #0f131c;
+  border: 1px solid #2a3142;
+  border-radius: 8px;
+  color: #cfd6e3;
+  font-size: 13px;
+}
+
+.vote-tally-count {
+  color: #3ee06f;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   .menu-panel,
   .side-panel {

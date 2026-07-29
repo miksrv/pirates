@@ -15,6 +15,7 @@ import {
   type RoundStatus,
   type ServerMsg,
   type SnapshotMsg,
+  type VoteTallyEntry,
 } from '../shared/net/protocol'
 import { flushPlayerStats } from './stats'
 
@@ -23,8 +24,11 @@ const SNAPSHOT_EVERY = 2 // broadcast at 15Hz
 /** Total ship slots per arena (humans + bots); humans always get priority over bots. */
 export const MAX_PLAYERS = 10
 
-/** Server game mode: set via GAME_MODE env var (e.g. "deathmatch", "battleRoyale", "lastShipStanding"). Defaults to deathmatch. */
-function getServerMode(): GameMode {
+/** Initial game mode: GAME_MODE env var (e.g. "deathmatch", "battleRoyale", "lastShipStanding")
+ * if set and valid, else deathmatch. Only the starting point for an idle server — a host
+ * creating a fresh arena or a between-round vote can change it for the session (see
+ * setServerMode/resolveVote below), and stopLoopAndReset() reverts to this once everyone leaves. */
+function initialMode(): GameMode {
   const id = process.env.GAME_MODE
   if (id) {
     const mode = getGameMode(id)
@@ -34,19 +38,32 @@ function getServerMode(): GameMode {
   return deathmatch
 }
 
-const serverMode = getServerMode()
+/** Bot baseline: the BOTS env var wins (may be 0 for pure PvP), else BOT_DEFAULT_COUNT. Same
+ * "starting point only" caveat as initialMode() above. */
+function baselineBotCount(): number {
+  const env = Number(process.env.BOTS)
+  if (Number.isFinite(env)) return Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(env)))
+  return BOT_DEFAULT_COUNT
+}
 
-/** Mutable: can be changed at runtime via setServerMode(). Takes effect on next round. */
-let activeMode: GameMode = serverMode
+/** Mutable: changed by a host creating a fresh arena, or by a between-round vote (resolveVote in
+ * resetRound). Takes effect on the next arena build (creation or round reset). */
+let activeMode: GameMode = initialMode()
+let activeBotCount = baselineBotCount()
 
 export function getActiveMode(): GameMode {
   return activeMode
 }
 
-/** Change the game mode at runtime. Takes effect on next round reset. */
+/** Change the game mode at runtime. Takes effect on the next arena build. */
 export function setServerMode(mode: GameMode): void {
   activeMode = mode
-  console.log(`[config] game mode changed to "${mode.id}" — takes effect next round`)
+  console.log(`[config] game mode changed to "${mode.id}"`)
+}
+
+/** Change the bot baseline at runtime. Takes effect on the next arena build. */
+export function setActiveBotCount(n: number): void {
+  activeBotCount = Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(n)))
 }
 
 export interface Client {
@@ -71,6 +88,10 @@ let pendingEvents: GameEvent[] = []
 let roundPhase: RoundPhase = 'playing'
 let restartTimer = 0
 export const clients = new Map<WebSocket, Client>()
+
+/** One vote per connected socket for the next round's (mode, bot count); only meaningful while
+ * roundPhase === 'ended'. Cleared at the start of every 'ended' phase and once resolved. */
+const votes = new Map<WebSocket, { gameMode: string; botCount: number }>()
 
 export function getWorld(): World | null {
   return world
@@ -136,6 +157,7 @@ function buildSnapshot(): SnapshotMsg {
     teamScores: Object.keys(w.teamScores).length > 0 ? w.teamScores : undefined,
     captureZone: w.captureZone ?? undefined,
     flags: w.flags.length > 0 ? w.flags : undefined,
+    voteTally: roundPhase === 'ended' ? tallyVotes() : undefined,
   }
   pendingEvents = []
   return snapshot
@@ -147,6 +169,40 @@ function endRound(): void {
   if (world) world.bullets = []
   roundPhase = 'ended'
   restartTimer = GAMEPLAY_ROUND_RESTART_DELAY
+  votes.clear()
+}
+
+/** Records/replaces one socket's vote for the next round. Ignored outside the 'ended' phase or
+ * for an unknown mode id — the client only ever sends ids from its own mode list, so this mostly
+ * guards against a stale/malicious message. */
+export function castVote(socket: WebSocket, gameMode: string, botCount: number): void {
+  if (roundPhase !== 'ended' || !getGameMode(gameMode)) return
+  votes.set(socket, { gameMode, botCount: Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(botCount))) })
+}
+
+export function clearVote(socket: WebSocket): void {
+  votes.delete(socket)
+}
+
+function tallyVotes(): VoteTallyEntry[] {
+  const counts = new Map<string, VoteTallyEntry>()
+  for (const v of votes.values()) {
+    const key = `${v.gameMode}:${v.botCount}`
+    const entry = counts.get(key)
+    if (entry) entry.votes += 1
+    else counts.set(key, { gameMode: v.gameMode, botCount: v.botCount, votes: 1 })
+  }
+  return [...counts.values()].sort((a, b) => b.votes - a.votes)
+}
+
+/** Majority pick for the next round: highest vote count wins; a tie is broken at random among
+ * the tied options. Nobody voted → keep the current mode/bot count unchanged. */
+function resolveVote(): { gameMode: string; botCount: number } {
+  const tally = tallyVotes()
+  if (tally.length === 0) return { gameMode: activeMode.id, botCount: activeBotCount }
+  const top = tally[0].votes
+  const tied = tally.filter((t) => t.votes === top)
+  return tied[Math.floor(Math.random() * tied.length)]
 }
 
 /** Round restart: flushes every connected player's round stats to the DB (most kills = win, the
@@ -162,7 +218,12 @@ function resetRound(): void {
     }
   }
 
-  world = createWorld({ botCount: baselineBotCount(), withPlayer: false, mode: serverMode })
+  const choice = resolveVote()
+  activeMode = getGameMode(choice.gameMode) ?? activeMode
+  activeBotCount = Math.max(0, Math.min(BOT_MAX_COUNT, choice.botCount))
+  votes.clear()
+
+  world = createWorld({ botCount: activeBotCount, withPlayer: false, mode: activeMode })
   for (const client of clients.values()) {
     const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
     client.shipId = ship.id
@@ -187,7 +248,7 @@ function startLoop(): void {
       stepWorld(world, dt, inputs)
       pendingEvents.push(...world.events)
 
-      const modeResult = serverMode.checkEnd(world)
+      const modeResult = world.mode?.checkEnd(world) ?? null
       if (modeResult) endRound()
     } else {
       restartTimer -= dt
@@ -199,6 +260,8 @@ function startLoop(): void {
   }, 1000 / TICK_RATE)
 }
 
+/** Everyone left: tear down the arena and revert mode/bot-count config back to the server's env
+ * baseline, so the next host to join a truly empty server starts from a clean slate. */
 export function stopLoopAndReset(): void {
   if (loop) clearInterval(loop)
   loop = null
@@ -207,25 +270,21 @@ export function stopLoopAndReset(): void {
   pendingEvents = []
   roundPhase = 'playing'
   restartTimer = 0
-}
-
-/** Bot baseline for a fresh arena: the BOTS env var wins (may be 0 for pure PvP), else BOT_COUNT. */
-function baselineBotCount(): number {
-  const env = Number(process.env.BOTS)
-  if (Number.isFinite(env)) return Math.max(0, Math.min(BOT_MAX_COUNT, Math.floor(env)))
-  return BOT_DEFAULT_COUNT
+  votes.clear()
+  activeMode = initialMode()
+  activeBotCount = baselineBotCount()
 }
 
 /** Bots make way for humans: as players join past MAX_PLAYERS - baseline, bots leave one by one
  * so players + bots never exceeds MAX_PLAYERS; they return if players leave again. */
 function desiredBotCount(playerCount: number): number {
-  return Math.max(0, Math.min(baselineBotCount(), MAX_PLAYERS - playerCount))
+  return Math.max(0, Math.min(activeBotCount, MAX_PLAYERS - playerCount))
 }
 
 /** Returns the running arena, creating one (and starting its tick loop) on the first join. */
 export function ensureWorld(): World {
   if (!world) {
-    world = createWorld({ botCount: baselineBotCount(), withPlayer: false, mode: serverMode })
+    world = createWorld({ botCount: activeBotCount, withPlayer: false, mode: activeMode })
     startLoop()
   }
   return world
@@ -269,7 +328,7 @@ export interface ServerStatus {
 export function getStatus(): ServerStatus {
   // No arena yet (nobody's joined): report the baseline that will spawn on the first join,
   // rather than 0 — the "always 5 bots" promise should hold even for an idle server.
-  const bots = world ? world.ships.filter((s) => s.team === 'bot' && !s.escortOf).length : baselineBotCount()
+  const bots = world ? world.ships.filter((s) => s.team === 'bot' && !s.escortOf).length : activeBotCount
   return {
     players: clients.size,
     maxPlayers: MAX_PLAYERS,

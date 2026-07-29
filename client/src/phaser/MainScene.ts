@@ -128,6 +128,12 @@ export class MainScene extends Phaser.Scene {
     if (this.mode === 'local') this.startNewWorld()
   }
 
+  /** Public: casts this player's vote for the next round's mode/bot count (online only) — the
+   * React HUD calls this from the "round ended" overlay. */
+  castVote(gameModeId: string, botCount: number): void {
+    this.net?.vote(gameModeId, botCount)
+  }
+
   /**
    * Debug hook for the iddqd panel: grants the player a pickup on the spot. Single-player only —
    * in an online match the server owns the world, so a client granting itself loot would either
@@ -145,7 +151,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private connectOnline(url: string, nickname?: string): void {
-    this.net = new NetClient(url, nickname, this.perk)
+    this.net = new NetClient(url, nickname, this.perk, this.gameMode?.id ?? null, this.botCount)
     this.net.onReady = () => {
       const net = this.net!
       this.clearViews()
@@ -354,7 +360,11 @@ export class MainScene extends Phaser.Scene {
       this.statsAccum = 0.1
       if (player) this.events.emit('stats', buildStats(this.world, player))
       if (this.mode === 'online' && this.net?.round) {
-        this.events.emit('round-status', { round: this.net.round, leaderboard: this.net.leaderboard })
+        this.events.emit('round-status', {
+          round: this.net.round,
+          leaderboard: this.net.leaderboard,
+          voteTally: this.net.voteTally,
+        })
       }
       if (this.gameMode) {
         this.events.emit('mode-hud', this.gameMode.getHudState(this.world))

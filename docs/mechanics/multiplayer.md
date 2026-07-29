@@ -9,7 +9,7 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - FFA: humans + bots all fight each other, friendly fire on. Bots run server-side.
 
 ## Bots (live scaling)
-- Baseline is 5 bots (`BOT_DEFAULT_COUNT`); the `BOTS` env var overrides the baseline server-wide (`0` for pure PvP).
+- Baseline is 5 bots (`BOT_DEFAULT_COUNT`); the `BOTS` env var overrides the baseline server-wide (`0` for pure PvP) — this is only the *initial* value, see Rounds below for how it can change per session.
 - Bots make way for humans: live bot count = `clamp(baseline, 0, MAX_PLAYERS - players)`, so players + bots never exceeds 10.
   - e.g. 5 players → 5 bots (10 total); 6 players → 4 bots; 10 players → 0 bots.
 - Recalculated on every join/leave (`syncBotCount` in `gameState.ts`): excess bots are despawned instantly, missing ones spawn fresh at a free spot. A bot's own escort fleet is not counted or touched directly — it disbands automatically once its captain is removed (existing escort-cleanup logic).
@@ -22,13 +22,21 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - Join/leave notifications appear in every player's event log.
 
 ## Rounds
-- Game mode is selected via `GAME_MODE` env var (`deathmatch`, `lastShipStanding`, `battleRoyale`); defaults to `deathmatch`.
+
+### Mode/bot-count selection
+- `GAME_MODE`/`BOTS` env vars are only the *initial* baseline (`activeMode`/`activeBotCount` in `server/gameState.ts`) — reset back to them once the arena empties out (`stopLoopAndReset`).
+- **Empty server** (0 players): the joining client creates the arena and picks the mode + bot count (`JoinMsg.gameMode`/`botCount`, validated server-side). The HUD shows an extra "настройте комнату" step before perk selection when its live status check finds `players === 0`.
+- **Non-empty server**: later joins just fall into the running arena — any mode/bot-count fields on their `join` are ignored (`session.ts` only applies them when `getWorld()` is still null).
+- **Between rounds** (`round.phase === 'ended'`): each connection can send `{ type: 'vote', gameMode, botCount }` any number of times (last one wins per socket). At restart the majority (mode, bot count) pair wins; a tie is broken at random among the tied options (`resolveVote` in `gameState.ts`); nobody voting keeps the current mode/bot count. Votes are cleared on every phase transition and disconnect.
+- The HTTP `POST /mode?id=...` endpoint (`server/index.ts`) is a separate ops-only lever that force-changes `activeMode` immediately — unrelated to the client-facing vote.
+
+### Round lifecycle
 - Round ends when `mode.checkEnd(world)` returns a result (e.g. timer for deathmatch, last alive for BR/LSS).
-- On end: sim freezes, 15s restart countdown begins (`GAMEPLAY_ROUND_RESTART_DELAY`).
-- On restart: round stats flushed to DB, fresh arena built with the same mode, all clients get new ships via `welcome`.
+- On end: sim freezes, 15s restart countdown begins (`GAMEPLAY_ROUND_RESTART_DELAY`) and the vote window opens.
+- On restart: round stats flushed to DB, the vote resolves, a fresh arena is built with the winning mode/bot count, all clients get new ships via `welcome`.
 - `shrinkInset` (Battle Royale) is included in snapshots so clients can render the shrinking field.
-- Broadcast every snapshot: `round: { phase: 'playing' | 'ended', timeRemaining }` and `leaderboard: { shipId, name, team, kills, deaths, alive }[]` (one row per captain, sorted by kills; escorts excluded).
-- Client: HUD shows a countdown badge while `playing`, and an overlay with the restart countdown + leaderboard while `ended` (`client/src/components/HUD.tsx`).
+- Broadcast every snapshot: `round: { phase: 'playing' | 'ended', timeRemaining }`, `leaderboard: { shipId, name, team, kills, deaths, alive }[]` (one row per captain, sorted by kills; escorts excluded), and — only while `ended` — `voteTally: { gameMode, botCount, votes }[]` sorted by votes descending.
+- Client: HUD shows a countdown badge while `playing`, and an overlay with the restart countdown, leaderboard, and a mode/bot-count vote panel (live tally, reusing the mode-grid/bot-pills UI) while `ended` (`client/src/components/HUD.tsx`).
 
 ## Persistent player stats (SQLite)
 - Storage: `server/db.ts`, `better-sqlite3`, file at `server/data/stats.sqlite3` (gitignored). One `players` row per identity: name (latest), play time, rounds played, wins, losses, kills, deaths, shots fired, hits, `updated_at` (last activity, ISO).
@@ -38,9 +46,9 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - Top 10 by lifetime kills exposed via the status endpoint (below) and shown on the client's main menu whenever the server is reachable.
 
 ## Server status endpoint
-- Plain HTTP GET on the same host/port as the WebSocket returns JSON: `{ players, maxPlayers, bots, full, leaderboard }` (CORS-open, read-only, no auth). `leaderboard` is the top-10-by-kills list from the stats DB (`{ playerId, name, kills, deaths, wins, losses, accuracy, playTimeSeconds, updatedAt }[]`).
-- Client polls it every 5s on the mode-select screen (`client/src/net/status.ts`) to show live player/bot counts, the top-10 leaderboard, and disable "Multi Player" when `full`.
-- With 0 players the arena doesn't exist yet (see below), so `bots` reports the baseline that *will* spawn on the first join rather than 0 — the status always promises 5 bots, never an empty server.
+- Plain HTTP GET on the same host/port as the WebSocket returns JSON: `{ players, maxPlayers, bots, full, gameMode, leaderboard }` (CORS-open, read-only, no auth). `leaderboard` is the top-10-by-kills list from the stats DB (`{ playerId, name, kills, deaths, wins, losses, accuracy, playTimeSeconds, updatedAt }[]`).
+- Client polls it every 5s on the mode-select screen (`client/src/net/status.ts`) to show live player/bot counts, the currently active mode, the top-10 leaderboard, and disable "Играть онлайн" when `full`. It also re-checks on click (not just the poll) to decide whether to show the room-creation step.
+- With 0 players the arena doesn't exist yet (see below), so `bots`/`gameMode` report the baseline that *will* be used on the first join rather than defaults — the status always promises a real bot count, never an empty server.
 
 ## Running
 - Local: `npm run server` (port 8081, override with `PORT`) + `npm run dev` — dev client connects to `ws://localhost:8081` automatically.

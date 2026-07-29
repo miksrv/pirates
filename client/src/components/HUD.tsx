@@ -5,7 +5,7 @@ import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import { GAME_MODES, type ModeHudState, type EndResult } from '../../../shared/game/modes'
-import type { LeaderboardEntry, RoundStatus } from '../../../shared/net/protocol'
+import type { LeaderboardEntry, RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
 import type { LogEntry } from './logEntry'
@@ -33,12 +33,16 @@ interface HUDProps {
   /** Server-authoritative round clock — null in single-player, where there's no round concept. */
   roundStatus: RoundStatus | null
   leaderboard: LeaderboardEntry[]
+  /** Live vote tally for the next round's (mode, bot count) — empty outside the 'ended' phase. */
+  voteTally: VoteTallyEntry[]
   /** Mode-specific HUD state (timer, status, etc.) — null when no mode is active. */
   modeHud: ModeHudState | null
   /** End-of-match result from the game mode — null while playing. */
   matchEnd: EndResult | null
   onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => void
   onRestart: () => void
+  /** Casts this player's vote for the next round's mode/bot count (online only). */
+  onVote: (gameModeId: string, botCount: number) => void
 }
 
 /** mm:ss, rounded up so it counts down to 0 instead of skipping past it. */
@@ -89,6 +93,62 @@ function StepHeader({
   )
 }
 
+/** Mode grid + bot-count pills — shared by the local wizard's settings step, the online
+ * room-create step, and the between-round vote panel. */
+function GameModeAndBots({
+  gameModeId,
+  onGameModeChange,
+  botCount,
+  onBotCountChange,
+}: {
+  gameModeId: string
+  onGameModeChange: (id: string) => void
+  botCount: number
+  onBotCountChange: (n: number) => void
+}) {
+  return (
+    <>
+      <div className="wizard-section">
+        <div className="wizard-section-label">Режим игры</div>
+        <div className="gamemode-grid">
+          {GAME_MODES.map((m) => {
+            const info = MODE_INFO[m.id]
+            return (
+              <button
+                key={m.id}
+                className={`gamemode-card${gameModeId === m.id ? ' gamemode-card-selected' : ''}`}
+                onClick={() => onGameModeChange(m.id)}
+              >
+                <span className="gamemode-icon">{info?.icon ?? '🎮'}</span>
+                <span className="gamemode-label">{m.label}</span>
+                <span className="gamemode-desc">{info?.desc ?? ''}</span>
+                <span className={`gamemode-badge${m.teamMode ? ' gamemode-badge-team' : ''}`}>
+                  {m.teamMode ? '🔴🔵 Команды' : '🆓 Все против всех'}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="wizard-section">
+        <div className="wizard-section-label">Количество ботов: <b className="bot-count-value">{botCount}</b></div>
+        <div className="bot-pills">
+          {Array.from({ length: BOT_MAX_COUNT + 1 }).map((_, n) => (
+            <button
+              key={n}
+              className={`bot-pill${botCount === n ? ' bot-pill-selected' : ''}`}
+              onClick={() => onBotCountChange(n)}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 function EventLog({ log }: { log: LogEntry[] }) {
   const listRef = useRef<HTMLDivElement | null>(null)
 
@@ -124,10 +184,12 @@ export default function HUD({
   log,
   roundStatus,
   leaderboard,
+  voteTally,
   modeHud,
   matchEnd,
   onStart,
   onRestart,
+  onVote,
 }: HUDProps) {
   const [botCount, setBotCount] = useState(BOT_DEFAULT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
@@ -143,6 +205,20 @@ export default function HUD({
   const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null)
   const [serverUnreachable, setServerUnreachable] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  /** Whether clicking "Играть онлайн" would create a fresh arena (server had 0 players at the
+   * time of the click) — decides whether the mode/bots settings step is shown at all: joining an
+   * in-progress or waiting arena just falls in, no point configuring something that's ignored. */
+  const [onlineCreating, setOnlineCreating] = useState(false)
+  const [onlineChecking, setOnlineChecking] = useState(false)
+  const [onlineStep, setOnlineStep] = useState<'settings' | 'perk'>('perk')
+  /** This connection's pick for the next round's vote — reset once a new round actually starts. */
+  const [voteGameModeId, setVoteGameModeId] = useState(GAME_MODES[0].id)
+  const [voteBotCount, setVoteBotCount] = useState(BOT_DEFAULT_COUNT)
+  const [voteCast, setVoteCast] = useState(false)
+
+  useEffect(() => {
+    if (roundStatus?.phase === 'playing') setVoteCast(false)
+  }, [roundStatus?.phase])
 
   // Polled only while the mode-select screen is up — no point pinging the server mid-match.
   useEffect(() => {
@@ -177,7 +253,28 @@ export default function HUD({
   const handleLaunch = () => {
     if (!pendingMode) return
     localStorage.setItem(PERK_LS_KEY, perk)
-    onStart(pendingMode, botCount, nickname, perk, pendingMode === 'local' ? gameModeId : null)
+    const requestedMode = pendingMode === 'local' || (pendingMode === 'online' && onlineCreating) ? gameModeId : null
+    onStart(pendingMode, botCount, nickname, perk, requestedMode)
+  }
+
+  /** Checks live server occupancy right before deciding whether "Играть онлайн" needs a
+   * room-settings step — the last poll (every 5s) may be stale by the time the player clicks. */
+  const handleOnlineClick = () => {
+    setOnlineChecking(true)
+    fetchServerStatus()
+      .then((status) => {
+        const creating = status.players === 0
+        setOnlineCreating(creating)
+        setOnlineStep(creating ? 'settings' : 'perk')
+      })
+      .catch(() => {
+        setOnlineCreating(false)
+        setOnlineStep('perk')
+      })
+      .finally(() => {
+        setOnlineChecking(false)
+        setPendingMode('online')
+      })
   }
 
   if (netError) {
@@ -235,45 +332,12 @@ export default function HUD({
       <div className="overlay pirate-bg">
         <div className="panel wizard-panel" key="settings">
           <StepHeader step={2} total={3} title="Настройте бой" onBack={() => setPendingMode(null)} />
-
-          <div className="wizard-section">
-            <div className="wizard-section-label">Режим игры</div>
-            <div className="gamemode-grid">
-              {GAME_MODES.map((m) => {
-                const info = MODE_INFO[m.id]
-                return (
-                  <button
-                    key={m.id}
-                    className={`gamemode-card${gameModeId === m.id ? ' gamemode-card-selected' : ''}`}
-                    onClick={() => setGameModeId(m.id)}
-                  >
-                    <span className="gamemode-icon">{info?.icon ?? '🎮'}</span>
-                    <span className="gamemode-label">{m.label}</span>
-                    <span className="gamemode-desc">{info?.desc ?? ''}</span>
-                    <span className={`gamemode-badge${m.teamMode ? ' gamemode-badge-team' : ''}`}>
-                      {m.teamMode ? '🔴🔵 Команды' : '🆓 Все против всех'}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          <div className="wizard-section">
-            <div className="wizard-section-label">Количество ботов: <b className="bot-count-value">{botCount}</b></div>
-            <div className="bot-pills">
-              {Array.from({ length: BOT_MAX_COUNT + 1 }).map((_, n) => (
-                <button
-                  key={n}
-                  className={`bot-pill${botCount === n ? ' bot-pill-selected' : ''}`}
-                  onClick={() => setBotCount(n)}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          </div>
-
+          <GameModeAndBots
+            gameModeId={gameModeId}
+            onGameModeChange={setGameModeId}
+            botCount={botCount}
+            onBotCountChange={setBotCount}
+          />
           <div className="menu-buttons">
             <button className="primary-btn primary-btn-big" onClick={() => setLocalStep('perk')}>Далее →</button>
           </div>
@@ -282,11 +346,41 @@ export default function HUD({
     )
   }
 
-  // Perk step — shared by both modes; last step for online (2/2), final step for local (3/3).
+  // Step 2 of 3 (online, room creation only): the server is empty, so this join creates the
+  // arena — pick its mode/bot count. Joining an in-progress or waiting arena skips straight to
+  // the perk step below since any choice here would just be ignored server-side.
+  if (!started && pendingMode === 'online' && onlineCreating && onlineStep === 'settings') {
+    return (
+      <div className="overlay pirate-bg">
+        <div className="panel wizard-panel" key="online-settings">
+          <StepHeader
+            step={2}
+            total={3}
+            title="Создайте комнату"
+            onBack={() => setPendingMode(null)}
+          />
+          <p className="subtitle">Сервер свободен — вы задаёте правила боя для всех, кто подключится следом</p>
+          <GameModeAndBots
+            gameModeId={gameModeId}
+            onGameModeChange={setGameModeId}
+            botCount={botCount}
+            onBotCountChange={setBotCount}
+          />
+          <div className="menu-buttons">
+            <button className="primary-btn primary-btn-big" onClick={() => setOnlineStep('perk')}>Далее →</button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Perk step — shared by all flows; final step everywhere (3/3 for local and room-creation,
+  // 2/2 for joining an existing online arena).
   if (!started && pendingMode) {
-    const total = pendingMode === 'local' ? 3 : 2
+    const onlineSettingsStep = pendingMode === 'online' && onlineCreating
+    const total = pendingMode === 'local' || onlineSettingsStep ? 3 : 2
     const step = total
-    const summary = pendingMode === 'local'
+    const summary = pendingMode === 'local' || onlineSettingsStep
       ? `${GAME_MODES.find((m) => m.id === gameModeId)?.label ?? ''} · ботов: ${botCount}`
       : 'Мультиплеер'
     return (
@@ -296,7 +390,11 @@ export default function HUD({
             step={step}
             total={total}
             title="Выберите стартовый буст"
-            onBack={() => (pendingMode === 'local' ? setLocalStep('settings') : setPendingMode(null))}
+            onBack={() => {
+              if (pendingMode === 'local') setLocalStep('settings')
+              else if (onlineSettingsStep) setOnlineStep('settings')
+              else setPendingMode(null)
+            }}
           />
           <p className="subtitle">
             Бонус действует весь бой{pendingMode === 'online' ? ' и сохраняется после возрождения' : ''}
@@ -359,20 +457,24 @@ export default function HUD({
             <div className="mode-cards">
               <button
                 className="mode-card mode-card-online"
-                disabled={serverUnreachable || serverStatus?.full}
-                onClick={() => setPendingMode('online')}
+                disabled={serverUnreachable || serverStatus?.full || onlineChecking}
+                onClick={handleOnlineClick}
               >
                 <span className="mode-card-icon">🌐</span>
                 <span className="mode-card-title">Играть онлайн</span>
-                <span className="mode-card-desc">Живые соперники, общий рейтинг</span>
+                <span className="mode-card-desc">
+                  {serverStatus && serverStatus.players === 0
+                    ? 'Сервер свободен — вы создадите комнату и выберете правила'
+                    : 'Живые соперники, общий рейтинг'}
+                </span>
                 <span className={`mode-card-status${serverUnreachable ? ' mode-card-status-offline' : ''}${serverStatus?.full ? ' mode-card-status-full' : ''}`}>
                   <span className="mode-card-dot" />
                   {serverUnreachable && 'Сервер недоступен'}
                   {!serverUnreachable && !serverStatus && 'Проверка сервера...'}
-                  {!serverUnreachable && serverStatus && (
-                    serverStatus.full
-                      ? `Полон (${serverStatus.players}/${serverStatus.maxPlayers})`
-                      : `${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots}`
+                  {!serverUnreachable && serverStatus && serverStatus.full && `Полон (${serverStatus.players}/${serverStatus.maxPlayers})`}
+                  {!serverUnreachable && serverStatus && !serverStatus.full && serverStatus.players === 0 && 'Никого нет — предложите свой режим'}
+                  {!serverUnreachable && serverStatus && !serverStatus.full && serverStatus.players > 0 && (
+                    `${serverStatus.players}/${serverStatus.maxPlayers} игроков · ботов: ${serverStatus.bots} · режим: ${GAME_MODES.find((m) => m.id === serverStatus.gameMode)?.label ?? serverStatus.gameMode}`
                   )}
                 </span>
               </button>
@@ -578,7 +680,7 @@ export default function HUD({
 
       {roundStatus && roundStatus.phase === 'ended' && (
         <div className="overlay">
-          <div className="panel">
+          <div className="panel wizard-panel round-end-panel">
             <h1>Раунд завершён</h1>
             <p className="subtitle">Новый раунд через {Math.ceil(roundStatus.timeRemaining)} с</p>
             <div className="leaderboard">
@@ -594,6 +696,35 @@ export default function HUD({
                   <span className="leaderboard-kills">💀 {entry.kills} · ⚰️ {entry.deaths}</span>
                 </div>
               ))}
+            </div>
+
+            <div className="wizard-section vote-section">
+              <div className="wizard-section-label">🗳 Голосование за следующий раунд</div>
+              <GameModeAndBots
+                gameModeId={voteGameModeId}
+                onGameModeChange={setVoteGameModeId}
+                botCount={voteBotCount}
+                onBotCountChange={setVoteBotCount}
+              />
+              <button
+                className="primary-btn primary-btn-big"
+                onClick={() => {
+                  onVote(voteGameModeId, voteBotCount)
+                  setVoteCast(true)
+                }}
+              >
+                {voteCast ? 'Голос учтён ✓ (изменить)' : 'Проголосовать'}
+              </button>
+              {voteTally.length > 0 && (
+                <div className="vote-tally">
+                  {voteTally.map((t) => (
+                    <div key={`${t.gameMode}:${t.botCount}`} className="vote-tally-row">
+                      <span>{GAME_MODES.find((m) => m.id === t.gameMode)?.label ?? t.gameMode} · ботов: {t.botCount}</span>
+                      <span className="vote-tally-count">{t.votes} 🗳</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

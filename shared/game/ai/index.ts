@@ -8,6 +8,7 @@ import {
   BOT_BOOST_MIN_KEEP,
   BOT_BOOST_MIN_START,
   BOT_BOUNDARY_AVOID_WEIGHT,
+  BOT_BOUNDARY_MARGIN,
   BOT_CANNON_TURN_RATE,
   BOT_CHASE_FIRE_RANGE,
   BOT_COMBAT_PICKUP_SEEK_RANGE,
@@ -107,9 +108,21 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
       ai.strafeDir = ai.strafeDir === 1 ? -1 : 1
       ai.commitTimer = BOT_DISENGAGE_TIME
       ai.targetShipId = null
+      // Escape toward wherever obstacle/edge avoidance is already pushing — i.e. straight away
+      // from whatever pinned it (usually a rock) — instead of a blind point toward the map
+      // center, which can just send it straight back into the same obstacle.
+      const obstaclePush = obstacleAvoidance(ship, world)
+      const edgePush = boundaryAvoidance(ship, world)
+      const escapePush = { x: obstaclePush.x + edgePush.x, y: obstaclePush.y + edgePush.y }
+      const escapeLen = length(escapePush)
+      const escapeDir =
+        escapeLen > 1e-3
+          ? scale(escapePush, 1 / escapeLen)
+          : normalize(sub({ x: world.width / 2, y: world.height / 2 }, ship.pos))
+      const margin = BOT_BOUNDARY_MARGIN + 20
       ai.targetPos = {
-        x: (ship.pos.x + world.width / 2) / 2 + (Math.random() - 0.5) * 300,
-        y: (ship.pos.y + world.height / 2) / 2 + (Math.random() - 0.5) * 300,
+        x: clamp(ship.pos.x + escapeDir.x * 300, margin, world.width - margin),
+        y: clamp(ship.pos.y + escapeDir.y * 300, margin, world.height - margin),
       }
       ai.retargetTimer = BOT_RETARGET_INTERVAL
     }
@@ -381,8 +394,13 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
     const push = { x: avoidObstacle.x + avoidEdge.x, y: avoidObstacle.y + avoidEdge.y }
     if (length(push) > 1e-3) {
       const n = normalize(push)
+      // Heading straight at the obstacle (the classic "rammed a rock" case) makes moveDir and n
+      // near-(anti)parallel, so their cross product is itself near zero — too close to call, and
+      // trusting its sign would flip the slide side every frame on pure numerical noise, which
+      // reads as the ship vibrating in place instead of sliding around one side. Below the
+      // deadzone, stick with the already-committed strafeDir instead of re-deciding blindly.
       const side = ship.moveDir.y * n.x - ship.moveDir.x * n.y
-      const dir = side !== 0 ? Math.sign(side) : ai.strafeDir
+      const dir = Math.abs(side) > 0.15 ? Math.sign(side) : ai.strafeDir
       ship.moveDir = { x: -n.y * dir, y: n.x * dir }
     } else if (steeredLen > 1e-6) {
       ship.moveDir = normalize(steered)
