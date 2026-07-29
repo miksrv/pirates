@@ -4,9 +4,28 @@ Stats: `shared/game/constants.ts` · Movement: `shared/game/ship/shipMovement.ts
 
 AI ships are labelled `<имя> (bot)` above the hull, so humans are distinguishable at a glance.
 
-## Base stats (caps in parentheses)
-- HP 100 (320) · max speed 187.5 (375) · acceleration 120 u/s² · maneuver 2.9 rad/s · damage 14 (46) · armor 0% (60%) · reload 3s (down to 1.25s) · hull radius 20
+## Base stats
+
+| Stat | Base | Cap | Notes |
+|---|---|---|---|
+| HP | 100 | 320 | |
+| Max speed | 187.5 u/s | 375 u/s | |
+| Acceleration | 120 u/s² | — | time to max ≈ speed / accel ≈ 1.6s |
+| Maneuver | 2.9 rad/s | — | hull turn rate |
+| Damage | 14 | 46 | per cannonball |
+| Armor | 0% | 60% | damage reduction fraction |
+| Fire rate | 1 shot / 3s | 1 shot / 1.25s | `fireRate` stored as shots/s |
+| Hull radius | 20 px | — | collision circle |
+
+- All stats defined in `shared/game/constants.ts` (`SHIP_BASE_*` / `SHIP_MAX_*`).
 - Upgrades come from pickups (`docs/mechanics/` + `shared/game/pickups/`); lost on respawn in multiplayer.
+
+### Bullet stats
+| Param | Value |
+|---|---|
+| Speed | 640 u/s |
+| Radius | 4 px |
+| Lifetime | 0.6s |
 
 ## Movement physics
 - Ships have **inertia**: W/↑ accelerates, S/↓ brakes, A/←–D/→ turns the hull.

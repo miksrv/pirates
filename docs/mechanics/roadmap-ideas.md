@@ -81,3 +81,18 @@ Proposals discussed for making the game more dynamic and viral — **not impleme
 - Beginner protection — prevent new players from immediately fighting highly experienced captains.
 - Shareable moments — generate screenshots, battle summaries, achievements, and victory cards that players can share.
 - Referral/social rewards — reward players for inviting friends and creating new crews.
+
+## Islands, forts & tactical locations
+
+- Strategic islands — make islands meaningful gameplay locations instead of simple obstacles.
+- Fort capture objectives — allow players or teams to capture island forts for temporary bonuses or points.
+- Destructible forts — walls, towers, and gates can be damaged and destroyed by cannon fire.
+- Island defenses — forts can contain defensive cannons or NPC guards.
+- Special island types:
+    - fortress islands;
+    - treasure islands;
+    - harbor islands;
+    - volcanic islands;
+    - dangerous reef areas.
+- Dynamic island events — temporary changes to islands or surrounding waters that create new battles.
+- PvE outposts — AI-controlled forts that players can attack for rewards.

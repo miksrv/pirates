@@ -37,7 +37,7 @@ Code: `shared/game/fortGeneration.ts` · Collision: `shared/game/physics.ts` (`b
 | Diamond | 5×5 | Rotated-square outline |
 | Thick U | 6×4 | Double-wide walls, open center |
 
-## Tile catalogue (30 pieces, `assets/img/fort_*.png`)
+## Tile catalogue (30 pieces, packed into `client/public/assets/tiles/tiles_atlas.png`, source files `sources/tiles/fort_*.png`)
 
 | Key | Description |
 |-----|-------------|
