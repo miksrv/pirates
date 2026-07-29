@@ -227,7 +227,7 @@ function resetRound(): void {
   for (const client of clients.values()) {
     const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
     client.shipId = ship.id
-    sendTo(client.socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world) })
+    sendTo(client.socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: activeMode.id })
   }
   syncBotCount()
   roundPhase = 'playing'

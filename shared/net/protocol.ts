@@ -57,6 +57,10 @@ export interface WelcomeMsg {
   type: 'welcome'
   shipId: string
   world: WireWorld
+  /** The arena's active mode id (shared/game/modes) — sent on every welcome (join AND round
+   * reset) so the client can resolve the right GameMode instance for mode-specific HUD/rendering,
+   * even for a joiner who didn't pick it or after a between-round vote changes it. */
+  gameMode: string
 }
 
 export type RoundPhase = 'playing' | 'ended'

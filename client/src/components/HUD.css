@@ -556,6 +556,17 @@
   overflow-y: auto;
   text-align: left;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  /* Lets a flex-stretched child (e.g. .start-leaderboard's list) grow into any extra height the
+   * panel picked up from a taller sibling (align-items: stretch in .menu-columns), instead of
+   * leaving empty space below a content-sized list. */
+  display: flex;
+  flex-direction: column;
+}
+
+.start-leaderboard .leaderboard {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 
 .side-panel-title {
@@ -1089,6 +1100,9 @@
 .round-end-panel {
   max-height: 86vh;
   overflow-y: auto;
+  /* .hud (the ancestor while in-match) sets pointer-events: none so clicks pass through to the
+   * game canvas for aiming; this panel now has clickable vote controls, so it needs them back. */
+  pointer-events: auto;
 }
 
 .vote-section {

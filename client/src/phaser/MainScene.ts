@@ -5,6 +5,7 @@ import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
 import type { PerkType, PickupType, World } from '../../../shared/game/types'
 import { createWorld, stepWorld } from '../../../shared/game/world'
+import { getGameMode } from '../../../shared/game/modes'
 import type { GameMode } from '../../../shared/game/modes/types'
 import { CTF_BASE_RADIUS } from '../../../shared/game/modes/captureTheFlag'
 import { NetClient } from '../net/client'
@@ -157,6 +158,10 @@ export class MainScene extends Phaser.Scene {
       this.clearViews()
       this.world = net.world
       this.playerId = net.shipId
+      // The server names the actual active mode on every welcome (join AND round reset) — a
+      // joiner may not have picked it, and a between-round vote can change it, so this is the
+      // only reliable source; falling back to the client's own request would go stale.
+      this.gameMode = getGameMode(net.activeModeId) ?? null
       this.gameOverEmitted = false
       this.statsAccum = 0
       this.cameras.main.setBounds(0, 0, net.world!.width, net.world!.height)

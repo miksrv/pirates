@@ -55,6 +55,9 @@ export class NetClient {
 
   world: World | null = null
   shipId = ''
+  /** Active mode id for the current arena — updated on every `welcome` (join AND round reset),
+   * so it stays correct after a joiner falls into an existing arena or a vote changes the mode. */
+  activeModeId = ''
   /** Server-authoritative round clock + per-ship kill table; null until the first snapshot arrives. */
   round: RoundStatus | null = null
   leaderboard: LeaderboardEntry[] = []
@@ -100,6 +103,7 @@ export class NetClient {
     if (msg.type === 'welcome') {
       this.world = wireToWorld(msg.world)
       this.shipId = msg.shipId
+      this.activeModeId = msg.gameMode
       this.onReady?.()
     } else if (msg.type === 'snapshot') {
       this.snapshots.push({ at: performance.now(), snap: msg })

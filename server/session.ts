@@ -9,6 +9,7 @@ import {
   MAX_PLAYERS,
   clients,
   ensureWorld,
+  getActiveMode,
   getWorld,
   idleInput,
   nextJoinIndex,
@@ -93,7 +94,7 @@ export function handleJoin(
     input: idleInput(),
   })
   syncBotCount()
-  sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world) })
+  sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: getActiveMode().id })
   pushEvent({ kind: 'playerJoined', shipName: ship.name })
   console.log(`[join] ${ship.name} (${ship.id}); players: ${clients.size}`)
 }
