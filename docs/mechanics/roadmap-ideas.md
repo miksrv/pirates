@@ -17,4 +17,4 @@ Proposals discussed for making the game more dynamic and viral — **not impleme
 - Cosmetic unlocks (ship skins/colors) tied to the lifetime stats already tracked in SQLite — cheap retention lever, no new systems needed.
 
 ## Onboarding / virality
-- Trim first-play friction further (e.g. streamline the perk-pick step) — matters most once matchmaking scales past one arena.
+- Trim first-play friction further — matters most once matchmaking scales past one arena.

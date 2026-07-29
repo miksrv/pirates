@@ -24,8 +24,7 @@ import { createShip, PLAYER_VARIANTS } from './ship/shipFactory'
 import { tryFireCannon } from './ship/cannon'
 import { resolveShipCollisions, updateShipMovement } from './ship/shipMovement'
 import { sameFaction, updateEscort } from './escort'
-import { applyPerk } from './perks'
-import type { PerkType, Pickup, PlayerInputs, Ship, World, Faction } from './types'
+import type { Pickup, PlayerInputs, Ship, World, Faction } from './types'
 import type { GameMode } from './modes/types'
 import { ctfBasePos } from './modes/captureTheFlag'
 import { circlesOverlap } from './physics'
@@ -36,8 +35,6 @@ export interface WorldOptions {
   /** false for server arenas: humans join later via addPlayerShip. */
   withPlayer?: boolean
   respawnEnabled?: boolean
-  /** Loadout perk for the local player ship (single-player only). */
-  playerPerk?: PerkType | null
   /** Game mode to use; if provided, its worldOptions() are merged in. */
   mode?: GameMode
 }
@@ -86,7 +83,7 @@ export function createWorld(options: WorldOptions = {}): World {
     // falls back to a ring around the map center — landing on a fixed point (e.g. dead center,
     // which is KOTH's zone) would be an unearned head start.
     playerSpawnPos = options.mode?.spawnPos?.(world, faction) ?? randomSpawnAround(center, 600, 1000, MAP_WIDTH, MAP_HEIGHT)
-    world.ships.push(createShip('player', playerSpawnPos, 0, { perk: options.playerPerk ?? null, faction, variant }))
+    world.ships.push(createShip('player', playerSpawnPos, 0, { faction, variant }))
   }
 
   const botSpawns: { x: number; y: number }[] = []
@@ -155,7 +152,7 @@ export function createWorld(options: WorldOptions = {}): World {
 }
 
 /** Adds a human-controlled ship (multiplayer join). `index` picks the hull color and default name. */
-export function addPlayerShip(world: World, index: number, name?: string, perk?: PerkType | null): Ship {
+export function addPlayerShip(world: World, index: number, name?: string): Ship {
   const isTeamMode = world.mode?.teamMode === true
   // In team modes, balance teams by assigning to the faction with fewer captains.
   let faction: Faction | null = null
@@ -170,7 +167,6 @@ export function addPlayerShip(world: World, index: number, name?: string, perk?:
   const ship = createShip('player', pos, index, {
     name: name ?? `Игрок ${index + 1}`,
     variant,
-    perk: perk ?? null,
     faction,
   })
   world.ships.push(ship)
@@ -191,7 +187,6 @@ function respawnShip(world: World, ship: Ship): void {
   ship.damage = SHIP_BASE_DAMAGE
   ship.armor = SHIP_BASE_ARMOR
   ship.fireRate = SHIP_BASE_FIRE_RATE
-  applyPerk(ship) // pickup upgrades are lost on death, the chosen loadout is not
   ship.cooldown = 0
   ship.effects = []
   ship.radius = SHIP_RADIUS // in case they went down while empowered by the Leviathan

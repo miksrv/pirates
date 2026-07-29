@@ -5,9 +5,6 @@ export type Team = 'player' | 'bot'
 /** Red vs Blue faction for team modes; null in FFA modes. */
 export type Faction = 'red' | 'blue'
 
-/** Loadout bonus chosen before the match — see src/game/perks.ts. */
-export type PerkType = 'swiftSails' | 'quickReload' | 'heavyShot'
-
 /** Timed buffs/debuffs layered on top of a ship's base stats — see src/game/effects.ts. */
 export type EffectType =
   | 'speedBoost'
@@ -100,8 +97,6 @@ export interface Ship {
   shieldCharges: number
   /** Loaded Hellfire rounds: the next shot fired is an oversized, one-hit-kill cannonball. */
   infernoShots: number
-  /** Pre-match loadout choice; re-applied on respawn. */
-  perk: PerkType | null
   /** Escort ships only: the id of the captain they sail with. Null for a real captain. */
   escortOf: string | null
   /** Escort ships only: which wedge slot they hold behind their captain. */

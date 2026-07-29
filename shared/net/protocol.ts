@@ -1,6 +1,6 @@
 import { MEGA_SPAWN_INTERVAL, PICKUP_SPAWN_INTERVAL } from '../game/constants'
 import type { RankProgress } from '../game/rank'
-import type { Bomb, Bullet, CtfFlag, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, Team, World } from '../game/types'
+import type { Bomb, Bullet, CtfFlag, GameEvent, Obstacle, Pickup, PlayerInput, Ship, Team, World } from '../game/types'
 
 /**
  * Wire format shared by the WebSocket server and the browser client. Everything is plain JSON;
@@ -27,8 +27,6 @@ export interface JoinMsg {
   type: 'join'
   /** Desired ship name; server sanitizes and falls back to "Игрок N". */
   name?: string
-  /** Chosen loadout perk; server validates against PERK_DEFS. */
-  perk?: PerkType | null
   /** Persistent client-generated id (localStorage) — the stats DB key, since names can collide. */
   playerId?: string
   /** Host settings, only honored when this join creates a brand-new arena (nobody connected

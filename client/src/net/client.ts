@@ -1,5 +1,5 @@
 import type { RankProgress } from '../../../shared/game/rank'
-import type { GameEvent, PerkType, PlayerInput, World } from '../../../shared/game/types'
+import type { GameEvent, PlayerInput, World } from '../../../shared/game/types'
 import { angleDiff } from '../../../shared/game/vector'
 import {
   wireToWorld,
@@ -80,13 +80,12 @@ export class NetClient {
   constructor(
     url: string,
     name?: string,
-    perk?: PerkType | null,
     gameMode?: string | null,
     botCount?: number,
     authToken?: string | null,
   ) {
     this.ws = new WebSocket(url)
-    this.ws.onopen = () => this.send({ type: 'join', name, perk, playerId: getPlayerId(), gameMode, botCount, authToken })
+    this.ws.onopen = () => this.send({ type: 'join', name, playerId: getPlayerId(), gameMode, botCount, authToken })
     this.ws.onmessage = (ev) => {
       try {
         this.handleMessage(JSON.parse(String(ev.data)) as ServerMsg)

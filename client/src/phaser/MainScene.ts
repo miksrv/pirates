@@ -3,7 +3,7 @@ import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, I
 import { BOT_DEFAULT_COUNT, MAP_HEIGHT, MAP_WIDTH, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
-import type { PerkType, PickupType, World } from '../../../shared/game/types'
+import type { PickupType, World } from '../../../shared/game/types'
 import { createWorld, stepWorld } from '../../../shared/game/world'
 import { getGameMode } from '../../../shared/game/modes'
 import type { EndResult, GameMode } from '../../../shared/game/modes/types'
@@ -25,7 +25,6 @@ export interface LaunchConfig {
   botCount: number
   serverUrl?: string
   nickname?: string
-  perk?: PerkType | null
   gameMode?: GameMode | null
   /** Signed session token for a logged-in account (see server/auth.ts) — when valid, the server
    * uses the account's id/username instead of `nickname`/the localStorage playerId. */
@@ -55,7 +54,6 @@ export class MainScene extends Phaser.Scene {
 
   private mode: 'local' | 'online' = 'local'
   private botCount = BOT_DEFAULT_COUNT
-  private perk: PerkType | null = null
   private gameMode: GameMode | null = null
   private net: NetClient | null = null
   /** Last level seen from the server, used only to detect a level-up between welcomes (round
@@ -142,7 +140,6 @@ export class MainScene extends Phaser.Scene {
     const launch = (this.registry.get('launch') ?? {}) as Partial<LaunchConfig>
     this.mode = launch.mode ?? 'local'
     this.botCount = launch.botCount ?? BOT_DEFAULT_COUNT
-    this.perk = launch.perk ?? null
     this.gameMode = launch.gameMode ?? null
 
     if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname, launch.authToken)
@@ -177,7 +174,7 @@ export class MainScene extends Phaser.Scene {
   }
 
   private connectOnline(url: string, nickname?: string, authToken?: string | null): void {
-    this.net = new NetClient(url, nickname, this.perk, this.gameMode?.id ?? null, this.botCount, authToken)
+    this.net = new NetClient(url, nickname, this.gameMode?.id ?? null, this.botCount, authToken)
     this.net.onReady = () => {
       const net = this.net!
       this.clearViews()
@@ -261,7 +258,7 @@ export class MainScene extends Phaser.Scene {
   private startNewWorld(): void {
     this.clearViews()
 
-    this.world = createWorld({ botCount: this.botCount, playerPerk: this.perk, mode: this.gameMode ?? undefined })
+    this.world = createWorld({ botCount: this.botCount, mode: this.gameMode ?? undefined })
     this.playerId = this.world.ships.find((t) => t.team === 'player')!.id
     this.gameOverEmitted = false
     this.roundBannerEmitted = false

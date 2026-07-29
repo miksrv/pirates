@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { WebSocket } from 'ws'
 import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT } from '../shared/game/constants'
 import { getGameMode } from '../shared/game/modes'
-import type { PerkType, PlayerInput } from '../shared/game/types'
+import type { PlayerInput } from '../shared/game/types'
 import { addPlayerShip } from '../shared/game/world'
 import { worldToWire } from '../shared/net/protocol'
 import { verifyToken } from './auth'
@@ -77,7 +77,6 @@ export function sanitizeAuthToken(raw: unknown): string | null {
 export function handleJoin(
   socket: WebSocket,
   name: string | undefined,
-  perk: PerkType | null,
   playerId: string,
   gameModeId: string | null,
   botCount: number,
@@ -111,13 +110,12 @@ export function handleJoin(
   const resolvedName = auth?.username ?? (guestNameTaken ? undefined : name)
 
   const world = ensureWorld()
-  const ship = addPlayerShip(world, nextJoinIndex(), resolvedName, perk)
+  const ship = addPlayerShip(world, nextJoinIndex(), resolvedName)
   const rank = getPlayerRank(resolvedPlayerId)
   clients.set(socket, {
     socket,
     shipId: ship.id,
     shipName: ship.name,
-    perk: perk ?? null,
     playerId: resolvedPlayerId,
     joinedAt: Date.now(),
     input: idleInput(),

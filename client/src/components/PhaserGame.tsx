@@ -2,7 +2,7 @@ import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RankProgress } from '../../../shared/game/rank'
 import type { Stats } from '../../../shared/game/stats'
-import type { PerkType, PickupType } from '../../../shared/game/types'
+import type { PickupType } from '../../../shared/game/types'
 import { getGameMode, type ModeHudState, type EndResult } from '../../../shared/game/modes'
 import type { RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
@@ -50,7 +50,6 @@ export default function PhaserGame() {
     mode: 'local' | 'online',
     botCount: number,
     nickname: string,
-    perk: PerkType,
     gameModeId: string | null,
     authToken: string | null,
   ) => {
@@ -73,7 +72,6 @@ export default function PhaserGame() {
       botCount,
       serverUrl: defaultServerUrl(),
       nickname: nickname.trim() || undefined,
-      perk,
       gameMode: gameModeId ? getGameMode(gameModeId) ?? null : null,
       authToken,
     }

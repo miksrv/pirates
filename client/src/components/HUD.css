@@ -382,7 +382,7 @@
   text-align: right;
 }
 
-/* ---------- Start screen (mode/config/perk wizard) ---------- */
+/* ---------- Start screen (mode/config wizard) ---------- */
 
 .pirate-bg {
   background:
@@ -574,7 +574,7 @@
   font-weight: 700;
 }
 
-/* ---------- Wizard steps (bot config, perk pick) ---------- */
+/* ---------- Wizard steps (bot config) ---------- */
 
 .wizard-panel {
   width: min(640px, 92vw);
@@ -652,12 +652,6 @@
   font-size: 13px;
   color: #9aa5b8;
   margin: 0 0 10px;
-}
-
-.wizard-summary {
-  font-size: 13px;
-  color: #9aa5b8;
-  margin: -10px 0 18px;
 }
 
 .gamemode-grid {
@@ -755,20 +749,6 @@
 .bot-count-value {
   color: #3ee06f;
   font-size: 15px;
-}
-
-.perk-icon-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.perk-card-selected .perk-icon-wrap {
-  background: rgba(62, 224, 111, 0.16);
 }
 
 .menu-columns {
@@ -1132,54 +1112,6 @@
   }
 }
 
-.perk-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin: 0 0 22px;
-}
-
-.perk-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
-  background: #0f131c;
-  border: 1px solid #2a3142;
-  border-radius: 10px;
-  color: #cfd6e3;
-  text-align: center;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
-}
-
-.perk-card:hover {
-  border-color: #3ee06f;
-  transform: translateY(-1px);
-}
-
-.perk-card-selected {
-  border-color: #3ee06f;
-  background: rgba(62, 224, 111, 0.12);
-}
-
-.perk-emoji {
-  font-size: 26px;
-  line-height: 1;
-}
-
-.perk-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #e8ecf1;
-}
-
-.perk-desc {
-  font-size: 11px;
-  line-height: 1.35;
-  color: #9aa5b8;
-}
-
 .hud {
   position: absolute;
   inset: 0;
@@ -1510,10 +1442,6 @@
 
   .gamemode-grid {
     grid-template-columns: 1fr;
-  }
-
-  .perk-grid {
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .bot-pills {

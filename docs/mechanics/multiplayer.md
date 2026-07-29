@@ -25,7 +25,7 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 
 ### Mode/bot-count selection
 - `GAME_MODE`/`BOTS` env vars are only the *initial* baseline (`activeMode`/`activeBotCount` in `server/gameState.ts`) — reset back to them once the arena empties out (`stopLoopAndReset`).
-- **Empty server** (0 players): the joining client creates the arena and picks the mode + bot count (`JoinMsg.gameMode`/`botCount`, validated server-side). The HUD shows an extra "настройте комнату" step before perk selection when its live status check finds `players === 0`.
+- **Empty server** (0 players): the joining client creates the arena and picks the mode + bot count (`JoinMsg.gameMode`/`botCount`, validated server-side). The HUD shows an extra "настройте комнату" step when its live status check finds `players === 0`; joining a non-empty arena skips straight to launch.
 - **Non-empty server**: later joins just fall into the running arena — any mode/bot-count fields on their `join` are ignored (`session.ts` only applies them when `getWorld()` is still null).
 - **Between rounds** (`round.phase === 'ended'`): each connection can send `{ type: 'vote', gameMode, botCount }` any number of times (last one wins per socket). At restart the majority (mode, bot count) pair wins; a tie is broken at random among the tied options (`resolveVote` in `gameState.ts`); nobody voting keeps the current mode/bot count. Votes are cleared on every phase transition and disconnect.
 - The HTTP `POST /mode?id=...` endpoint (`server/index.ts`) is a separate ops-only lever that force-changes `activeMode` immediately — unrelated to the client-facing vote.

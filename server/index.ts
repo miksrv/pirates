@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { WebSocketServer, type WebSocket } from 'ws'
-import { isPerkType } from '../shared/game/perks'
 import { removeShip } from '../shared/game/world'
 import { getGameMode, GAME_MODES } from '../shared/game/modes'
 import type { ClientMsg } from '../shared/net/protocol'
@@ -162,7 +161,6 @@ wss.on('connection', (socket: WebSocket) => {
       handleJoin(
         socket,
         sanitizeName(msg.name),
-        isPerkType(msg.perk) ? msg.perk : null,
         sanitizePlayerId(msg.playerId),
         sanitizeGameModeId(msg.gameMode),
         sanitizeBotCount(msg.botCount),

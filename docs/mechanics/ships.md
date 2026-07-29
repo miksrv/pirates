@@ -1,11 +1,11 @@
 # Ships
 
-Stats: `shared/game/constants.ts` · Movement: `shared/game/ship/shipMovement.ts` · Loadout: [perks.md](perks.md)
+Stats: `shared/game/constants.ts` · Movement: `shared/game/ship/shipMovement.ts`
 
 AI ships are labelled `<имя> (bot)` above the hull, so humans are distinguishable at a glance.
 
 ## Base stats (caps in parentheses)
-- HP 100 (320) · max speed 187.5 (375) · acceleration 120 u/s² · maneuver 2.5 rad/s · damage 14 (46) · armor 0% (60%) · reload 3s (down to 1.25s)
+- HP 100 (320) · max speed 187.5 (375) · acceleration 120 u/s² · maneuver 2.9 rad/s · damage 14 (46) · armor 0% (60%) · reload 3s (down to 1.25s) · hull radius 20
 - Upgrades come from pickups (`docs/mechanics/` + `shared/game/pickups/`); lost on respawn in multiplayer.
 
 ## Movement physics

@@ -1,6 +1,5 @@
 import { nextId } from '../id'
-import { applyPerk } from '../perks'
-import type { Faction, PerkType, Ship, ShipVariant, Team } from '../types'
+import type { Faction, Ship, ShipVariant, Team } from '../types'
 import type { Vec2 } from '../vector'
 import { SHIP_BASE_ARMOR, SHIP_BASE_DAMAGE, SHIP_BASE_FIRE_RATE, SHIP_BASE_HP, SHIP_BASE_SPEED, SHIP_RADIUS } from '../constants'
 
@@ -28,7 +27,6 @@ const VARIANT_COLORS: Record<ShipVariant, string> = {
 export interface ShipOverrides {
   name?: string
   variant?: ShipVariant
-  perk?: PerkType | null
   faction?: Faction | null
 }
 
@@ -85,7 +83,6 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     effects: [],
     shieldCharges: 0,
     infernoShots: 0,
-    perk: overrides.perk ?? null,
     escortOf: null,
     escortSlot: 0,
     bombsToDrop: 0,
@@ -96,6 +93,5 @@ export function createShip(team: Team, pos: Vec2, index = 0, overrides: ShipOver
     carryingFlag: null,
   }
 
-  applyPerk(ship)
   return ship
 }

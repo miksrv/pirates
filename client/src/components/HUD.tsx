@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { LEVELS_BASE, rankIconKey } from '../../../shared/game/assetKeys'
 import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
-import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
 import type { RankProgress } from '../../../shared/game/rank'
 import type { Stats } from '../../../shared/game/stats'
-import type { PerkType, PickupType } from '../../../shared/game/types'
+import type { PickupType } from '../../../shared/game/types'
 import { GAME_MODES, type ModeHudState, type EndResult } from '../../../shared/game/modes'
 import type { RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
@@ -53,7 +52,7 @@ interface HUDProps {
   levelUp: number | null
   /** Permanent stat pickup this player just collected — flashes the matching hud-stats value; null otherwise. */
   statBoost: { type: PickupType; key: number } | null
-  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null, authToken: string | null) => void
+  onStart: (mode: 'local' | 'online', botCount: number, nickname: string, gameModeId: string | null, authToken: string | null) => void
   onRestart: () => void
   /** Casts this player's vote for the next round's mode/bot count (online only). */
   onVote: (gameModeId: string, botCount: number) => void
@@ -68,7 +67,6 @@ function formatRoundTime(seconds: number): string {
 }
 
 const NICKNAME_LS_KEY = 'pirates.nickname'
-const PERK_LS_KEY = 'pirates.perk'
 
 /** Flavor text for the mode-select cards — kept local to the HUD since it's presentational only. */
 const MODE_INFO: Record<string, { icon: string; desc: string }> = {
@@ -331,15 +329,10 @@ export default function HUD({
 }: HUDProps) {
   const [botCount, setBotCount] = useState(BOT_DEFAULT_COUNT)
   const [nickname, setNickname] = useState(() => localStorage.getItem(NICKNAME_LS_KEY) ?? '')
-  /** Set once the player picks a mode — switches the menu to the config/perk steps. */
+  /** Set once the player picks a mode — switches the menu to the settings step (local, or online
+   * room creation); joining an existing online arena launches straight away, no step shown. */
   const [pendingMode, setPendingMode] = useState<'local' | 'online' | null>(null)
-  /** Local-only sub-step: game mode + bot count, before the shared perk step. */
-  const [localStep, setLocalStep] = useState<'settings' | 'perk'>('settings')
   const [gameModeId, setGameModeId] = useState(GAME_MODES[0].id)
-  const [perk, setPerk] = useState<PerkType>(() => {
-    const saved = localStorage.getItem(PERK_LS_KEY)
-    return isPerkType(saved) ? saved : 'swiftSails'
-  })
   const [serverStatus, setServerStatus] = useState<ServerStatus | null>(null)
   const [serverUnreachable, setServerUnreachable] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -348,7 +341,6 @@ export default function HUD({
    * in-progress or waiting arena just falls in, no point configuring something that's ignored. */
   const [onlineCreating, setOnlineCreating] = useState(false)
   const [onlineChecking, setOnlineChecking] = useState(false)
-  const [onlineStep, setOnlineStep] = useState<'settings' | 'perk'>('perk')
   /** This connection's pick for the next round's vote — reset once a new round actually starts. */
   const [voteGameModeId, setVoteGameModeId] = useState(GAME_MODES[0].id)
   const [voteBotCount, setVoteBotCount] = useState(BOT_DEFAULT_COUNT)
@@ -432,9 +424,8 @@ export default function HUD({
 
   const handleLaunch = () => {
     if (!pendingMode) return
-    localStorage.setItem(PERK_LS_KEY, perk)
     const requestedMode = pendingMode === 'local' || (pendingMode === 'online' && onlineCreating) ? gameModeId : null
-    onStart(pendingMode, botCount, auth?.username ?? nickname, perk, requestedMode, auth?.token ?? null)
+    onStart(pendingMode, botCount, auth?.username ?? nickname, requestedMode, auth?.token ?? null)
   }
 
   /** "Войти" both logs in and creates the account on the spot if `nickname` hasn't been used
@@ -456,23 +447,24 @@ export default function HUD({
   }
 
   /** Checks live server occupancy right before deciding whether "Играть онлайн" needs a
-   * room-settings step — the last poll (every 5s) may be stale by the time the player clicks. */
+   * room-settings step — the last poll (every 5s) may be stale by the time the player clicks.
+   * Joining an existing arena has nothing left to configure, so it launches immediately; only
+   * creating a fresh (empty) arena shows the settings step first. */
   const handleOnlineClick = () => {
     setOnlineChecking(true)
     fetchServerStatus()
       .then((status) => {
-        const creating = status.players === 0
-        setOnlineCreating(creating)
-        setOnlineStep(creating ? 'settings' : 'perk')
+        if (status.players === 0) {
+          setOnlineCreating(true)
+          setPendingMode('online')
+        } else {
+          onStart('online', botCount, auth?.username ?? nickname, null, auth?.token ?? null)
+        }
       })
       .catch(() => {
-        setOnlineCreating(false)
-        setOnlineStep('perk')
+        onStart('online', botCount, auth?.username ?? nickname, null, auth?.token ?? null)
       })
-      .finally(() => {
-        setOnlineChecking(false)
-        setPendingMode('online')
-      })
+      .finally(() => setOnlineChecking(false))
   }
 
   if (netError) {
@@ -524,12 +516,12 @@ export default function HUD({
     </div>
   )
 
-  // Step 2 of 3 (local only): pick the game mode and bot count before the shared perk step.
-  if (!started && pendingMode === 'local' && localStep === 'settings') {
+  // Step 2 of 2 (local only): pick the game mode and bot count, then launch straight away.
+  if (!started && pendingMode === 'local') {
     return (
       <div className="overlay pirate-bg">
         <div className="panel wizard-panel" key="settings">
-          <StepHeader step={2} total={3} title="Настройте бой" onBack={() => setPendingMode(null)} />
+          <StepHeader step={2} total={2} title="Настройте бой" onBack={() => setPendingMode(null)} />
           <GameModeAndBots
             gameModeId={gameModeId}
             onGameModeChange={setGameModeId}
@@ -537,23 +529,24 @@ export default function HUD({
             onBotCountChange={setBotCount}
           />
           <div className="menu-buttons">
-            <button className="primary-btn primary-btn-big" onClick={() => setLocalStep('perk')}>Далее →</button>
+            <button className="primary-btn primary-btn-big" onClick={handleLaunch}>В бой ⚓</button>
           </div>
         </div>
       </div>
     )
   }
 
-  // Step 2 of 3 (online, room creation only): the server is empty, so this join creates the
-  // arena — pick its mode/bot count. Joining an in-progress or waiting arena skips straight to
-  // the perk step below since any choice here would just be ignored server-side.
-  if (!started && pendingMode === 'online' && onlineCreating && onlineStep === 'settings') {
+  // Step 2 of 2 (online, room creation only): the server is empty, so this join creates the
+  // arena — pick its mode/bot count, then launch. Joining an in-progress or waiting arena skips
+  // this screen entirely (handleOnlineClick launches it directly) since any choice here would
+  // just be ignored server-side.
+  if (!started && pendingMode === 'online' && onlineCreating) {
     return (
       <div className="overlay pirate-bg">
         <div className="panel wizard-panel" key="online-settings">
           <StepHeader
             step={2}
-            total={3}
+            total={2}
             title="Создайте комнату"
             onBack={() => setPendingMode(null)}
           />
@@ -564,56 +557,6 @@ export default function HUD({
             botCount={botCount}
             onBotCountChange={setBotCount}
           />
-          <div className="menu-buttons">
-            <button className="primary-btn primary-btn-big" onClick={() => setOnlineStep('perk')}>Далее →</button>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Perk step — shared by all flows; final step everywhere (3/3 for local and room-creation,
-  // 2/2 for joining an existing online arena).
-  if (!started && pendingMode) {
-    const onlineSettingsStep = pendingMode === 'online' && onlineCreating
-    const total = pendingMode === 'local' || onlineSettingsStep ? 3 : 2
-    const step = total
-    const summary = pendingMode === 'local' || onlineSettingsStep
-      ? `${GAME_MODES.find((m) => m.id === gameModeId)?.label ?? ''} · ботов: ${botCount}`
-      : 'Мультиплеер'
-    return (
-      <div className="overlay pirate-bg">
-        <div className="panel wizard-panel" key="perk">
-          <StepHeader
-            step={step}
-            total={total}
-            title="Выберите стартовый буст"
-            onBack={() => {
-              if (pendingMode === 'local') setLocalStep('settings')
-              else if (onlineSettingsStep) setOnlineStep('settings')
-              else setPendingMode(null)
-            }}
-          />
-          <p className="subtitle">
-            Бонус действует весь бой{pendingMode === 'online' ? ' и сохраняется после возрождения' : ''}
-          </p>
-          <div className="perk-grid">
-            {PERK_TYPES.map((type) => {
-              const def = PERK_DEFS[type]
-              return (
-                <button
-                  key={type}
-                  className={`perk-card${perk === type ? ' perk-card-selected' : ''}`}
-                  onClick={() => setPerk(type)}
-                >
-                  <span className="perk-icon-wrap"><span className="perk-emoji">{def.emoji}</span></span>
-                  <span className="perk-label">{def.label}</span>
-                  <span className="perk-desc">{def.description}</span>
-                </button>
-              )
-            })}
-          </div>
-          <div className="wizard-summary">{summary}{nickname ? ` · ${nickname}` : ''}</div>
           <div className="menu-buttons">
             <button className="primary-btn primary-btn-big" onClick={handleLaunch}>В бой ⚓</button>
           </div>
@@ -718,10 +661,7 @@ export default function HUD({
 
               <button
                 className="mode-card mode-card-local"
-                onClick={() => {
-                  setLocalStep('settings')
-                  setPendingMode('local')
-                }}
+                onClick={() => setPendingMode('local')}
               >
                 <span className="mode-card-icon">🏝</span>
                 <span className="mode-card-title">Играть с ботами</span>

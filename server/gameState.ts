@@ -3,7 +3,7 @@ import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_RESTART_DELAY } from '
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
 import type { RankProgress } from '../shared/game/rank'
-import type { GameEvent, PerkType, PlayerInput, PlayerInputs, Ship, World, Faction } from '../shared/game/types'
+import type { GameEvent, PlayerInput, PlayerInputs, Ship, World, Faction } from '../shared/game/types'
 import { addPlayerShip, createWorld, removeShip, stepWorld } from '../shared/game/world'
 import { getGameMode, deathmatch } from '../shared/game/modes'
 import type { EndResult, GameMode } from '../shared/game/modes/types'
@@ -71,7 +71,6 @@ export interface Client {
   socket: WebSocket
   shipId: string
   shipName: string
-  perk: PerkType | null
   /** Persistent, client-generated identity (localStorage) — the DB key, since names collide. */
   playerId: string
   /** ms timestamp of the last stats flush (join, or last round reset) — play time is measured since. */
@@ -264,7 +263,7 @@ function resolveVote(): { gameMode: string; botCount: number } {
 
 /** Round restart: flushes every connected player's round stats to the DB (win/loss per the
  * mode's own verdict, see roundOutcome), then builds a fresh arena and gives each client a new
- * ship (same name/perk) via a fresh `welcome` — reusing the join flow so the client resets its
+ * ship (same name) via a fresh `welcome` — reusing the join flow so the client resets its
  * view exactly like a join. */
 function resetRound(): void {
   if (world) {
@@ -285,7 +284,7 @@ function resetRound(): void {
 
   world = createWorld({ botCount: activeBotCount, withPlayer: false, mode: activeMode })
   for (const client of clients.values()) {
-    const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
+    const ship = addPlayerShip(world, nextJoinIndex(), client.shipName)
     client.shipId = ship.id
     sendTo(client.socket, {
       type: 'welcome',
