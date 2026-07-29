@@ -1,4 +1,5 @@
 import { MEGA_SPAWN_INTERVAL, PICKUP_SPAWN_INTERVAL } from '../game/constants'
+import type { RankProgress } from '../game/rank'
 import type { Bomb, Bullet, CtfFlag, GameEvent, Obstacle, PerkType, Pickup, PlayerInput, Ship, Team, World } from '../game/types'
 
 /**
@@ -61,6 +62,9 @@ export interface WelcomeMsg {
    * reset) so the client can resolve the right GameMode instance for mode-specific HUD/rendering,
    * even for a joiner who didn't pick it or after a between-round vote changes it. */
   gameMode: string
+  /** This connection's current level/XP, or null if they have no stats DB row yet (brand-new
+   * player who hasn't finished/left a round) — the client shows no rank badge in that case. */
+  rank: RankProgress | null
 }
 
 export type RoundPhase = 'playing' | 'ended'
@@ -79,6 +83,8 @@ export interface LeaderboardEntry {
   kills: number
   deaths: number
   alive: boolean
+  /** This captain's level, or null for bots and for players with no stats DB row yet. */
+  level: number | null
 }
 
 export interface SnapshotMsg {

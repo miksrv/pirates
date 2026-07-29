@@ -142,6 +142,98 @@
   font-weight: 700;
 }
 
+/* ---------- Rank / level badges ---------- */
+
+.rank-badge {
+  width: 18px;
+  height: 18px;
+  vertical-align: -4px;
+  margin-right: 5px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+.hud-rank {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hud-rank .rank-badge {
+  width: 22px;
+  height: 22px;
+  margin-right: 0;
+}
+
+.hud-rank-level {
+  white-space: nowrap;
+  font-weight: 700;
+  color: #f0b429;
+}
+
+.hud-rank-bar {
+  width: 64px;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.hud-rank-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #f0b429, #ffd97a);
+  transition: width 0.25s ease;
+}
+
+.level-up-banner {
+  position: absolute;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 26px;
+  border-radius: 12px;
+  background: rgba(30, 22, 4, 0.88);
+  border: 1px solid #f0b429;
+  box-shadow: 0 0 26px rgba(240, 180, 41, 0.5);
+  text-align: left;
+  animation: mega-pop 0.35s ease-out, level-up-glow 1.4s ease-in-out infinite 0.35s;
+}
+
+.level-up-banner .rank-badge {
+  width: 36px;
+  height: 36px;
+  margin-right: 0;
+}
+
+.level-up-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.level-up-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #ffd97a;
+}
+
+.level-up-sub {
+  font-size: 13px;
+  color: #e8ecf1;
+}
+
+@keyframes level-up-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 22px rgba(240, 180, 41, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(240, 180, 41, 0.75);
+  }
+}
+
 /* ---------- Start screen (mode/config/perk wizard) ---------- */
 
 .pirate-bg {

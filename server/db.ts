@@ -2,6 +2,7 @@ import Database from 'better-sqlite3'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { rankProgress, type RankProgress } from '../shared/game/rank'
 
 const DB_PATH = process.env.DB_PATH ?? join(dirname(fileURLToPath(import.meta.url)), 'data', 'stats.sqlite3')
 mkdirSync(dirname(DB_PATH), { recursive: true })
@@ -21,9 +22,16 @@ db.exec(`
     deaths INTEGER NOT NULL DEFAULT 0,
     shots_fired INTEGER NOT NULL DEFAULT 0,
     hits INTEGER NOT NULL DEFAULT 0,
+    xp INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
   )
 `)
+
+// Migration: `xp` was added after the table above first shipped, so a database created before
+// that (missing the column entirely) needs it bolted on — CREATE TABLE IF NOT EXISTS above is a
+// no-op there. A fresh database already has it from the CREATE TABLE, so this is a no-op too.
+const hasXpColumn = (db.prepare(`PRAGMA table_info(players)`).all() as { name: string }[]).some((c) => c.name === 'xp')
+if (!hasXpColumn) db.exec(`ALTER TABLE players ADD COLUMN xp INTEGER NOT NULL DEFAULT 0`)
 
 export interface PlayerStatsDelta {
   playerId: string
@@ -36,11 +44,12 @@ export interface PlayerStatsDelta {
   deaths: number
   shotsFired: number
   hits: number
+  xpDelta: number
 }
 
 const upsertStmt = db.prepare(`
-  INSERT INTO players (id, name, play_time_seconds, rounds_played, wins, losses, kills, deaths, shots_fired, hits, updated_at)
-  VALUES (@playerId, @name, @playTimeSeconds, @roundsPlayed, @wins, @losses, @kills, @deaths, @shotsFired, @hits, @updatedAt)
+  INSERT INTO players (id, name, play_time_seconds, rounds_played, wins, losses, kills, deaths, shots_fired, hits, xp, updated_at)
+  VALUES (@playerId, @name, @playTimeSeconds, @roundsPlayed, @wins, @losses, @kills, @deaths, @shotsFired, @hits, @xpDelta, @updatedAt)
   ON CONFLICT(id) DO UPDATE SET
     name = excluded.name,
     play_time_seconds = play_time_seconds + excluded.play_time_seconds,
@@ -51,14 +60,24 @@ const upsertStmt = db.prepare(`
     deaths = deaths + excluded.deaths,
     shots_fired = shots_fired + excluded.shots_fired,
     hits = hits + excluded.hits,
+    xp = xp + excluded.xp,
     updated_at = excluded.updated_at
 `)
 
 /** Adds a delta onto a player's lifetime totals (upserts a fresh row on first contact). Call once
  * per ship "retirement" (round reset or disconnect) — never twice for the same ship instance. */
 export function recordStatsDelta(delta: PlayerStatsDelta): void {
-  if (delta.playTimeSeconds <= 0 && delta.kills === 0 && delta.deaths === 0 && delta.shotsFired === 0) return
+  if (delta.playTimeSeconds <= 0 && delta.kills === 0 && delta.deaths === 0 && delta.shotsFired === 0 && delta.xpDelta === 0) return
   upsertStmt.run({ ...delta, updatedAt: new Date().toISOString() })
+}
+
+const xpStmt = db.prepare(`SELECT xp FROM players WHERE id = ?`)
+
+/** This player's current rank, or null if they have no DB row yet (never flushed a round) — the
+ * caller's cue to render no level badge at all. */
+export function getPlayerRank(playerId: string): RankProgress | null {
+  const row = xpStmt.get(playerId) as { xp: number } | undefined
+  return row ? rankProgress(row.xp) : null
 }
 
 export interface TopPlayerEntry {
@@ -72,6 +91,8 @@ export interface TopPlayerEntry {
   accuracy: number
   playTimeSeconds: number
   updatedAt: string
+  xp: number
+  level: number
 }
 
 const topPlayersStmt = db.prepare(`
@@ -84,12 +105,14 @@ const topPlayersStmt = db.prepare(`
     losses,
     CASE WHEN shots_fired > 0 THEN CAST(hits AS REAL) / shots_fired ELSE 0 END AS accuracy,
     play_time_seconds AS playTimeSeconds,
-    updated_at AS updatedAt
+    updated_at AS updatedAt,
+    xp
   FROM players
   ORDER BY kills DESC
   LIMIT 10
 `)
 
 export function getTopPlayers(): TopPlayerEntry[] {
-  return topPlayersStmt.all() as TopPlayerEntry[]
+  const rows = topPlayersStmt.all() as (Omit<TopPlayerEntry, 'level'> & { xp: number })[]
+  return rows.map((row) => ({ ...row, level: rankProgress(row.xp).level }))
 }

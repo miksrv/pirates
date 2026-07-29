@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { RankProgress } from '../../../shared/game/rank'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import { getGameMode, type ModeHudState, type EndResult } from '../../../shared/game/modes'
@@ -33,6 +34,9 @@ export default function PhaserGame() {
   const [victory, setVictory] = useState<VictoryData | null>(null)
   const [modeHud, setModeHud] = useState<ModeHudState | null>(null)
   const [matchEnd, setMatchEnd] = useState<EndResult | null>(null)
+  const [rank, setRank] = useState<RankProgress | null>(null)
+  const [levelUp, setLevelUp] = useState<number | null>(null)
+  const levelUpTimerRef = useRef<number | undefined>(undefined)
 
   const handleStart = useCallback((mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => {
     if (gameRef.current) return
@@ -106,6 +110,12 @@ export default function PhaserGame() {
       )
       scene.events.on('mode-hud', (state: ModeHudState | null) => setModeHud(state))
       scene.events.on('match-end', (result: EndResult) => setMatchEnd(result))
+      scene.events.on('rank', (r: RankProgress | null) => setRank(r))
+      scene.events.on('level-up', (level: number) => {
+        setLevelUp(level)
+        window.clearTimeout(levelUpTimerRef.current)
+        levelUpTimerRef.current = window.setTimeout(() => setLevelUp(null), 5000)
+      })
     })
 
     setMode(mode)
@@ -146,6 +156,7 @@ export default function PhaserGame() {
   useEffect(() => {
     return () => {
       window.clearTimeout(megaTimerRef.current)
+      window.clearTimeout(levelUpTimerRef.current)
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
@@ -170,6 +181,8 @@ export default function PhaserGame() {
         voteTally={voteTally}
         modeHud={modeHud}
         matchEnd={matchEnd}
+        rank={rank}
+        levelUp={levelUp}
         onStart={handleStart}
         onRestart={handleRestart}
         onVote={handleVote}

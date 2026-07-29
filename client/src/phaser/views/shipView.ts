@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { EXPLOSION_FRAME_KEYS, SHIP_CANNON_KEY, shipHullKey } from '../../../../shared/game/assetKeys'
+import { EXPLOSION_FRAME_KEYS, SHIP_CANNON_KEY, rankIconKey, shipHullKey } from '../../../../shared/game/assetKeys'
 import { SHIP_RADIUS } from '../../../../shared/game/constants'
 import type { EffectType, Ship, ShipHealthState, World } from '../../../../shared/game/types'
 import { clamp } from '../../../../shared/game/vector'
@@ -16,6 +16,9 @@ export interface ShipView {
   reloadBarFg: Phaser.GameObjects.Rectangle
   boostBarBg: Phaser.GameObjects.Rectangle
   boostBarFg: Phaser.GameObjects.Rectangle
+  /** Rank badge shown just left of the name — hidden for bots and for players with no known
+   * level (see levelByShip in MainScene). */
+  rankIcon: Phaser.GameObjects.Image
   nameText: Phaser.GameObjects.Text
   buffText: Phaser.GameObjects.Text
   /** Fire on the muzzle while a Hellfire round is loaded; hidden otherwise. */
@@ -23,6 +26,24 @@ export interface ShipView {
   lastState: ShipHealthState
   lastBuffText: string
   lastOverheadHidden: boolean
+  /** Level last rendered on rankIcon; null while hidden. Used to skip re-layout when unchanged. */
+  lastRankLevel: number | null
+}
+
+const RANK_ICON_SIZE = 14
+const RANK_ICON_GAP = 4
+
+/** Re-centers the name row (rank icon + text) as one group — called only when the icon's
+ * visibility or the name text itself changes, never per-frame. */
+function layoutNameRow(view: ShipView): void {
+  if (!view.rankIcon.visible) {
+    view.nameText.setOrigin(0.5, 0.5).setPosition(0, view.nameText.y)
+    return
+  }
+  const totalWidth = RANK_ICON_SIZE + RANK_ICON_GAP + view.nameText.width
+  const startX = -totalWidth / 2
+  view.rankIcon.setPosition(startX + RANK_ICON_SIZE / 2, view.rankIcon.y)
+  view.nameText.setOrigin(0, 0.5).setPosition(startX + RANK_ICON_SIZE + RANK_ICON_GAP, view.nameText.y)
 }
 
 /** Ship sprites face "down" (bow at the bottom of the image) by default, unlike a 0-rad = "right" world angle. */
@@ -111,13 +132,18 @@ export function createShipView(
   const boostBarY = reloadBarY + 5
   const boostBarBg = scene.add.rectangle(0, boostBarY, barW, 3, 0x000000, 0.6)
   const boostBarFg = scene.add.rectangle(-barW / 2, boostBarY, barW, 3, 0x5fd0ff, 1).setOrigin(0, 0.5)
+  const rankIcon = scene.add
+    .image(0, barY - 12, rankIconKey(1))
+    .setDisplaySize(RANK_ICON_SIZE, RANK_ICON_SIZE)
+    .setOrigin(0.5, 0.5)
+    .setVisible(false)
   const nameText = scene.add
     .text(0, barY - 12, shipLabel(ship), { fontSize: '12px', color: '#e8ecf1' })
     .setOrigin(0.5, 0.5)
   const buffText = scene.add
     .text(0, barY - 26, '', { fontSize: '20px', stroke: '#0b0e14', strokeThickness: 3 })
     .setOrigin(0.5, 0.5)
-  container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, boostBarBg, boostBarFg, nameText, buffText])
+  container.add([hpBarBg, hpBarFg, reloadBarBg, reloadBarFg, boostBarBg, boostBarFg, rankIcon, nameText, buffText])
 
   minimapCam.ignore([
     cannon,
@@ -128,6 +154,7 @@ export function createShipView(
     reloadBarFg,
     boostBarBg,
     boostBarFg,
+    rankIcon,
     nameText,
     buffText,
   ])
@@ -147,12 +174,14 @@ export function createShipView(
     reloadBarFg,
     boostBarBg,
     boostBarFg,
+    rankIcon,
     nameText,
     buffText,
     cannonFlame,
     lastState: 1,
     lastBuffText: '',
     lastOverheadHidden: false,
+    lastRankLevel: null,
   }
 }
 
@@ -164,6 +193,9 @@ export function syncShips(
   world: World,
   playerId: string,
   shipViews: Map<string, ShipView>,
+  /** Known level per captain shipId — online mode only (see MainScene); bots and unranked
+   * players are simply absent, so their badge stays hidden. */
+  levelByShip: Map<string, number> = new Map(),
 ): void {
   for (const [id, view] of shipViews) {
     if (!world.ships.some((t) => t.id === id)) {
@@ -255,6 +287,15 @@ export function syncShips(
       view.boostBarFg.setVisible(visible)
       view.nameText.setVisible(visible)
       view.buffText.setVisible(visible)
+    }
+
+    const level = levelByShip.get(ship.id) ?? null
+    const rankVisible = !overheadHidden && level !== null
+    if (level !== view.lastRankLevel || rankVisible !== view.rankIcon.visible) {
+      view.lastRankLevel = level
+      if (level !== null) view.rankIcon.setTexture(rankIconKey(level))
+      view.rankIcon.setVisible(rankVisible)
+      layoutNameRow(view)
     }
 
     if (state === 4) continue

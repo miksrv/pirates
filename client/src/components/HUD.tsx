@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
+import { LEVELS_BASE, rankIconKey } from '../../../shared/game/assetKeys'
 import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { isPerkType, PERK_DEFS, PERK_TYPES } from '../../../shared/game/perks'
 import { PICKUP_DEFS, PICKUP_TYPES } from '../../../shared/game/pickups'
+import type { RankProgress } from '../../../shared/game/rank'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import { GAME_MODES, type ModeHudState, type EndResult } from '../../../shared/game/modes'
@@ -39,6 +41,10 @@ interface HUDProps {
   modeHud: ModeHudState | null
   /** End-of-match result from the game mode — null while playing. */
   matchEnd: EndResult | null
+  /** This connection's own level/XP — null offline, or online before the first stats flush. */
+  rank: RankProgress | null
+  /** Level just reached (round-transition welcome), shown as a celebration toast; null otherwise. */
+  levelUp: number | null
   onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null) => void
   onRestart: () => void
   /** Casts this player's vote for the next round's mode/bot count (online only). */
@@ -171,6 +177,35 @@ function EventLog({ log }: { log: LogEntry[] }) {
   )
 }
 
+/** Rank icon, shown before a nickname wherever a level is known (leaderboards, HUD widget). */
+function RankBadge({ level }: { level: number }) {
+  return (
+    <img
+      className="rank-badge"
+      src={`${LEVELS_BASE}/${rankIconKey(level)}.png`}
+      alt={`Уровень ${level}`}
+      title={`Уровень ${level}`}
+    />
+  )
+}
+
+/** Compact rank widget for the in-match HUD: icon, level, and an XP progress bar towards the
+ * next one. Only rendered when the server has actually assigned this connection a rank. */
+function RankWidget({ rank }: { rank: RankProgress }) {
+  const maxed = rank.xpForNextLevel <= 0
+  const pct = maxed ? 100 : Math.min(100, Math.round((rank.xpIntoLevel / rank.xpForNextLevel) * 100))
+  const tooltip = maxed ? `Максимальный уровень · ${rank.xp} XP всего` : `${rank.xpIntoLevel} / ${rank.xpForNextLevel} XP до следующего уровня`
+  return (
+    <div className="hud-badge hud-rank" title={tooltip}>
+      <RankBadge level={rank.level} />
+      <span className="hud-rank-level">Ур. {rank.level}</span>
+      <div className="hud-rank-bar">
+        <div className="hud-rank-bar-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  )
+}
+
 export default function HUD({
   started,
   gameOver,
@@ -187,6 +222,8 @@ export default function HUD({
   voteTally,
   modeHud,
   matchEnd,
+  rank,
+  levelUp,
   onStart,
   onRestart,
   onVote,
@@ -503,6 +540,7 @@ export default function HUD({
                       <span className={`leaderboard-rank${i < 3 ? ` leaderboard-rank-${i + 1}` : ''}`}>
                         {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
                       </span>{' '}
+                      <RankBadge level={entry.level} />
                       {entry.name}
                     </span>
                     <span
@@ -604,6 +642,7 @@ export default function HUD({
   return (
     <div className="hud">
       <div className="hud-top">
+        {rank && <RankWidget rank={rank} />}
         <div className="hp-block">
           <div className="hp-bar">
             <div
@@ -671,6 +710,16 @@ export default function HUD({
         </div>
       )}
 
+      {levelUp !== null && (
+        <div className="level-up-banner">
+          <RankBadge level={levelUp} />
+          <div className="level-up-text">
+            <span className="level-up-title">Новый уровень!</span>
+            <span className="level-up-sub">Вы достигли {levelUp} уровня</span>
+          </div>
+        </div>
+      )}
+
       <EventLog log={log} />
 
       <div
@@ -691,6 +740,7 @@ export default function HUD({
                 >
                   <span className="leaderboard-name">
                     {entry.team === 'bot' ? '🤖 ' : '⚓ '}
+                    {entry.level !== null && <RankBadge level={entry.level} />}
                     {entry.name}
                   </span>
                   <span className="leaderboard-kills">💀 {entry.kills} · ⚰️ {entry.deaths}</span>

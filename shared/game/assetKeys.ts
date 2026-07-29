@@ -1,5 +1,6 @@
 import type { ObstacleVariant, ShipHealthState, ShipVariant } from './types'
 import { ALL_FORT_TILE_KEYS } from './fortGeneration'
+import { MAX_LEVEL } from './rank'
 
 // This file is shared with the server (via map.ts → islandShape.ts, for its tile-key constants
 // below) which runs under plain tsx/node, not Vite — import.meta.env doesn't exist there, so the
@@ -9,6 +10,15 @@ export const IMG_BASE = `${BASE_URL}assets/img`
 export const TILES_BASE = `${BASE_URL}assets/tiles`
 export const SHIPS_BASE = `${BASE_URL}assets/ships`
 export const SFX_BASE = `${BASE_URL}assets/sfx`
+export const LEVELS_BASE = `${BASE_URL}assets/levels`
+
+/** Rank badge texture key/file for a given level (1..MAX_LEVEL) — shared by the Phaser preload
+ * (ship overhead badge) and the React UI's <img> tags (leaderboards, HUD rank widget). */
+export function rankIconKey(level: number): string {
+  return `rank_${Math.max(1, Math.min(MAX_LEVEL, level))}`
+}
+
+export const RANK_ICON_KEYS: string[] = Array.from({ length: MAX_LEVEL }, (_, i) => rankIconKey(i + 1))
 
 /** Maps our ship variants onto the "type" number in ship_<type>_<state>.png. */
 export const SHIP_TYPE_NUMBER: Record<ShipVariant, number> = {

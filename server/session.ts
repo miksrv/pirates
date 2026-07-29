@@ -5,6 +5,7 @@ import { getGameMode } from '../shared/game/modes'
 import type { PerkType, PlayerInput } from '../shared/game/types'
 import { addPlayerShip } from '../shared/game/world'
 import { worldToWire } from '../shared/net/protocol'
+import { getPlayerRank } from './db'
 import {
   MAX_PLAYERS,
   clients,
@@ -84,6 +85,7 @@ export function handleJoin(
 
   const world = ensureWorld()
   const ship = addPlayerShip(world, nextJoinIndex(), name, perk)
+  const rank = getPlayerRank(playerId)
   clients.set(socket, {
     socket,
     shipId: ship.id,
@@ -92,9 +94,10 @@ export function handleJoin(
     playerId,
     joinedAt: Date.now(),
     input: idleInput(),
+    rank,
   })
   syncBotCount()
-  sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: getActiveMode().id })
+  sendTo(socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: getActiveMode().id, rank })
   pushEvent({ kind: 'playerJoined', shipName: ship.name })
   console.log(`[join] ${ship.name} (${ship.id}); players: ${clients.size}`)
 }

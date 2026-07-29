@@ -2,11 +2,12 @@ import type { WebSocket } from 'ws'
 import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_RESTART_DELAY } from '../shared/game/constants'
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
+import type { RankProgress } from '../shared/game/rank'
 import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World, Faction } from '../shared/game/types'
 import { addPlayerShip, createWorld, removeShip, stepWorld } from '../shared/game/world'
 import { getGameMode, deathmatch } from '../shared/game/modes'
 import type { GameMode } from '../shared/game/modes/types'
-import { getTopPlayers, type TopPlayerEntry } from './db'
+import { getPlayerRank, getTopPlayers, type TopPlayerEntry } from './db'
 import {
   shipToWire,
   worldToWire,
@@ -76,6 +77,10 @@ export interface Client {
   /** ms timestamp of the last stats flush (join, or last round reset) — play time is measured since. */
   joinedAt: number
   input: PlayerInput
+  /** Cached rank, refreshed on join and after every stats flush; null until this player has a
+   * stats DB row (i.e. hasn't finished or left a round yet) — the leaderboard/welcome show no
+   * rank badge for them until then. */
+  rank: RankProgress | null
 }
 
 /** Single shared arena: created when the first player joins, torn down when the last leaves. */
@@ -134,10 +139,39 @@ function roundStatus(): RoundStatus {
 /** One row per captain (player or bot); escorts don't get their own row. */
 function buildLeaderboard(): LeaderboardEntry[] {
   if (!world) return []
+  const levelByShip = new Map<string, number>()
+  for (const client of clients.values()) {
+    if (client.rank !== null) levelByShip.set(client.shipId, client.rank.level)
+  }
   return world.ships
     .filter((s) => !s.escortOf)
-    .map((s) => ({ shipId: s.id, name: s.name, team: s.team, kills: s.kills, deaths: s.deaths, alive: s.alive }))
+    .map((s) => ({
+      shipId: s.id,
+      name: s.name,
+      team: s.team,
+      kills: s.kills,
+      deaths: s.deaths,
+      alive: s.alive,
+      level: levelByShip.get(s.id) ?? null,
+    }))
     .sort((a, b) => b.kills - a.kills)
+}
+
+/** This round's 1-based rank (by kills) for every captain — ties share the same rank, standard
+ * competition-ranking style (e.g. two 1st-place ties both get 1, the next distinct score gets 3). */
+function computePlacements(ships: World['ships']): Map<string, number> {
+  const captains = ships.filter((s) => !s.escortOf).slice().sort((a, b) => b.kills - a.kills)
+  const placements = new Map<string, number>()
+  let rank = 0
+  let prevKills = Number.NaN
+  captains.forEach((s, i) => {
+    if (s.kills !== prevKills) {
+      rank = i + 1
+      prevKills = s.kills
+    }
+    placements.set(s.id, rank)
+  })
+  return placements
 }
 
 function buildSnapshot(): SnapshotMsg {
@@ -212,9 +246,12 @@ function resolveVote(): { gameMode: string; botCount: number } {
 function resetRound(): void {
   if (world) {
     const maxKills = Math.max(0, ...world.ships.filter((s) => !s.escortOf).map((s) => s.kills))
+    const placements = computePlacements(world.ships)
     for (const client of clients.values()) {
       const ship = world.ships.find((s) => s.id === client.shipId)
-      flushPlayerStats(client, ship, ship ? (ship.kills >= maxKills ? 'win' : 'loss') : null)
+      const placement = ship ? placements.get(ship.id) ?? null : null
+      flushPlayerStats(client, ship, ship ? (ship.kills >= maxKills ? 'win' : 'loss') : null, placement)
+      client.rank = getPlayerRank(client.playerId)
     }
   }
 
@@ -227,7 +264,7 @@ function resetRound(): void {
   for (const client of clients.values()) {
     const ship = addPlayerShip(world, nextJoinIndex(), client.shipName, client.perk)
     client.shipId = ship.id
-    sendTo(client.socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: activeMode.id })
+    sendTo(client.socket, { type: 'welcome', shipId: ship.id, world: worldToWire(world), gameMode: activeMode.id, rank: client.rank })
   }
   syncBotCount()
   roundPhase = 'playing'

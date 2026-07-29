@@ -1,3 +1,4 @@
+import type { RankProgress } from '../../../shared/game/rank'
 import type { GameEvent, PerkType, PlayerInput, World } from '../../../shared/game/types'
 import { angleDiff } from '../../../shared/game/vector'
 import {
@@ -61,6 +62,9 @@ export class NetClient {
   /** Server-authoritative round clock + per-ship kill table; null until the first snapshot arrives. */
   round: RoundStatus | null = null
   leaderboard: LeaderboardEntry[] = []
+  /** This connection's own level/XP, refreshed on every welcome (join + round reset); null if we
+   * have no stats DB row yet. */
+  rank: RankProgress | null = null
   /** Live tally for the next round's (mode, bot count) vote; only populated while round is 'ended'. */
   voteTally: VoteTallyEntry[] = []
 
@@ -104,6 +108,7 @@ export class NetClient {
       this.world = wireToWorld(msg.world)
       this.shipId = msg.shipId
       this.activeModeId = msg.gameMode
+      this.rank = msg.rank
       this.onReady?.()
     } else if (msg.type === 'snapshot') {
       this.snapshots.push({ at: performance.now(), snap: msg })

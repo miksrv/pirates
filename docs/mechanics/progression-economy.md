@@ -1,12 +1,11 @@
-# Progression & Economy (planned)
+# Progression & Economy (partially planned)
 
-Not implemented. Design doc for XP, levels, coins, and gambling mechanics.
+XP/levels/ranks are implemented — see [ranks.md](ranks.md). Coins and gambling below are still
+just a design doc, not implemented.
 
-## Experience & Levels
-
-**Core rule:** levels NEVER give combat advantage. Level = status + cosmetics + content unlock.
-
-### Level unlocks
+### Level unlocks (not implemented)
+Cosmetic-only ideas for a future pass — ranks.md's system has no unlocks yet, XP just raises
+the level number/badge.
 - Lv 1-5: basic ship color skins
 - Lv 5: ranked mode access
 - Lv 8: custom flag emblem
@@ -15,17 +14,10 @@ Not implemented. Design doc for XP, levels, coins, and gambling mechanics.
 - Lv 20: cannonball color/effects
 - Lv 25+: rare frames, titles
 
-### Level also affects
+### Level also affects (not implemented)
 - Matchmaking brackets (anti-stomp)
 - Mode gating (ranked/CTF require min level — anti-smurf)
 - Perk slots: currently 1 perk; unlock 2nd at Lv 5, 3rd at Lv 10
-
-### XP sources
-- Kill: +20 XP
-- Assist: +10 XP
-- Win round: +50 XP
-- Survive full round: +15 XP
-- Daily first win: +100 XP bonus
 
 ---
 

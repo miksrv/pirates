@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_BASE } from '../../../shared/game/assetKeys'
+import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, LEVELS_BASE, RANK_ICON_KEYS, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_BASE } from '../../../shared/game/assetKeys'
 import { BOT_DEFAULT_COUNT, MAP_HEIGHT, MAP_WIDTH, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
@@ -38,6 +38,10 @@ export class MainScene extends Phaser.Scene {
   private perk: PerkType | null = null
   private gameMode: GameMode | null = null
   private net: NetClient | null = null
+  /** Last level seen from the server, used only to detect a level-up between welcomes (round
+   * reset) — null before the first rank ever arrives, so a returning player's existing level
+   * doesn't fire a false "level up" on their very first welcome. */
+  private prevRankLevel: number | null = null
   private watchdogAccum = 0
   private renderWatchdog = createRenderWatchdog()
 
@@ -63,6 +67,7 @@ export class MainScene extends Phaser.Scene {
     for (const key of ALL_IMAGE_KEYS) this.load.image(key, `${IMG_BASE}/${key}.png`)
     for (const key of ALL_TILE_KEYS) this.load.image(key, `${TILES_BASE}/${key}.png`)
     for (const key of SHIP_IMAGE_KEYS) this.load.image(key, `${SHIPS_BASE}/${key}.png`)
+    for (const key of RANK_ICON_KEYS) this.load.image(key, `${LEVELS_BASE}/${key}.png`)
     for (const [key, file] of Object.entries(SFX)) this.load.audio(key, `${SFX_BASE}/${file}.ogg`)
   }
 
@@ -166,6 +171,12 @@ export class MainScene extends Phaser.Scene {
       this.statsAccum = 0
       this.cameras.main.setBounds(0, 0, net.world!.width, net.world!.height)
       this.events.emit('restarted')
+
+      if (net.rank && this.prevRankLevel !== null && net.rank.level > this.prevRankLevel) {
+        this.events.emit('level-up', net.rank.level)
+      }
+      this.prevRankLevel = net.rank?.level ?? this.prevRankLevel
+      this.events.emit('rank', net.rank)
     }
     this.net.onError = (message: string) => {
       this.world = null
@@ -252,7 +263,13 @@ export class MainScene extends Phaser.Scene {
     syncPickups(this, this.minimapCam, this.world, this.pickupViews)
     syncBombs(this, this.minimapCam, this.world, this.bombViews)
     syncBullets(this, this.minimapCam, this.world, this.bulletViews)
-    syncShips(this, this.minimapCam, this.world, this.playerId, this.shipViews)
+    const levelByShip = new Map<string, number>()
+    if (this.mode === 'online' && this.net) {
+      for (const entry of this.net.leaderboard) {
+        if (entry.level !== null) levelByShip.set(entry.shipId, entry.level)
+      }
+    }
+    syncShips(this, this.minimapCam, this.world, this.playerId, this.shipViews, levelByShip)
 
     // Capture zone rendering (KOTH and similar team modes).
     if (this.world.captureZone) {

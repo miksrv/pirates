@@ -12,6 +12,8 @@ export interface TopPlayerEntry {
   playTimeSeconds: number
   /** ISO timestamp of this player's last activity. */
   updatedAt: string
+  xp: number
+  level: number
 }
 
 export interface ServerStatus {
