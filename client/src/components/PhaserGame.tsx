@@ -37,6 +37,9 @@ export default function PhaserGame() {
   const [rank, setRank] = useState<RankProgress | null>(null)
   const [levelUp, setLevelUp] = useState<number | null>(null)
   const levelUpTimerRef = useRef<number | undefined>(undefined)
+  const [statBoost, setStatBoost] = useState<{ type: PickupType; key: number } | null>(null)
+  const statBoostIdRef = useRef(0)
+  const statBoostTimerRef = useRef<number | undefined>(undefined)
 
   const handleStart = useCallback((
     mode: 'local' | 'online',
@@ -102,6 +105,7 @@ export default function PhaserGame() {
         setVoteTally([])
         setModeHud(null)
         setMatchEnd(null)
+        setStatBoost(null)
       })
       scene.events.on('log', (entry: { text: string; kind: LogEntryKind }) => {
         logIdRef.current += 1
@@ -123,6 +127,12 @@ export default function PhaserGame() {
         setLevelUp(level)
         window.clearTimeout(levelUpTimerRef.current)
         levelUpTimerRef.current = window.setTimeout(() => setLevelUp(null), 5000)
+      })
+      scene.events.on('stat-boost', (type: PickupType) => {
+        statBoostIdRef.current += 1
+        setStatBoost({ type, key: statBoostIdRef.current })
+        window.clearTimeout(statBoostTimerRef.current)
+        statBoostTimerRef.current = window.setTimeout(() => setStatBoost(null), 800)
       })
     })
 
@@ -165,6 +175,7 @@ export default function PhaserGame() {
     return () => {
       window.clearTimeout(megaTimerRef.current)
       window.clearTimeout(levelUpTimerRef.current)
+      window.clearTimeout(statBoostTimerRef.current)
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
@@ -191,6 +202,7 @@ export default function PhaserGame() {
         matchEnd={matchEnd}
         rank={rank}
         levelUp={levelUp}
+        statBoost={statBoost}
         onStart={handleStart}
         onRestart={handleRestart}
         onVote={handleVote}

@@ -269,10 +269,10 @@ export class MainScene extends Phaser.Scene {
       // crosshair doesn't lag a round-trip behind the mouse.
       player = this.world.ships.find((t) => t.id === this.playerId)
       if (player && player.alive) player.cannonAngle = aimAngle
-      handleEvents(this, this.net.drainEvents())
+      handleEvents(this, this.net.drainEvents(), player?.name)
     } else {
       stepWorld(this.world, dt, { [this.playerId]: { throttle, turnDir, aimAngle, firing, boosting } })
-      handleEvents(this, this.world.events)
+      handleEvents(this, this.world.events, player?.name)
     }
 
     syncObstacles(this, this.minimapCam, this.world, this.obstacleViews)

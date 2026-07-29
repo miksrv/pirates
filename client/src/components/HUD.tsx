@@ -46,6 +46,8 @@ interface HUDProps {
   rank: RankProgress | null
   /** Level just reached (round-transition welcome), shown as a celebration toast; null otherwise. */
   levelUp: number | null
+  /** Permanent stat pickup this player just collected — flashes the matching hud-stats value; null otherwise. */
+  statBoost: { type: PickupType; key: number } | null
   onStart: (mode: 'local' | 'online', botCount: number, nickname: string, perk: PerkType, gameModeId: string | null, authToken: string | null) => void
   onRestart: () => void
   /** Casts this player's vote for the next round's mode/bot count (online only). */
@@ -272,6 +274,7 @@ export default function HUD({
   matchEnd,
   rank,
   levelUp,
+  statBoost,
   onStart,
   onRestart,
   onVote,
@@ -826,10 +829,26 @@ export default function HUD({
       </div>
 
       <div className="hud-stats">
-        <span title="Скорость">🚀 {stats.speed}</span>
-        <span title="Урон">💥 {stats.damage}</span>
-        <span title="Броня">🛡 {stats.armor}%</span>
-        <span title="Перезарядка пушки">🔁 {stats.reloadSeconds}с</span>
+        <span
+          title="Скорость"
+          key={statBoost?.type === 'speed' ? `speed-${statBoost.key}` : 'speed'}
+          className={statBoost?.type === 'speed' ? 'hud-stat-pop' : undefined}
+        >🪢 {stats.speed}</span>
+        <span
+          title="Урон"
+          key={statBoost?.type === 'damage' ? `damage-${statBoost.key}` : 'damage'}
+          className={statBoost?.type === 'damage' ? 'hud-stat-pop' : undefined}
+        >💥 {stats.damage}</span>
+        <span
+          title="Броня"
+          key={statBoost?.type === 'armor' ? `armor-${statBoost.key}` : 'armor'}
+          className={statBoost?.type === 'armor' ? 'hud-stat-pop' : undefined}
+        >🧱 {stats.armor}%</span>
+        <span
+          title="Перезарядка пушки"
+          key={statBoost?.type === 'fireRate' ? `reload-${statBoost.key}` : 'reload'}
+          className={statBoost?.type === 'fireRate' ? 'hud-stat-pop' : undefined}
+        >🧑‍🔧 {stats.reloadSeconds}с</span>
       </div>
 
       {adminOpen && (

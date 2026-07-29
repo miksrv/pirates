@@ -1,11 +1,15 @@
 import type Phaser from 'phaser'
 import { SFX } from '../../../shared/game/assetKeys'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
-import type { GameEvent } from '../../../shared/game/types'
+import type { GameEvent, PickupType } from '../../../shared/game/types'
 import { spawnDamageNumber, spawnExplosionFx } from './fx'
 
+/** Permanent pickups that show up as a number in the bottom-left HUD stats row — collecting one
+ * of these emits 'stat-boost' so the HUD can flash the matching value. */
+const HUD_STAT_PICKUPS = new Set<PickupType>(['armor', 'speed', 'damage', 'fireRate'])
+
 /** Turns one frame of simulation events into sound, screen effects, and log lines. */
-export function handleEvents(scene: Phaser.Scene, events: GameEvent[]): void {
+export function handleEvents(scene: Phaser.Scene, events: GameEvent[], myShipName?: string): void {
   for (const ev of events) {
     if (ev.kind === 'shot') {
       scene.sound.play(SFX.shoot, { volume: 0.3 })
@@ -17,6 +21,9 @@ export function handleEvents(scene: Phaser.Scene, events: GameEvent[]): void {
       scene.sound.play(SFX.pickup, { volume: 0.45 })
       const def = PICKUP_DEFS[ev.pickupType]
       scene.events.emit('log', { text: `${def.emoji} ${ev.shipName} подобрал: ${def.label}`, kind: 'pickup' })
+      if (ev.shipName === myShipName && HUD_STAT_PICKUPS.has(ev.pickupType)) {
+        scene.events.emit('stat-boost', ev.pickupType)
+      }
     } else if (ev.kind === 'damage') {
       scene.events.emit('log', {
         text: `⚔️ ${ev.attackerName} → ${ev.targetName}: -${ev.amount} HP`,

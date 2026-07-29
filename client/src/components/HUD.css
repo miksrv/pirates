@@ -1241,6 +1241,24 @@
   color: #e8ecf1;
 }
 
+.hud-stat-pop {
+  animation: hud-stat-pop 0.6s ease-out;
+}
+
+@keyframes hud-stat-pop {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.4);
+    color: #3ee06f;
+    text-shadow: 0 0 10px rgba(62, 224, 111, 0.85);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 .event-log {
   position: absolute;
   top: 14px;
