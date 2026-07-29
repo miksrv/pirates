@@ -1,5 +1,5 @@
 import Phaser from 'phaser'
-import { ALL_IMAGE_KEYS, ALL_TILE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, LEVELS_BASE, RANK_ICON_KEYS, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_BASE } from '../../../shared/game/assetKeys'
+import { ALL_IMAGE_KEYS, EXPLOSION_FRAME_KEYS, GROUND_TILE_KEY, IMG_BASE, LEVELS_BASE, RANK_ICON_KEYS, SFX, SFX_BASE, SHIP_IMAGE_KEYS, SHIPS_BASE, TILES_ATLAS_IMAGE, TILES_ATLAS_JSON, TILES_ATLAS_KEY } from '../../../shared/game/assetKeys'
 import { BOT_DEFAULT_COUNT, MAP_HEIGHT, MAP_WIDTH, MINIMAP_H, MINIMAP_MARGIN, MINIMAP_W } from '../../../shared/game/constants'
 import { PICKUP_DEFS } from '../../../shared/game/pickups'
 import { buildStats } from '../../../shared/game/stats'
@@ -83,14 +83,14 @@ export class MainScene extends Phaser.Scene {
 
   preload(): void {
     for (const key of ALL_IMAGE_KEYS) this.load.image(key, `${IMG_BASE}/${key}.png`)
-    for (const key of ALL_TILE_KEYS) this.load.image(key, `${TILES_BASE}/${key}.png`)
+    this.load.atlas(TILES_ATLAS_KEY, TILES_ATLAS_IMAGE, TILES_ATLAS_JSON)
     for (const key of SHIP_IMAGE_KEYS) this.load.image(key, `${SHIPS_BASE}/${key}.png`)
     for (const key of RANK_ICON_KEYS) this.load.image(key, `${LEVELS_BASE}/${key}.png`)
     for (const [key, file] of Object.entries(SFX)) this.load.audio(key, `${SFX_BASE}/${file}.ogg`)
   }
 
   create(): void {
-    this.groundTile = this.add.tileSprite(0, 0, MAP_WIDTH, MAP_HEIGHT, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
+    this.groundTile = this.add.tileSprite(0, 0, MAP_WIDTH, MAP_HEIGHT, TILES_ATLAS_KEY, GROUND_TILE_KEY).setOrigin(0, 0).setDepth(0)
 
     this.minimapCam = this.cameras
       .add(0, 0, MINIMAP_W, MINIMAP_H)

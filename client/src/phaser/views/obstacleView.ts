@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
 import {
+  DRIFT_BARREL_GRASS_KEY,
   ISLAND_CANNON_KEY,
   ISLAND_GRASS_CORNER_KEYS,
   ISLAND_GRASS_FILL_KEYS,
@@ -15,6 +16,7 @@ import {
   ISLAND_SAND_FILL_KEYS,
   ISLAND_TREE_KEYS,
   OBSTACLE_KEY,
+  TILES_ATLAS_KEY,
 } from '../../../../shared/game/assetKeys'
 import { MAP_TILE_SIZE } from '../../../../shared/game/constants'
 import { generateIslandTileGrid, type IslandGridCell, type ShallowWaterCell } from '../../../../shared/game/islandShape'
@@ -48,10 +50,10 @@ function scatterIslandProps(
       const size = prop.radius * 2
       if (prop.kind === 'bush') {
         const key = ISLAND_TREE_KEYS[Math.floor(Math.random() * ISLAND_TREE_KEYS.length)]
-        props.push(scene.add.sprite(px, py, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6))
+        props.push(scene.add.sprite(px, py, TILES_ATLAS_KEY, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6))
       } else {
         const key = ISLAND_ROCK_KEYS[Math.floor(Math.random() * ISLAND_ROCK_KEYS.length)]
-        props.push(scene.add.sprite(px, py, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6))
+        props.push(scene.add.sprite(px, py, TILES_ATLAS_KEY, key).setDisplaySize(size, size).setRotation(Math.random() * Math.PI * 2).setDepth(6))
       }
     }
   }
@@ -126,7 +128,7 @@ function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, land: Isl
   return land.map((cell) => {
     const { key, rotation } = cell.layer === 'grass' ? { key: grassTileFor(cell), rotation: 0 } : sandTileFor(cell)
     return scene.add
-      .sprite(cx + cell.x, cy + cell.y, key)
+      .sprite(cx + cell.x, cy + cell.y, TILES_ATLAS_KEY, key)
       .setDisplaySize(MAP_TILE_SIZE + ISLAND_TILE_OVERLAP, MAP_TILE_SIZE + ISLAND_TILE_OVERLAP)
       .setRotation(rotation)
       .setDepth(cell.layer === 'grass' ? 4.5 : 4)
@@ -140,7 +142,7 @@ function placeIslandTiles(scene: Phaser.Scene, cx: number, cy: number, land: Isl
 function placeShallowWaterTiles(scene: Phaser.Scene, cx: number, cy: number, shallowWater: ShallowWaterCell[]): Phaser.GameObjects.Sprite[] {
   return shallowWater.map((cell) =>
     scene.add
-      .sprite(cx + cell.x, cy + cell.y, cell.key)
+      .sprite(cx + cell.x, cy + cell.y, TILES_ATLAS_KEY, cell.key)
       .setDisplaySize(MAP_TILE_SIZE, MAP_TILE_SIZE)
       .setDepth(3.9),
   )
@@ -175,7 +177,7 @@ function createIslandView(
     for (const ft of obstacle.fortTiles) {
       tiles.push(
         scene.add
-          .sprite(cx + ft.x, cy + ft.y, ft.key)
+          .sprite(cx + ft.x, cy + ft.y, TILES_ATLAS_KEY, ft.key)
           .setDisplaySize(MAP_TILE_SIZE + ISLAND_TILE_OVERLAP, MAP_TILE_SIZE + ISLAND_TILE_OVERLAP)
           .setDepth(5),
       )
@@ -200,7 +202,8 @@ function createObstacleView(
 ): ObstacleView {
   if (obstacle.variant === 'island') return createIslandView(scene, minimapCam, obstacle)
 
-  const sprite = scene.add.sprite(obstacle.pos.x, obstacle.pos.y, OBSTACLE_KEY[obstacle.variant]).setDepth(5)
+  const key = obstacle.variant === 'driftBarrel' && obstacle.grassShore ? DRIFT_BARREL_GRASS_KEY : OBSTACLE_KEY[obstacle.variant]
+  const sprite = scene.add.sprite(obstacle.pos.x, obstacle.pos.y, TILES_ATLAS_KEY, key).setDepth(5)
   sprite.setDisplaySize(obstacle.w, obstacle.h)
   if (obstacle.variant === 'reef' || obstacle.variant === 'rockyShore') {
     sprite.setRotation(Math.random() * Math.PI * 2)
