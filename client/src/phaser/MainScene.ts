@@ -8,6 +8,7 @@ import { createWorld, stepWorld } from '../../../shared/game/world'
 import { getGameMode } from '../../../shared/game/modes'
 import type { GameMode } from '../../../shared/game/modes/types'
 import { CTF_BASE_RADIUS } from '../../../shared/game/modes/captureTheFlag'
+import { clearStoredAuth } from '../net/auth'
 import { NetClient } from '../net/client'
 import { handleEvents } from './eventEffects'
 import { createInputKeys, readPlayerInput, type SceneKeys } from './input'
@@ -25,6 +26,9 @@ export interface LaunchConfig {
   nickname?: string
   perk?: PerkType | null
   gameMode?: GameMode | null
+  /** Signed session token for a logged-in account (see server/auth.ts) — when valid, the server
+   * uses the account's id/username instead of `nickname`/the localStorage playerId. */
+  authToken?: string | null
 }
 
 export class MainScene extends Phaser.Scene {
@@ -125,7 +129,7 @@ export class MainScene extends Phaser.Scene {
     this.perk = launch.perk ?? null
     this.gameMode = launch.gameMode ?? null
 
-    if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname)
+    if (this.mode === 'online') this.connectOnline(launch.serverUrl ?? 'ws://localhost:8081', launch.nickname, launch.authToken)
     else this.startNewWorld()
   }
 
@@ -156,8 +160,8 @@ export class MainScene extends Phaser.Scene {
     return true
   }
 
-  private connectOnline(url: string, nickname?: string): void {
-    this.net = new NetClient(url, nickname, this.perk, this.gameMode?.id ?? null, this.botCount)
+  private connectOnline(url: string, nickname?: string, authToken?: string | null): void {
+    this.net = new NetClient(url, nickname, this.perk, this.gameMode?.id ?? null, this.botCount, authToken)
     this.net.onReady = () => {
       const net = this.net!
       this.clearViews()
@@ -177,6 +181,18 @@ export class MainScene extends Phaser.Scene {
       }
       this.prevRankLevel = net.rank?.level ?? this.prevRankLevel
       this.events.emit('rank', net.rank)
+
+      // The stored login no longer checks out server-side (expired, or a since-restarted server
+      // signing with a different secret) — this match is being played as a guest even though the
+      // menu still claimed we were logged in. Drop the stale token so returning to the menu shows
+      // the real (logged-out) state, and say so where the player will actually see it mid-match.
+      if (net.authRejected) {
+        clearStoredAuth()
+        this.events.emit('log', {
+          text: '⚠ Сессия аккаунта истекла — вы играете как гость, эта статистика не сохранится под аккаунтом. Войдите заново.',
+          kind: 'info',
+        })
+      }
     }
     this.net.onError = (message: string) => {
       this.world = null

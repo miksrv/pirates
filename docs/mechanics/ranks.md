@@ -3,8 +3,10 @@
 Server-side only. Cosmetic status, never a combat advantage — same stats regardless of level.
 
 ## Storage
-- `server/data/stats.sqlite3`, `players.xp` column (persists across sessions, keyed by the
-  client's localStorage `playerId`).
+- `server/data/stats.sqlite3`, `players.xp` column (persists across sessions), keyed by
+  identity: the client's localStorage `playerId` for a guest, or the account's stable user id
+  when logged in (see [auth.md](auth.md)) — logging in makes stats/rank follow the account
+  across browsers/devices instead of one browser's random id.
 - Bots are never in the DB and never earn XP — no rank system involvement at all.
 - Local (offline vs. bots) play has no server, so no rank is ever known — no badge shown.
 - A player with no DB row yet (brand-new, hasn't finished or left a round) shows **no badge**.

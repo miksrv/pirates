@@ -65,6 +65,9 @@ export class NetClient {
   /** This connection's own level/XP, refreshed on every welcome (join + round reset); null if we
    * have no stats DB row yet. */
   rank: RankProgress | null = null
+  /** True if this join's authToken was sent but rejected by the server (expired, or a since-
+   * restarted server signing with a different secret) — see WelcomeMsg.authRejected. */
+  authRejected = false
   /** Live tally for the next round's (mode, bot count) vote; only populated while round is 'ended'. */
   voteTally: VoteTallyEntry[] = []
 
@@ -72,10 +75,18 @@ export class NetClient {
   onError: ((message: string) => void) | null = null
 
   /** `gameMode`/`botCount` are only honored by the server when this join creates a brand-new
-   * arena (nobody connected yet) — see JoinMsg. */
-  constructor(url: string, name?: string, perk?: PerkType | null, gameMode?: string | null, botCount?: number) {
+   * arena (nobody connected yet) — see JoinMsg. `authToken`, when valid, makes the server use the
+   * account's stable id/username instead of `playerId`/`name`. */
+  constructor(
+    url: string,
+    name?: string,
+    perk?: PerkType | null,
+    gameMode?: string | null,
+    botCount?: number,
+    authToken?: string | null,
+  ) {
     this.ws = new WebSocket(url)
-    this.ws.onopen = () => this.send({ type: 'join', name, perk, playerId: getPlayerId(), gameMode, botCount })
+    this.ws.onopen = () => this.send({ type: 'join', name, perk, playerId: getPlayerId(), gameMode, botCount, authToken })
     this.ws.onmessage = (ev) => {
       try {
         this.handleMessage(JSON.parse(String(ev.data)) as ServerMsg)
@@ -109,6 +120,7 @@ export class NetClient {
       this.shipId = msg.shipId
       this.activeModeId = msg.gameMode
       this.rank = msg.rank
+      this.authRejected = msg.authRejected
       this.onReady?.()
     } else if (msg.type === 'snapshot') {
       this.snapshots.push({ at: performance.now(), snap: msg })
