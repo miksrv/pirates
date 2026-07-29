@@ -1,5 +1,4 @@
 import type { ObstacleVariant, ShipHealthState, ShipVariant } from './types'
-import { ALL_FORT_TILE_KEYS } from './fortGeneration'
 import { MAX_LEVEL } from './rank'
 
 // This file is shared with the server (via map.ts → islandShape.ts, for its tile-key constants
@@ -7,10 +6,15 @@ import { MAX_LEVEL } from './rank'
 // asset-path constants below (client-only, used by MainScene's preload) must tolerate that.
 const BASE_URL = import.meta.env?.BASE_URL ?? '/'
 export const IMG_BASE = `${BASE_URL}assets/img`
-export const TILES_BASE = `${BASE_URL}assets/tiles`
 export const SHIPS_BASE = `${BASE_URL}assets/ships`
 export const SFX_BASE = `${BASE_URL}assets/sfx`
 export const LEVELS_BASE = `${BASE_URL}assets/levels`
+
+/** Single packed atlas for every island/water/fort tile (see sources/pack-tiles-atlas.py, which
+ * regenerates it from sources/tiles/*.png — re-run it after adding/removing tiles). */
+export const TILES_ATLAS_KEY = 'tilesAtlas'
+export const TILES_ATLAS_IMAGE = `${BASE_URL}assets/tiles/tiles_atlas.png`
+export const TILES_ATLAS_JSON = `${BASE_URL}assets/tiles/tiles_atlas.json`
 
 /** Rank badge texture key/file for a given level (1..MAX_LEVEL) — shared by the Phaser preload
  * (ship overhead badge) and the React UI's <img> tags (leaderboards, HUD rank widget). */
@@ -43,10 +47,16 @@ export const SHIP_IMAGE_KEYS: string[] = Object.keys(SHIP_TYPE_NUMBER).flatMap((
 export const SHIP_CANNON_KEY = 'cannon'
 export const CANNONBALL_KEY = 'cannonBall'
 
+/** Grass-shore variant for a driftBarrel obstacle placed next to a grass island (see
+ * `Obstacle.grassShore`, set in map.ts's `tryPlaceShoreProp`). */
+export const DRIFT_BARREL_GRASS_KEY = 'sand_edge_bottom_wreck_grass_1'
+
 export const OBSTACLE_KEY: Record<ObstacleVariant, string> = {
-  island: 'tile_sand',
+  // Unused: 'island' obstacles always render via createIslandView (obstacleView.ts), which never
+  // reads OBSTACLE_KEY — kept only so this Record stays total over ObstacleVariant.
+  island: 'sand_fill_sparkle_1',
   reef: 'rock_medium_1',
-  driftBarrel: 'tile_barrel',
+  driftBarrel: 'sand_edge_bottom_wreck_1',
   rockyShore: 'rock_small_1',
 }
 
@@ -59,49 +69,49 @@ export const OBSTACLE_KEY: Record<ObstacleVariant, string> = {
  * `tile_sand_fill_plain_1` alone reads as an obvious flat block once it covers a whole interior —
  * a single identical texture repeated over many cells always does, regardless of tone — so the
  * sparkle variants are mixed in at equal weight for texture variety, not treated as a rare extra. */
-export const ISLAND_SAND_FILL_KEYS = ['tile_sand_fill_sparkle_1', 'tile_sand_fill_sparkle_2']
+export const ISLAND_SAND_FILL_KEYS = ['sand_fill_sparkle_1', 'sand_fill_sparkle_2']
 type CornerName = 'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr'
 /** A fill cell can have no orthogonal water neighbor yet still sit diagonally next to open water
  * (a concave notch just past a coastline corner) — this bakes a soft shadow into the matching
  * corner of the tile instead of leaving it looking like a stray, unexplained smudge. Use only
  * when that specific diagonal neighbor actually is water (islandShape's `innerShadowCorner`). */
 export const ISLAND_SAND_FILL_INNER_SHADOW_KEYS: Record<CornerName, string[]> = {
-  cornerTl: ['tile_sand_fill_innershadow_tl_1'],
-  cornerTr: ['tile_sand_fill_innershadow_tr_1'],
-  cornerBl: ['tile_sand_fill_innershadow_bl_1'],
-  cornerBr: ['tile_sand_fill_innershadow_br_1'],
+  cornerTl: ['sand_fill_innershadow_tl_1'],
+  cornerTr: ['sand_fill_innershadow_tr_1'],
+  cornerBl: ['sand_fill_innershadow_bl_1'],
+  cornerBr: ['sand_fill_innershadow_br_1'],
 }
 /** Plain water corner — no grass baked in. Safe regardless of what's diagonally inland. */
 export const ISLAND_SAND_CORNER_KEYS: Record<CornerName, string[]> = {
-  cornerTl: ['tile_sand_corner_tl_1'],
-  cornerTr: ['tile_sand_corner_tr_1'],
-  cornerBl: ['tile_sand_corner_bl_1'],
-  cornerBr: ['tile_sand_corner_br_1'],
+  cornerTl: ['sand_corner_tl_1'],
+  cornerTr: ['sand_corner_tr_1'],
+  cornerBl: ['sand_corner_bl_1'],
+  cornerBr: ['sand_corner_br_1'],
 }
 /** Same water corner, but with a small grass fleck baked into the opposite (inland) tip — use
  * only when that diagonal neighbor is actually a grass cell, or the fleck reads as a stray patch
  * of grass in the middle of open sand. */
 export const ISLAND_SAND_CORNER_GRASSTIP_KEYS: Record<CornerName, string[]> = {
-  cornerTl: ['tile_sand_corner_tl_grasstip_1'],
-  cornerTr: ['tile_sand_corner_tr_grasstip_1'],
-  cornerBl: ['tile_sand_corner_bl_grasstip_1'],
-  cornerBr: ['tile_sand_corner_br_grasstip_1'],
+  cornerTl: ['sand_corner_tl_grasstip_1'],
+  cornerTr: ['sand_corner_tr_grasstip_1'],
+  cornerBl: ['sand_corner_bl_grasstip_1'],
+  cornerBr: ['sand_corner_br_grasstip_1'],
 }
 /** Plain south-facing coastline edge — no grass strip baked in. Use only when the inland
  * neighbor is more sand, not grass (see ISLAND_SAND_EDGE_GRASSTOP_KEYS). Rotated 90/180/270° to
  * also cover west/north/east (see IslandGridCell.edgeRotation). */
-export const ISLAND_SAND_EDGE_KEYS = ['tile_sand_edge_1']
+export const ISLAND_SAND_EDGE_KEYS = ['sand_edge_bottom_1']
 /** Extra native art for the west/north/east coastline edge — a smaller, partial water bite than
  * ISLAND_SAND_EDGE_KEYS, but facing the right way already so it needs no rotation. Mixed in as
  * bonus variety alongside the rotated south art for those 3 directions (never used for south). */
 export const ISLAND_SAND_EDGE_NATIVE_KEYS: Partial<Record<1 | 2 | 3, string[]>> = {
-  1: ['tile_sand_edge_west_1'],
-  2: ['tile_sand_edge_north_1'],
-  3: ['tile_sand_edge_east_1'],
+  1: ['sand_edge_west_1'],
+  2: ['sand_edge_north_1'],
+  3: ['sand_edge_east_1'],
 }
 /** Same south-facing coastline edge, but with a grass strip baked along the top — for when the
  * inland neighbor is actually a grass cell, so the coastline edge doesn't show a false sand gap. */
-export const ISLAND_SAND_EDGE_GRASSTOP_KEYS = ['tile_sand_edge_grasstop_1', 'tile_sand_edge_grasstop_2']
+export const ISLAND_SAND_EDGE_GRASSTOP_KEYS = ['sand_edge_bottom_grasstop_1', 'sand_edge_bottom_grasstop_2']
 /**
  * Shallow-water shoreline ring — one tile per open-water cell that touches the coastline (see the
  * `shallowWater` pass in `generateIslandTileGrid`, `islandShape.ts`), never stacked on a sand tile
@@ -116,38 +126,37 @@ export const ISLAND_SAND_EDGE_GRASSTOP_KEYS = ['tile_sand_edge_grasstop_1', 'til
  * below stacked on top at that same cell, never offset to a different one.
  */
 export const ISLAND_SHALLOW_WATER_CORNER_KEYS: Record<CornerName, string> = {
-  cornerTl: 'tile_shallow_water_corner_1',
-  cornerTr: 'tile_shallow_water_corner_2',
-  cornerBl: 'tile_shallow_water_corner_3',
-  cornerBr: 'tile_shallow_water_corner_4',
+  cornerTl: 'shallowwater_corner_tl_1',
+  cornerTr: 'shallowwater_corner_tr_1',
+  cornerBl: 'shallowwater_corner_bl_1',
+  cornerBr: 'shallowwater_corner_br_1',
 }
 export const ISLAND_SHALLOW_WATER_EDGE_KEYS: Record<0 | 1 | 2 | 3, string> = {
-  0: 'tile_shallow_water_edge_4',
-  1: 'tile_shallow_water_edge_2',
-  2: 'tile_shallow_water_edge_1',
-  3: 'tile_shallow_water_edge_3',
+  0: 'shallowwater_edge_bottom_1',
+  1: 'shallowwater_edge_left_1',
+  2: 'shallowwater_edge_top_1',
+  3: 'shallowwater_edge_right_1',
 }
 /** Base tile under every rounded-corner shallow-water cell (see `ISLAND_SHALLOW_WATER_CORNER_KEYS`
- * above) and fallback for a 1-cell inlet/channel with no matching shape at all. The one
- * shallow-water tile with a fully uniform alpha, safe to place anywhere without a visible seam
- * (see the historical note this replaced: `tile_shallow_water_2..5` each carry a small notch that
- * lines up into a repeating pattern once several are placed near each other). */
-export const ISLAND_SHALLOW_WATER_FILL_KEY = 'tile_shallow_water_1'
+ * above) and fallback for a 1-cell inlet/channel with no matching shape at all. Kept to a single
+ * variant (of the 5 available, `shallowwater_fill_1..5`) so repeated placement never lines up into
+ * a visible pattern — same reasoning as the art set this replaced. */
+export const ISLAND_SHALLOW_WATER_FILL_KEY = 'shallowwater_fill_1'
 /** Rare decorative substitutes for a south-facing edge cell, picked to match whether grass
  * actually borders it inland (the "_grass" variants bake a grass strip into the same tile). */
-export const ISLAND_SAND_EDGE_DECOR_KEYS = ['tile_sand_edge_wreck_1', 'tile_sand_edge_driftwood_1', 'tile_sand_edge_boulder_1']
+export const ISLAND_SAND_EDGE_DECOR_KEYS = ['sand_edge_bottom_wreck_1', 'sand_edge_bottom_driftwood_1', 'sand_edge_bottom_boulder_1']
 export const ISLAND_SAND_EDGE_DECOR_GRASS_KEYS = [
-  'tile_sand_edge_wreck_grass_1',
-  'tile_sand_edge_driftwood_grass_1',
-  'tile_sand_edge_boulder_grass_1',
+  'sand_edge_bottom_wreck_grass_1',
+  'sand_edge_bottom_driftwood_grass_1',
+  'sand_edge_bottom_boulder_grass_1',
 ]
 
 /** Grass ground tiles for the island grid. */
 export const ISLAND_GRASS_FILL_KEYS = [
-  'tile_grass_fill_1',
-  'tile_grass_fill_flowers_1',
-  'tile_grass_fill_pattern_1',
-  'tile_grass_fill_pattern_2',
+  'grass_fill_1',
+  'grass_fill_flowers_1',
+  'grass_fill_pattern_1',
+  'grass_fill_pattern_2',
 ]
 /** Grass-side counterpart to a sand coastline corner: still mostly sand (only the 2 edges nearest
  * the name are true grass, e.g. `cornerTr` is grass along its top+right edges), used one tile
@@ -156,10 +165,10 @@ export const ISLAND_GRASS_FILL_KEYS = [
  * Keyed by `IslandGridCell.grassCornerTip`, which already names the opposite corner from the
  * adjacent sand corner cell (so a `cornerBl` sand corner pairs with `cornerTr` here). */
 export const ISLAND_GRASS_CORNER_KEYS: Record<'cornerTl' | 'cornerTr' | 'cornerBl' | 'cornerBr', string[]> = {
-  cornerTl: ['tile_grass_corner_tl_1'],
-  cornerTr: ['tile_grass_corner_tr_1'],
-  cornerBl: ['tile_grass_corner_bl_1'],
-  cornerBr: ['tile_grass_corner_br_1'],
+  cornerTl: ['grass_corner_tl_1'],
+  cornerTr: ['grass_corner_tr_1'],
+  cornerBl: ['grass_corner_bl_1'],
+  cornerBr: ['grass_corner_br_1'],
 }
 
 /** Decorative props scattered on/around islands — purely cosmetic, not separate obstacles. */
@@ -180,7 +189,7 @@ export const ISLAND_ROCK_KEYS = [
 ]
 export const ISLAND_CANNON_KEY = 'cannonMobile'
 
-export const GROUND_TILE_KEY = 'tile_water'
+export const GROUND_TILE_KEY = 'water_fill_1'
 export const EXPLOSION_FRAME_KEYS = ['explosion1', 'explosion2', 'explosion3']
 
 export const SFX = {
@@ -190,36 +199,10 @@ export const SFX = {
   pickup: 'pickup',
 } as const
 
-/** Keys loaded from assets/tiles/ (rocks & bushes). */
-export const ALL_TILE_KEYS: string[] = [...new Set([
-  ...ISLAND_ROCK_KEYS,
-  ...ISLAND_TREE_KEYS,
-  OBSTACLE_KEY.reef,
-  OBSTACLE_KEY.rockyShore,
-])]
-
-/** Keys loaded from assets/img/ (everything except tile-dir rocks). */
+/** Keys loaded individually from assets/img/ (ship weapons/effects — not part of the tile atlas). */
 export const ALL_IMAGE_KEYS: string[] = [
   SHIP_CANNON_KEY,
   CANNONBALL_KEY,
-  OBSTACLE_KEY.island,
-  OBSTACLE_KEY.driftBarrel,
-  ...ISLAND_SAND_FILL_KEYS,
-  ...Object.values(ISLAND_SAND_FILL_INNER_SHADOW_KEYS).flat(),
-  ...Object.values(ISLAND_SAND_CORNER_KEYS).flat(),
-  ...Object.values(ISLAND_SAND_CORNER_GRASSTIP_KEYS).flat(),
-  ...ISLAND_SAND_EDGE_KEYS,
-  ...Object.values(ISLAND_SAND_EDGE_NATIVE_KEYS).flat(),
-  ...ISLAND_SAND_EDGE_GRASSTOP_KEYS,
-  ...Object.values(ISLAND_SHALLOW_WATER_CORNER_KEYS),
-  ...Object.values(ISLAND_SHALLOW_WATER_EDGE_KEYS),
-  ISLAND_SHALLOW_WATER_FILL_KEY,
-  ...ISLAND_SAND_EDGE_DECOR_KEYS,
-  ...ISLAND_SAND_EDGE_DECOR_GRASS_KEYS,
-  ...ISLAND_GRASS_FILL_KEYS,
-  ...Object.values(ISLAND_GRASS_CORNER_KEYS).flat(),
   ISLAND_CANNON_KEY,
-  ...ALL_FORT_TILE_KEYS,
-  GROUND_TILE_KEY,
   ...EXPLOSION_FRAME_KEYS,
 ]

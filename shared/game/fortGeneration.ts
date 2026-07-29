@@ -49,21 +49,6 @@ export const FORT_WALL_H_DAMAGED_HEAVY = 'fort_wall_h_damaged_heavy'
 export const FORT_WALL_V_DAMAGED_LIGHT = 'fort_wall_v_damaged_light'
 export const FORT_WALL_H_DAMAGED_LIGHT = 'fort_wall_h_damaged_light'
 
-/** Every fort tile key — used for asset loading. */
-export const ALL_FORT_TILE_KEYS: string[] = [
-  ...FORT_TOWER_KEYS,
-  FORT_WALL_V, FORT_WALL_H, FORT_WALL_V_WIDE, FORT_WALL_H_WIDE,
-  FORT_WALL_V_TOWER, FORT_WALL_H_TOWER,
-  FORT_WALL_V_CANNON_R, FORT_WALL_V_CANNON_L,
-  FORT_WALL_H_CANNON_N, FORT_WALL_H_CANNON_S,
-  FORT_CORNER_TL, FORT_CORNER_TR, FORT_CORNER_BL, FORT_CORNER_BR,
-  FORT_TOWER_WALL_N, FORT_TOWER_WALL_S, FORT_TOWER_WALL_E, FORT_TOWER_WALL_W,
-  FORT_WALL_CAP_N, FORT_WALL_CAP_S, FORT_WALL_CAP_E, FORT_WALL_CAP_W,
-  FORT_WALL_V_GATE, FORT_WALL_H_GATE,
-  FORT_WALL_V_DAMAGED_HEAVY, FORT_WALL_H_DAMAGED_HEAVY,
-  FORT_WALL_V_DAMAGED_LIGHT, FORT_WALL_H_DAMAGED_LIGHT,
-]
-
 // ─── Fort shape templates ───────────────────────────────────────────────────
 
 /** Each template is a 2D grid of 0 (empty) / 1 (wall). Auto-tiling picks the right

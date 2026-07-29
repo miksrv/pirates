@@ -165,7 +165,8 @@ function tryPlaceShoreProp(
     if (avoidPoints.some((p) => distance(p, pos) < SAFE_ZONE_RADIUS)) continue
     if (overlapsAny(obstacles, pos, variant, w)) continue
 
-    pushObstacle(obstacles, variant, pos, w)
+    const obstacle = pushObstacle(obstacles, variant, pos, w)
+    if (variant === 'driftBarrel') obstacle.grassShore = island.w / 2 >= 75
     return true
   }
 

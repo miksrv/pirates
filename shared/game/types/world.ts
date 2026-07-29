@@ -39,6 +39,9 @@ export interface Obstacle {
   props?: IslandProp[]
   /** Only for 'island': fort wall/tower tiles that block cannonballs. */
   fortTiles?: FortTile[]
+  /** Only for 'driftBarrel': whether it was placed next to a grass island — picks the
+   * grass-tinted wreck art (DRIFT_BARREL_GRASS_KEY) instead of the plain sand one. */
+  grassShore?: boolean
 }
 
 export type PickupType =
