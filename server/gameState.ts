@@ -3,10 +3,10 @@ import { BOT_DEFAULT_COUNT, BOT_MAX_COUNT, GAMEPLAY_ROUND_RESTART_DELAY } from '
 import { findFreeSpawnPoint } from '../shared/game/map'
 import { createShip } from '../shared/game/ship/shipFactory'
 import type { RankProgress } from '../shared/game/rank'
-import type { GameEvent, PerkType, PlayerInput, PlayerInputs, World, Faction } from '../shared/game/types'
+import type { GameEvent, PerkType, PlayerInput, PlayerInputs, Ship, World, Faction } from '../shared/game/types'
 import { addPlayerShip, createWorld, removeShip, stepWorld } from '../shared/game/world'
 import { getGameMode, deathmatch } from '../shared/game/modes'
-import type { GameMode } from '../shared/game/modes/types'
+import type { EndResult, GameMode } from '../shared/game/modes/types'
 import { getPlayerRank, getTopPlayers, type TopPlayerEntry } from './db'
 import {
   shipToWire,
@@ -92,6 +92,12 @@ let pendingEvents: GameEvent[] = []
 /** 'playing' counts down world.time to GAMEPLAY_ROUND_DURATION; 'ended' counts down restartTimer instead. */
 let roundPhase: RoundPhase = 'playing'
 let restartTimer = 0
+/** The mode's own verdict for the round that just ended (captured once, in endRound) — resetRound
+ * uses it to credit win/loss per player instead of re-guessing from raw kill counts, which broke
+ * team modes (a win credited to whoever personally had the most kills, not the winning faction)
+ * and non-kill win conditions (last-alive isn't necessarily top-kills). Null before any round has
+ * ended, or once a mode-less round times out with no checkEnd result at all. */
+let lastEndResult: EndResult | null = null
 export const clients = new Map<WebSocket, Client>()
 
 /** One vote per connected socket for the next round's (mode, bot count); only meaningful while
@@ -199,11 +205,28 @@ function buildSnapshot(): SnapshotMsg {
 
 /** Round over: freezes the sim (ships/bullets hold their last position) and starts the restart
  * countdown. Bullets are cleared so nothing is left hanging mid-flight during the freeze. */
-function endRound(): void {
+function endRound(result: EndResult): void {
   if (world) world.bullets = []
+  lastEndResult = result
   roundPhase = 'ended'
   restartTimer = GAMEPLAY_ROUND_RESTART_DELAY
   votes.clear()
+}
+
+/** Win/loss for one ship, from the mode's own verdict for the round that just ended — not raw
+ * kill counts, which get team modes and non-kill win conditions (e.g. last-alive) wrong. Team
+ * modes leave `winner` null and encode the result via `world.teamScores` instead. A draw (no
+ * winner, no faction advantage) credits a win rather than a loss, same as an exact-kills tie
+ * always has — nobody should be punished for a round nobody lost. */
+function roundOutcome(ship: Ship, world: World, result: EndResult | null): 'win' | 'loss' {
+  if (result?.winner) return result.winner.id === ship.id ? 'win' : 'loss'
+  if (ship.faction) {
+    const mine = world.teamScores[ship.faction] ?? 0
+    const otherMax = Math.max(0, ...Object.entries(world.teamScores).filter(([f]) => f !== ship.faction).map(([, v]) => v))
+    return mine >= otherMax ? 'win' : 'loss'
+  }
+  const maxKills = Math.max(0, ...world.ships.filter((s) => !s.escortOf).map((s) => s.kills))
+  return ship.kills >= maxKills ? 'win' : 'loss'
 }
 
 /** Records/replaces one socket's vote for the next round. Ignored outside the 'ended' phase or
@@ -239,21 +262,21 @@ function resolveVote(): { gameMode: string; botCount: number } {
   return tied[Math.floor(Math.random() * tied.length)]
 }
 
-/** Round restart: flushes every connected player's round stats to the DB (most kills = win, the
- * rest = loss — ties all win), then builds a fresh arena and gives each client a new ship (same
- * name/perk) via a fresh `welcome` — reusing the join flow so the client resets its view exactly
- * like a join. */
+/** Round restart: flushes every connected player's round stats to the DB (win/loss per the
+ * mode's own verdict, see roundOutcome), then builds a fresh arena and gives each client a new
+ * ship (same name/perk) via a fresh `welcome` — reusing the join flow so the client resets its
+ * view exactly like a join. */
 function resetRound(): void {
   if (world) {
-    const maxKills = Math.max(0, ...world.ships.filter((s) => !s.escortOf).map((s) => s.kills))
     const placements = computePlacements(world.ships)
     for (const client of clients.values()) {
       const ship = world.ships.find((s) => s.id === client.shipId)
       const placement = ship ? placements.get(ship.id) ?? null : null
-      flushPlayerStats(client, ship, ship ? (ship.kills >= maxKills ? 'win' : 'loss') : null, placement)
+      flushPlayerStats(client, ship, ship ? roundOutcome(ship, world, lastEndResult) : null, placement)
       client.rank = getPlayerRank(client.playerId)
     }
   }
+  lastEndResult = null
 
   const choice = resolveVote()
   activeMode = getGameMode(choice.gameMode) ?? activeMode
@@ -295,7 +318,7 @@ function startLoop(): void {
       pendingEvents.push(...world.events)
 
       const modeResult = world.mode?.checkEnd(world) ?? null
-      if (modeResult) endRound()
+      if (modeResult) endRound(modeResult)
     } else {
       restartTimer -= dt
       if (restartTimer <= 0) resetRound()
@@ -317,6 +340,7 @@ export function stopLoopAndReset(): void {
   roundPhase = 'playing'
   restartTimer = 0
   votes.clear()
+  lastEndResult = null
   activeMode = initialMode()
   activeBotCount = baselineBotCount()
 }

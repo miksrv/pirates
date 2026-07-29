@@ -50,10 +50,8 @@ A mode that leaves all of these unimplemented gets the default FFA bot behavior 
 - `playerStats?` — `{ duration, shotsFired, hits, kills }` for personal stat screen
 
 ### End-screen behavior
-- `matchEnd` event emitted from MainScene → rendered by HUD
-- If `scoreboard` present → show full table (deathmatch, team modes)
-- If only `playerStats` present → show personal victory stats (last ship standing)
-- If neither → show only the `reason` text (e.g. "Ваш корабль потоплен")
+- `matchEnd` event emitted from MainScene → rendered by HUD as a plain "Раунд завершён" + `reason` panel (Restart button) — no stats here anymore.
+- The stats live in the 5s `round-banner` shown right before that panel (see `docs/mechanics/multiplayer.md` → Round-end banner): if `scoreboard` present → full table (deathmatch, team modes); else if `playerStats` present → personal stats (last ship standing); else just the win/lose headline + `reason`.
 
 ### Implemented
 - `lastShipStanding.ts` — no respawn, last alive wins

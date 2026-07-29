@@ -7,8 +7,9 @@ import type { RankProgress } from '../../../shared/game/rank'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import { GAME_MODES, type ModeHudState, type EndResult } from '../../../shared/game/modes'
-import type { LeaderboardEntry, RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
+import type { RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
+import type { RoundBanner } from './roundBanner'
 import { clearStoredAuth, fetchProfile, getStoredAuth, login, setStoredAuth, UnauthorizedError, type ProfileData, type StoredAuth } from '../net/auth'
 import { fetchServerStatus, type ServerStatus } from '../net/status'
 import type { LogEntry } from './logEntry'
@@ -35,13 +36,17 @@ interface HUDProps {
   log: LogEntry[]
   /** Server-authoritative round clock — null in single-player, where there's no round concept. */
   roundStatus: RoundStatus | null
-  leaderboard: LeaderboardEntry[]
   /** Live vote tally for the next round's (mode, bot count) — empty outside the 'ended' phase. */
   voteTally: VoteTallyEntry[]
   /** Mode-specific HUD state (timer, status, etc.) — null when no mode is active. */
   modeHud: ModeHudState | null
   /** End-of-match result from the game mode — null while playing. */
   matchEnd: EndResult | null
+  /** Victory/defeat announcement for the round/match that just ended — null once its 5s window
+   * has passed or no round has ended yet. */
+  roundBanner: RoundBanner | null
+  /** Whether `roundBanner` is currently in its 5s on-screen window (vs. already expired). */
+  bannerVisible: boolean
   /** This connection's own level/XP — null offline, or online before the first stats flush. */
   rank: RankProgress | null
   /** Level just reached (round-transition welcome), shown as a celebration toast; null otherwise. */
@@ -192,6 +197,50 @@ function RankBadge({ level }: { level: number }) {
   )
 }
 
+/** Centered victory/defeat/draw announcement shown for 5s right when a round or match ends,
+ * before the (now stats-free) next-round panel takes over. Same shape for local and online play. */
+function RoundResultBanner({ banner }: { banner: RoundBanner }) {
+  const { outcome, reason, scoreboard, playerStats } = banner
+  const title = outcome === 'win' ? '🏆 Победа!' : outcome === 'lose' ? '💀 Поражение' : '🤝 Ничья'
+  const hasScoreboard = !!scoreboard && scoreboard.length > 0
+  const accuracy = playerStats && playerStats.shotsFired > 0 ? Math.round((playerStats.hits / playerStats.shotsFired) * 100) : 0
+  return (
+    <div className="overlay">
+      <div className={`round-result-banner round-result-${outcome}`}>
+        <h1 className="round-result-title">{title}</h1>
+        <p className="round-result-reason">{reason}</p>
+        {playerStats && !hasScoreboard && (
+          <div className="victory-stats">
+            <div className="victory-stat">⏱ Время: {Math.floor(playerStats.duration / 60)}:{Math.floor(playerStats.duration % 60).toString().padStart(2, '0')}</div>
+            <div className="victory-stat">💀 Потоплено: {playerStats.kills}</div>
+            <div className="victory-stat">💣 Выстрелов: {playerStats.shotsFired}</div>
+            <div className="victory-stat">🎯 Попаданий: {playerStats.hits} ({accuracy}%)</div>
+          </div>
+        )}
+        {hasScoreboard && (
+          <div className="match-scoreboard">
+            <div className="scoreboard-header">
+              <span className="sb-name">Имя</span>
+              <span className="sb-kills">💀</span>
+              <span className="sb-deaths">☠️</span>
+            </div>
+            {scoreboard!.map((entry, i) => (
+              <div
+                key={i}
+                className={`scoreboard-row${entry.isPlayer ? ' scoreboard-row-player' : ''}${entry.faction === 'red' ? ' scoreboard-row-red' : ''}${entry.faction === 'blue' ? ' scoreboard-row-blue' : ''}`}
+              >
+                <span className="sb-name">{entry.faction === 'red' ? '🔴 ' : entry.faction === 'blue' ? '🔵 ' : ''}{entry.name}</span>
+                <span className="sb-kills">{entry.kills}</span>
+                <span className="sb-deaths">{entry.deaths}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 /** Compact rank widget for the in-match HUD: icon, level, and an XP progress bar towards the
  * next one. Only rendered when the server has actually assigned this connection a rank. */
 function RankWidget({ rank }: { rank: RankProgress }) {
@@ -268,10 +317,11 @@ export default function HUD({
   stats,
   log,
   roundStatus,
-  leaderboard,
   voteTally,
   modeHud,
   matchEnd,
+  roundBanner,
+  bannerVisible,
   rank,
   levelUp,
   statBoost,
@@ -723,39 +773,16 @@ export default function HUD({
     )
   }
 
+  if ((matchEnd || gameOver || victory) && bannerVisible && roundBanner) {
+    return <RoundResultBanner banner={roundBanner} />
+  }
+
   if (matchEnd) {
-    const hasScoreboard = matchEnd.scoreboard && matchEnd.scoreboard.length > 0
-    const ps = matchEnd.playerStats
-    const accuracy = ps && ps.shotsFired > 0 ? Math.round((ps.hits / ps.shotsFired) * 100) : 0
     return (
       <div className="overlay">
         <div className="panel">
-          <h1>{matchEnd.winner ? '🏆 Победа!' : matchEnd.reason}</h1>
-          {matchEnd.winner && <p className="subtitle">{matchEnd.reason}</p>}
-          {ps && !hasScoreboard && (
-            <div className="victory-stats">
-              <div className="victory-stat">⏱ Время: {Math.floor(ps.duration / 60)}:{Math.floor(ps.duration % 60).toString().padStart(2, '0')}</div>
-              <div className="victory-stat">💀 Потоплено: {ps.kills}</div>
-              <div className="victory-stat">💣 Выстрелов: {ps.shotsFired}</div>
-              <div className="victory-stat">🎯 Попаданий: {ps.hits} ({accuracy}%)</div>
-            </div>
-          )}
-          {hasScoreboard && (
-            <div className="match-scoreboard">
-              <div className="scoreboard-header">
-                <span className="sb-name">Имя</span>
-                <span className="sb-kills">💀</span>
-                <span className="sb-deaths">☠️</span>
-              </div>
-              {matchEnd.scoreboard!.map((entry, i) => (
-                <div key={i} className={`scoreboard-row${entry.isPlayer ? ' scoreboard-row-player' : ''}${entry.faction === 'red' ? ' scoreboard-row-red' : ''}${entry.faction === 'blue' ? ' scoreboard-row-blue' : ''}`}>
-                  <span className="sb-name">{entry.faction === 'red' ? '🔴 ' : entry.faction === 'blue' ? '🔵 ' : ''}{entry.name}</span>
-                  <span className="sb-kills">{entry.kills}</span>
-                  <span className="sb-deaths">{entry.deaths}</span>
-                </div>
-              ))}
-            </div>
-          )}
+          <h1>Раунд завершён</h1>
+          <p className="subtitle">{matchEnd.reason}</p>
           <button className="primary-btn" onClick={onRestart}>Заново (R)</button>
         </div>
       </div>
@@ -767,7 +794,6 @@ export default function HUD({
       <div className="overlay">
         <div className="panel">
           <h1>Корабль потоплен</h1>
-          {stats && <p className="subtitle">Убийств: {stats.kills}</p>}
           <button className="primary-btn" onClick={onRestart}>Заново (R)</button>
         </div>
       </div>
@@ -775,20 +801,11 @@ export default function HUD({
   }
 
   if (victory) {
-    const accuracy = victory.shotsFired > 0 ? Math.round((victory.hits / victory.shotsFired) * 100) : 0
-    const mins = Math.floor(victory.duration / 60)
-    const secs = Math.floor(victory.duration % 60)
     return (
       <div className="overlay">
         <div className="panel">
           <h1>🏆 Победа!</h1>
           <p className="subtitle">Все вражеские корабли потоплены</p>
-          <div className="victory-stats">
-            <div className="victory-stat">⏱ Время: {mins}:{secs.toString().padStart(2, '0')}</div>
-            <div className="victory-stat">💀 Потоплено: {victory.kills}</div>
-            <div className="victory-stat">💣 Выстрелов: {victory.shotsFired}</div>
-            <div className="victory-stat">🎯 Попаданий: {victory.hits} ({accuracy}%)</div>
-          </div>
           <button className="primary-btn" onClick={onRestart}>Заново (R)</button>
         </div>
       </div>
@@ -903,26 +920,15 @@ export default function HUD({
         style={{ width: MINIMAP_W, height: MINIMAP_H, right: MINIMAP_MARGIN, bottom: MINIMAP_MARGIN }}
       />
 
-      {roundStatus && roundStatus.phase === 'ended' && (
+      {roundStatus && roundStatus.phase === 'ended' && bannerVisible && roundBanner && (
+        <RoundResultBanner banner={roundBanner} />
+      )}
+
+      {roundStatus && roundStatus.phase === 'ended' && !(bannerVisible && roundBanner) && (
         <div className="overlay">
           <div className="panel wizard-panel round-end-panel">
             <h1>Раунд завершён</h1>
             <p className="subtitle">Новый раунд через {Math.ceil(roundStatus.timeRemaining)} с</p>
-            <div className="leaderboard">
-              {leaderboard.map((entry) => (
-                <div
-                  key={entry.shipId}
-                  className={`leaderboard-row${entry.alive ? '' : ' leaderboard-row-dead'}`}
-                >
-                  <span className="leaderboard-name">
-                    {entry.team === 'bot' ? '🤖 ' : '⚓ '}
-                    {entry.level !== null && <RankBadge level={entry.level} />}
-                    {entry.name}
-                  </span>
-                  <span className="leaderboard-kills">💀 {entry.kills} · ⚰️ {entry.deaths}</span>
-                </div>
-              ))}
-            </div>
 
             <div className="wizard-section vote-section">
               <div className="wizard-section-label">🗳 Голосование за следующий раунд</div>

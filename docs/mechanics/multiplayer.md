@@ -34,9 +34,15 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 - Round ends when `mode.checkEnd(world)` returns a result (e.g. timer for deathmatch, last alive for BR/LSS).
 - On end: sim freezes, 15s restart countdown begins (`GAMEPLAY_ROUND_RESTART_DELAY`) and the vote window opens.
 - On restart: round stats flushed to DB, the vote resolves, a fresh arena is built with the winning mode/bot count, all clients get new ships via `welcome`.
+- Win/loss credit (`roundOutcome` in `server/gameState.ts`) follows the mode's own `checkEnd` verdict (captured in `endRound`, consumed 15s later in `resetRound`) — `winner` ship match for FFA, else the player's faction score vs the best other faction for team modes, else (no winner, no factions — an FFA draw) a kills-tie counts as a win. *Not* a raw "most kills wins" comparison — that credited whoever had the most kills regardless of which faction actually won, or of non-kill win conditions like last-alive.
 - `shrinkInset` (Battle Royale) is included in snapshots so clients can render the shrinking field.
 - Broadcast every snapshot: `round: { phase: 'playing' | 'ended', timeRemaining }`, `leaderboard: { shipId, name, team, kills, deaths, alive }[]` (one row per captain, sorted by kills; escorts excluded), and — only while `ended` — `voteTally: { gameMode, botCount, votes }[]` sorted by votes descending.
-- Client: HUD shows a countdown badge while `playing`, and an overlay with the restart countdown, leaderboard, and a mode/bot-count vote panel (live tally, reusing the mode-grid/bot-pills UI) while `ended` (`client/src/components/HUD.tsx`).
+- Client: HUD shows a countdown badge while `playing`. On the `playing` → `ended` transition it re-derives the mode's `EndResult` client-side (`mode.checkEnd` against the synced world — pure, so it matches the server's own decision) and shows a 5s centered win/lose/draw banner with the round's stats (scoreboard or personal stats, whichever the mode returns) — see "Round-end banner" below. After that window, an overlay with the restart countdown and a mode/bot-count vote panel (live tally, reusing the mode-grid/bot-pills UI) takes over — no per-player stats here anymore, just the vote (`client/src/components/HUD.tsx`).
+
+### Round-end banner
+- Fires for every round/match end, online or local (mode-based or the legacy no-mode local flow) — one event, `round-banner` (`MainScene` → `RoundBanner` in `client/src/components/roundBanner.ts`), consumed by `client/src/components/PhaserGame.tsx` and rendered by `HUD.tsx`'s `RoundResultBanner`.
+- Outcome (`win` | `lose` | `draw`) is resolved relative to the local player: `EndResult.winner` ship id match for FFA modes; else compare `world.teamScores` for the player's own faction vs the best other faction (team modes, where `checkEnd` leaves `winner` null and encodes the result in `reason` text only).
+- Visible for 5s (`ROUND_BANNER_MS`), then the next-round/restart panel takes over, already stripped of the leaderboard/scoreboard it used to show.
 
 ## Persistent player stats (SQLite)
 - Storage: `server/db.ts`, `better-sqlite3`, file at `server/data/stats.sqlite3` (gitignored). One `players` row per identity: name (latest), play time, rounds played, wins, losses, kills, deaths, shots fired, hits, `updated_at` (last activity, ISO).

@@ -6,10 +6,11 @@ import { buildStats } from '../../../shared/game/stats'
 import type { PerkType, PickupType, World } from '../../../shared/game/types'
 import { createWorld, stepWorld } from '../../../shared/game/world'
 import { getGameMode } from '../../../shared/game/modes'
-import type { GameMode } from '../../../shared/game/modes/types'
+import type { EndResult, GameMode } from '../../../shared/game/modes/types'
 import { CTF_BASE_RADIUS } from '../../../shared/game/modes/captureTheFlag'
 import { clearStoredAuth } from '../net/auth'
 import { NetClient } from '../net/client'
+import type { RoundBanner } from '../components/roundBanner'
 import { handleEvents } from './eventEffects'
 import { createInputKeys, readPlayerInput, type SceneKeys } from './input'
 import { createRenderWatchdog } from './renderWatchdog'
@@ -31,10 +32,25 @@ export interface LaunchConfig {
   authToken?: string | null
 }
 
+/** Win/lose/draw for `selfId`, given a mode's `EndResult` — used to pick the round-end banner's
+ * headline. Modes with an explicit `winner` Ship (FFA) resolve directly; team modes leave
+ * `winner` null and encode the result in `reason`, so it's derived from `teamScores` instead. */
+function resolveOutcome(result: EndResult, world: World, selfId: string): RoundBanner['outcome'] {
+  if (result.winner) return result.winner.id === selfId ? 'win' : 'lose'
+  const self = world.ships.find((s) => s.id === selfId)
+  if (!self?.faction) return 'draw'
+  const mine = world.teamScores[self.faction] ?? 0
+  const otherMax = Math.max(0, ...Object.entries(world.teamScores).filter(([f]) => f !== self.faction).map(([, v]) => v))
+  if (mine > otherMax) return 'win'
+  if (mine < otherMax) return 'lose'
+  return 'draw'
+}
+
 export class MainScene extends Phaser.Scene {
   private world: World | null = null
   private playerId = ''
   private gameOverEmitted = false
+  private roundBannerEmitted = false
   private statsAccum = 0
 
   private mode: 'local' | 'online' = 'local'
@@ -172,6 +188,7 @@ export class MainScene extends Phaser.Scene {
       // only reliable source; falling back to the client's own request would go stale.
       this.gameMode = getGameMode(net.activeModeId) ?? null
       this.gameOverEmitted = false
+      this.roundBannerEmitted = false
       this.statsAccum = 0
       this.cameras.main.setBounds(0, 0, net.world!.width, net.world!.height)
       this.events.emit('restarted')
@@ -247,6 +264,7 @@ export class MainScene extends Phaser.Scene {
     this.world = createWorld({ botCount: this.botCount, playerPerk: this.perk, mode: this.gameMode ?? undefined })
     this.playerId = this.world.ships.find((t) => t.team === 'player')!.id
     this.gameOverEmitted = false
+    this.roundBannerEmitted = false
     this.statsAccum = 0
 
     this.cameras.main.setBounds(0, 0, this.world.width, this.world.height)
@@ -363,12 +381,19 @@ export class MainScene extends Phaser.Scene {
               kills: player.kills,
             }
           }
+          this.events.emit('round-banner', {
+            outcome: resolveOutcome(result, this.world, this.playerId),
+            reason: result.reason,
+            scoreboard: result.scoreboard,
+            playerStats: result.playerStats,
+          } satisfies RoundBanner)
           this.events.emit('match-end', result)
           return
         }
         // Mode is active but game isn't over yet — check if player died (for modes without respawn)
         if (player && !player.alive && !this.world.respawnEnabled) {
           this.gameOverEmitted = true
+          this.events.emit('round-banner', { outcome: 'lose', reason: 'Ваш корабль потоплен' } satisfies RoundBanner)
           this.events.emit('match-end', { winner: null, reason: 'Ваш корабль потоплен' })
           return
         }
@@ -376,12 +401,22 @@ export class MainScene extends Phaser.Scene {
         // Legacy fallback: no mode set → original hardcoded logic.
         if (player && !player.alive) {
           this.gameOverEmitted = true
+          this.events.emit('round-banner', {
+            outcome: 'lose',
+            reason: 'Ваш корабль потоплен',
+            playerStats: { duration: this.world.time, shotsFired: player.shotsFired, hits: player.hits, kills: player.kills },
+          } satisfies RoundBanner)
           this.events.emit('game-over')
           return
         }
         const bots = this.world.ships.filter((s) => s.team === 'bot' && !s.escortOf)
         if (bots.length > 0 && bots.every((b) => !b.alive)) {
           this.gameOverEmitted = true
+          this.events.emit('round-banner', {
+            outcome: 'win',
+            reason: 'Все вражеские корабли потоплены',
+            playerStats: { duration: this.world.time, shotsFired: player!.shotsFired, hits: player!.hits, kills: player!.kills },
+          } satisfies RoundBanner)
           this.events.emit('victory', {
             duration: this.world.time,
             shotsFired: player!.shotsFired,
@@ -398,11 +433,20 @@ export class MainScene extends Phaser.Scene {
       this.statsAccum = 0.1
       if (player) this.events.emit('stats', buildStats(this.world, player))
       if (this.mode === 'online' && this.net?.round) {
-        this.events.emit('round-status', {
-          round: this.net.round,
-          leaderboard: this.net.leaderboard,
-          voteTally: this.net.voteTally,
-        })
+        this.events.emit('round-status', { round: this.net.round, voteTally: this.net.voteTally })
+        if (this.net.round.phase === 'ended' && !this.roundBannerEmitted) {
+          this.roundBannerEmitted = true
+          const result: EndResult = this.gameMode?.checkEnd(this.world) ?? { winner: null, reason: 'Раунд завершён' }
+          if (player && !result.scoreboard) {
+            result.playerStats = { duration: this.world.time, shotsFired: player.shotsFired, hits: player.hits, kills: player.kills }
+          }
+          this.events.emit('round-banner', {
+            outcome: resolveOutcome(result, this.world, this.playerId),
+            reason: result.reason,
+            scoreboard: result.scoreboard,
+            playerStats: result.playerStats,
+          } satisfies RoundBanner)
+        }
       }
       if (this.gameMode) {
         this.events.emit('mode-hud', this.gameMode.getHudState(this.world))

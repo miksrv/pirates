@@ -4,14 +4,17 @@ import type { RankProgress } from '../../../shared/game/rank'
 import type { Stats } from '../../../shared/game/stats'
 import type { PerkType, PickupType } from '../../../shared/game/types'
 import { getGameMode, type ModeHudState, type EndResult } from '../../../shared/game/modes'
-import type { LeaderboardEntry, RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
+import type { RoundStatus, VoteTallyEntry } from '../../../shared/net/protocol'
 import type { VictoryData } from './victoryData'
+import type { RoundBanner } from './roundBanner'
 import { defaultServerUrl } from '../net/config'
 import { MainScene, type LaunchConfig } from '../phaser/MainScene'
 import HUD from './HUD'
 import type { LogEntry, LogEntryKind } from './logEntry'
 
 const LOG_LIMIT = 30
+/** How long the victory/defeat banner stays up before the next-round panel takes over. */
+const ROUND_BANNER_MS = 5000
 
 export default function PhaserGame() {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -29,11 +32,13 @@ export default function PhaserGame() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
   const [roundStatus, setRoundStatus] = useState<RoundStatus | null>(null)
-  const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [voteTally, setVoteTally] = useState<VoteTallyEntry[]>([])
   const [victory, setVictory] = useState<VictoryData | null>(null)
   const [modeHud, setModeHud] = useState<ModeHudState | null>(null)
   const [matchEnd, setMatchEnd] = useState<EndResult | null>(null)
+  const [roundBanner, setRoundBanner] = useState<RoundBanner | null>(null)
+  const [bannerVisible, setBannerVisible] = useState(false)
+  const bannerTimerRef = useRef<number | undefined>(undefined)
   const [rank, setRank] = useState<RankProgress | null>(null)
   const [levelUp, setLevelUp] = useState<number | null>(null)
   const levelUpTimerRef = useRef<number | undefined>(undefined)
@@ -101,11 +106,13 @@ export default function PhaserGame() {
         setStats(null)
         setLog([])
         setRoundStatus(null)
-        setLeaderboard([])
         setVoteTally([])
         setModeHud(null)
         setMatchEnd(null)
         setStatBoost(null)
+        setRoundBanner(null)
+        setBannerVisible(false)
+        window.clearTimeout(bannerTimerRef.current)
       })
       scene.events.on('log', (entry: { text: string; kind: LogEntryKind }) => {
         logIdRef.current += 1
@@ -114,14 +121,19 @@ export default function PhaserGame() {
       })
       scene.events.on(
         'round-status',
-        ({ round, leaderboard, voteTally }: { round: RoundStatus; leaderboard: LeaderboardEntry[]; voteTally: VoteTallyEntry[] }) => {
+        ({ round, voteTally }: { round: RoundStatus; voteTally: VoteTallyEntry[] }) => {
           setRoundStatus(round)
-          setLeaderboard(leaderboard)
           setVoteTally(voteTally)
         },
       )
       scene.events.on('mode-hud', (state: ModeHudState | null) => setModeHud(state))
       scene.events.on('match-end', (result: EndResult) => setMatchEnd(result))
+      scene.events.on('round-banner', (banner: RoundBanner) => {
+        setRoundBanner(banner)
+        setBannerVisible(true)
+        window.clearTimeout(bannerTimerRef.current)
+        bannerTimerRef.current = window.setTimeout(() => setBannerVisible(false), ROUND_BANNER_MS)
+      })
       scene.events.on('rank', (r: RankProgress | null) => setRank(r))
       scene.events.on('level-up', (level: number) => {
         setLevelUp(level)
@@ -176,6 +188,7 @@ export default function PhaserGame() {
       window.clearTimeout(megaTimerRef.current)
       window.clearTimeout(levelUpTimerRef.current)
       window.clearTimeout(statBoostTimerRef.current)
+      window.clearTimeout(bannerTimerRef.current)
       gameRef.current?.destroy(true)
       gameRef.current = null
     }
@@ -196,10 +209,11 @@ export default function PhaserGame() {
         stats={stats}
         log={log}
         roundStatus={roundStatus}
-        leaderboard={leaderboard}
         voteTally={voteTally}
         modeHud={modeHud}
         matchEnd={matchEnd}
+        roundBanner={roundBanner}
+        bannerVisible={bannerVisible}
         rank={rank}
         levelUp={levelUp}
         statBoost={statBoost}
