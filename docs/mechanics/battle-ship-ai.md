@@ -4,9 +4,9 @@ Code: `shared/game/ai/` (`index.ts` state machine, `targeting.ts`, `threats.ts`)
 
 ## Mode hooks
 - `ai/index.ts` and `targeting.ts` are mode-agnostic — they only call optional hooks on `GameMode` (`shared/game/modes/types.ts`), never check a mode's id directly.
-- Hooks: `botPatrolGoal` (objective while idle), `botFleeThreshold` (HP fraction to flee at), `botZoneTether` (stay near a zone while fighting), `botPickupRadius` (restrict a pickup search range), `botPriorityTarget` (force who to fight).
+- Hooks: `botPatrolGoal` (objective while idle), `botFleeThreshold` (HP fraction to flee at), `botZoneTether` (stay near a zone while fighting), `botPickupRadius` (restrict a pickup search range), `botPriorityTarget` (force who to fight), `botSuppressCombat` (force 'patrol' even with an enemy in sight, unless fleeing).
 - All optional — a mode implements only what it needs; unimplemented hooks fall back to the default FFA behavior described below.
-- KOTH (`modes/kingOfTheHill.ts`) implements all 5: zone as patrol goal, lower flee threshold (18%), zone tether, pickup-range restriction near the zone. CTF (`modes/captureTheFlag.ts`) implements `botPatrolGoal` (carry/hunt/escort/grab) and `botPriorityTarget` (always fight the enemy flag carrier).
+- KOTH (`modes/kingOfTheHill.ts`) implements 4: zone as patrol goal, lower flee threshold (18%), zone tether, pickup-range restriction near the zone. CTF (`modes/captureTheFlag.ts`) implements `botPatrolGoal` (carry/hunt/escort/grab — a carrier beelines home with no pickup detours), `botPriorityTarget` (always fight the enemy flag carrier), and `botSuppressCombat` (a flag carrier never enters 'attack'/'chase' — it runs for home, opportunistic-firing and dodging bullets along the way like any patrol, but never stops to maneuver into a fight; unless HP drops low enough to flee).
 - Adding a new mode with its own bot behavior means implementing hooks in that mode's file — no changes to `ai/index.ts` needed.
 
 ## States

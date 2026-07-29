@@ -18,7 +18,7 @@ import {
   SHIP_RADIUS,
   BOT_DEFAULT_COUNT,
 } from './constants'
-import { findFreeSpawnPoint, generateObstacles, spawnLeviathan, spawnRandomPickup } from './map'
+import { findFreeSpawnPoint, generateObstacles, randomSpawnAround, spawnLeviathan, spawnRandomPickup } from './map'
 import { PICKUP_DEFS } from './pickups'
 import { createShip, PLAYER_VARIANTS } from './ship/shipFactory'
 import { tryFireCannon } from './ship/cannon'
@@ -27,7 +27,7 @@ import { sameFaction, updateEscort } from './escort'
 import { applyPerk } from './perks'
 import type { PerkType, Pickup, PlayerInputs, Ship, World, Faction } from './types'
 import type { GameMode } from './modes/types'
-import { CTF_BASE_RADIUS } from './modes/captureTheFlag'
+import { ctfBasePos } from './modes/captureTheFlag'
 import { circlesOverlap } from './physics'
 import type { Vec2 } from './vector'
 
@@ -40,18 +40,6 @@ export interface WorldOptions {
   playerPerk?: PerkType | null
   /** Game mode to use; if provided, its worldOptions() are merged in. */
   mode?: GameMode
-}
-
-/** A random point around `origin` at a distance in [minDist, maxDist], clamped inside the map
- * bounds — gives the initial player ship the same non-deterministic spawn spread as bots instead
- * of always landing on the exact same spot (e.g. the map center, which in KOTH is the zone). */
-function randomSpawnAround(origin: Vec2, minDist: number, maxDist: number, mapWidth: number, mapHeight: number): Vec2 {
-  const angle = Math.random() * Math.PI * 2
-  const dist = minDist + Math.random() * (maxDist - minDist)
-  return {
-    x: Math.max(60, Math.min(mapWidth - 60, origin.x + Math.cos(angle) * dist)),
-    y: Math.max(60, Math.min(mapHeight - 60, origin.y + Math.sin(angle) * dist)),
-  }
 }
 
 export function createWorld(options: WorldOptions = {}): World {
@@ -86,20 +74,18 @@ export function createWorld(options: WorldOptions = {}): World {
   const isCtf = options.mode?.id === 'captureTheFlag'
 
   // CTF: bases on opposite sides of the map
-  const redBase = { x: CTF_BASE_RADIUS + 60, y: MAP_HEIGHT / 2 }
-  const blueBase = { x: MAP_WIDTH - CTF_BASE_RADIUS - 60, y: MAP_HEIGHT / 2 }
+  const redBase = ctfBasePos('red', MAP_WIDTH, MAP_HEIGHT)
+  const blueBase = ctfBasePos('blue', MAP_WIDTH, MAP_HEIGHT)
 
   const center = { x: MAP_WIDTH / 2, y: MAP_HEIGHT / 2 }
   let playerSpawnPos: Vec2 | null = null
   if (withPlayer) {
     const faction: Faction | null = isTeamMode ? 'red' : null
     const variant = isTeamMode ? 'red' as const : undefined
-    // Same spawn spread as bots (ring near own base in CTF, ring around the map center
-    // otherwise) — landing on a fixed point (e.g. dead center, which is KOTH's zone) would be an
-    // unearned head start.
-    playerSpawnPos = isCtf
-      ? randomSpawnAround(redBase, 60, 140, MAP_WIDTH, MAP_HEIGHT)
-      : randomSpawnAround(center, 600, 1000, MAP_WIDTH, MAP_HEIGHT)
+    // Mode decides where its own ships spawn (e.g. CTF locks this to the faction's base);
+    // falls back to a ring around the map center — landing on a fixed point (e.g. dead center,
+    // which is KOTH's zone) would be an unearned head start.
+    playerSpawnPos = options.mode?.spawnPos?.(world, faction) ?? randomSpawnAround(center, 600, 1000, MAP_WIDTH, MAP_HEIGHT)
     world.ships.push(createShip('player', playerSpawnPos, 0, { perk: options.playerPerk ?? null, faction, variant }))
   }
 
@@ -170,7 +156,6 @@ export function createWorld(options: WorldOptions = {}): World {
 
 /** Adds a human-controlled ship (multiplayer join). `index` picks the hull color and default name. */
 export function addPlayerShip(world: World, index: number, name?: string, perk?: PerkType | null): Ship {
-  const pos = findFreeSpawnPoint(world, 40)
   const isTeamMode = world.mode?.teamMode === true
   // In team modes, balance teams by assigning to the faction with fewer captains.
   let faction: Faction | null = null
@@ -180,6 +165,7 @@ export function addPlayerShip(world: World, index: number, name?: string, perk?:
     const blueCount = captains.filter((s) => s.faction === 'blue').length
     faction = redCount <= blueCount ? 'red' : 'blue'
   }
+  const pos = world.mode?.spawnPos?.(world, faction) ?? findFreeSpawnPoint(world, 40)
   const variant = isTeamMode ? (faction === 'red' ? 'red' as const : 'blue' as const) : PLAYER_VARIANTS[index % PLAYER_VARIANTS.length]
   const ship = createShip('player', pos, index, {
     name: name ?? `Игрок ${index + 1}`,
@@ -197,7 +183,7 @@ export function removeShip(world: World, shipId: string): void {
 
 /** Brings a sunk ship back at a free spot with base stats (upgrades are lost on death). */
 function respawnShip(world: World, ship: Ship): void {
-  const pos = findFreeSpawnPoint(world, 40)
+  const pos = world.mode?.spawnPos?.(world, ship.faction) ?? findFreeSpawnPoint(world, 40)
   ship.pos = { x: pos.x, y: pos.y }
   ship.hp = SHIP_BASE_HP
   ship.maxHp = SHIP_BASE_HP

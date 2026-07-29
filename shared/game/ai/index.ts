@@ -134,9 +134,11 @@ export function updateBotAI(ship: Ship, world: World, dt: number): boolean {
   const shouldFlee =
     ai.state === 'flee' ? effectiveHp <= BOT_FLEE_RECOVER_FRACTION : effectiveHp <= fleeThreshold
 
-  // Early game: avoid combat and focus on collecting boosts (unless needing to flee).
+  // Early game: avoid combat and focus on collecting boosts (unless needing to flee). A mode may
+  // also force this (e.g. CTF: a flag carrier stays in 'patrol' — running botPatrolGoal home —
+  // instead of picking a fight).
   const earlyGame = world.time < BOT_EARLY_GAME_TIME
-  const suppressCombat = earlyGame && !shouldFlee
+  const suppressCombat = !shouldFlee && (earlyGame || (world.mode?.botSuppressCombat?.(ship, world) ?? false))
 
   if (target && shouldFlee) {
     ai.state = 'flee'

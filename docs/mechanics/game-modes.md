@@ -16,6 +16,9 @@
 | `checkEnd(world)` | Returns `EndResult` or null |
 | `onShipSunk(world, ship, killer?)` | React to death (drop flag, transfer crown, etc.) |
 | `getHudState(world)` | Returns `ModeHudState` (timer, status) for in-game overlay |
+| `spawnPos(world, faction)` | Where a ship spawns/respawns; null = default random point anywhere on the map |
+
+`spawnPos` is called for the initial spawn, mid-game joins (`addPlayerShip`), and every respawn after death (`respawnShip`) — a mode with home bases (CTF) implements it so a death never hands a ship a spawn next to the enemy base. `captureTheFlag.ts` exports `ctfBasePos(faction, mapWidth, mapHeight)` as the single source of truth for base position (used by `spawnPos`, the flag init, and bot spawns in `world.ts`).
 
 ### Bot AI hooks (all optional — see `docs/mechanics/battle-ship-ai.md`)
 | Hook | Purpose |
@@ -25,6 +28,7 @@
 | `botZoneTether(ship, world)` | Keep bots near a zone while fighting (e.g. KOTH) |
 | `botPickupRadius(ship, world, kind, default)` | Restrict a pickup-search radius contextually |
 | `botPriorityTarget(ship, world)` | Force who a bot fights (e.g. CTF's enemy flag carrier) |
+| `botSuppressCombat(ship, world)` | Force `'patrol'` even with an enemy in sight, unless fleeing (e.g. CTF's flag carrier) |
 
 A mode that leaves all of these unimplemented gets the default FFA bot behavior — no changes to `shared/game/ai/` needed for a new mode.
 

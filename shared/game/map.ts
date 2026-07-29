@@ -4,7 +4,7 @@ import { generateFortForIsland } from './fortGeneration'
 import { MAP_TILE_SIZE, MEGA_PICKUP_RADIUS } from './constants'
 import { rollRandomPickupType } from './pickups'
 import type { IslandProp, Obstacle, ObstacleKind, ObstacleVariant, Pickup, PickupType, World } from './types'
-import { distance } from './vector'
+import { distance, type Vec2 } from './vector'
 
 const SAFE_ZONE_RADIUS = 260
 
@@ -201,6 +201,18 @@ export function generateObstacles(
   }
 
   return obstacles
+}
+
+/** A random point around `origin` at a distance in [minDist, maxDist], clamped inside the map
+ * bounds. Used to spread ships out (bots, and via mode `spawnPos` hooks) instead of stacking them
+ * on one exact spot. */
+export function randomSpawnAround(origin: Vec2, minDist: number, maxDist: number, mapWidth: number, mapHeight: number): Vec2 {
+  const angle = Math.random() * Math.PI * 2
+  const dist = minDist + Math.random() * (maxDist - minDist)
+  return {
+    x: Math.max(60, Math.min(mapWidth - 60, origin.x + Math.cos(angle) * dist)),
+    y: Math.max(60, Math.min(mapHeight - 60, origin.y + Math.sin(angle) * dist)),
+  }
 }
 
 export function findFreeSpawnPoint(world: World, radius: number): { x: number; y: number } {

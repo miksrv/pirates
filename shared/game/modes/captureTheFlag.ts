@@ -1,9 +1,10 @@
-import type { BotAI, Ship, World } from '../types'
+import type { BotAI, Faction, Ship, World } from '../types'
 import type { WorldOptions } from '../world'
 import type { EndResult, GameMode, ModeHudState, ScoreEntry } from './types'
 import { GAMEPLAY_ROUND_DURATION } from '../constants'
 import { REPAIR_ONLY_PICKUPS, findPriorityPickup } from '../ai/targeting'
 import { sameFaction } from '../escort'
+import { randomSpawnAround } from '../map'
 import { distance, type Vec2 } from '../vector'
 
 // ─── CTF constants ────────────────────────────────────────────────────────────
@@ -23,6 +24,14 @@ export const CTF_BASE_RADIUS = 120
 const CTF_ARRIVE_DIST = 50
 /** Pickup seek range while on a flag mission — only grab what's on the way. */
 const CTF_PICKUP_RANGE = 200
+
+/** Home base position for a faction — derived purely from map size, so it's available before any
+ * ships or flags exist (initial world setup, spawns, respawns all rely on this). */
+export function ctfBasePos(faction: Faction, mapWidth: number, mapHeight: number): Vec2 {
+  return faction === 'red'
+    ? { x: CTF_BASE_RADIUS + 60, y: mapHeight / 2 }
+    : { x: mapWidth - CTF_BASE_RADIUS - 60, y: mapHeight / 2 }
+}
 
 function formatTime(seconds: number): string {
   const total = Math.max(0, Math.ceil(seconds))
@@ -179,6 +188,9 @@ export const captureTheFlag: GameMode = {
     else if (enemyFlag && !enemyFlag.carriedBy) goal = enemyFlag.pos
     if (!goal) return null
 
+    // Carrying the flag: beeline home, no detours — the cargo matters more than any pickup.
+    if (iAmCarrier) return goal
+
     // Grab a pickup on the way if it's roughly on the way; otherwise beeline for the goal.
     const distToGoal = distance(ship.pos, goal)
     const nearFullHp = ship.hp / ship.maxHp > 0.92
@@ -197,6 +209,17 @@ export const captureTheFlag: GameMode = {
   botPriorityTarget(ship: Ship, world: World): Ship | null {
     if (!ship.faction) return null
     return world.ships.find((s) => s.alive && s.carryingFlag === ship.faction && !sameFaction(ship, s)) ?? null
+  },
+
+  botSuppressCombat(ship: Ship, _world: World): boolean {
+    // A flag carrier's job is to get it home, not to pick a fight.
+    return ship.carryingFlag !== null
+  },
+
+  // ─── Spawn rule: always on your own side, never near the enemy base ────────
+  spawnPos(world: World, faction: Faction | null): Vec2 | null {
+    if (!faction) return null
+    return randomSpawnAround(ctfBasePos(faction, world.width, world.height), 60, 140, world.width, world.height)
   },
 }
 

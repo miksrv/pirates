@@ -57,6 +57,12 @@ export interface GameMode {
   /** Return current HUD state for this mode (timer, score, status). Called every stats tick. */
   getHudState(world: World): ModeHudState | null
 
+  /** Where a ship of the given faction should spawn (initial spawn, mid-game join, and every
+   * respawn after death all go through this). Return null to fall back to the default — a random
+   * free point anywhere on the map. A mode with home bases (e.g. CTF) should lock this to the
+   * faction's own base so a death never hands a ship a spawn next to the enemy base. */
+  spawnPos?(world: World, faction: Faction | null): Vec2 | null
+
   // ─── Bot AI hooks ────────────────────────────────────────────────────────
   // All optional; a mode implements only what it needs to steer bot decisions.
   // Undefined/null return = fall back to the default FFA behavior in shared/game/ai/.
@@ -80,5 +86,10 @@ export interface GameMode {
   /** Force a specific target regardless of normal proximity scoring (e.g. CTF's enemy flag
    * carrier). Return null to fall through to the default proximity-based selection. */
   botPriorityTarget?(ship: Ship, world: World): Ship | null
+
+  /** Force combat-state entry to be suppressed — the bot stays in 'patrol' (running
+   * `botPatrolGoal`) even with an enemy in sight, unless it needs to flee. E.g. CTF: a flag
+   * carrier should focus on getting the flag home, not picking fights. Default false. */
+  botSuppressCombat?(ship: Ship, world: World): boolean
 }
 
