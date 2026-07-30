@@ -58,5 +58,5 @@ Client: `client/src/net/` · Server: `server/` (`index.ts`, `gameState.ts`, `ses
 
 ## Running
 - Local: `npm run server` (port 8081, override with `PORT`) + `npm run dev` — dev client connects to `ws://localhost:8081` automatically.
-- Prod client default: `wss://jskit.bugfocus.com/pirates/server` (reverse proxy must forward the WebSocket upgrade to the service).
+- Prod client default: `wss://pirates.miksoft.pro/ws` (nginx proxies `/ws/` to the server, stripping the prefix; see [`config/nginx.conf`](../../config/nginx.conf)).
 - Override anywhere: `VITE_SERVER_URL=ws://host:port npm run dev|build`.

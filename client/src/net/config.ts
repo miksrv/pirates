@@ -8,5 +8,5 @@ export function defaultServerUrl(): string {
   const override = import.meta.env.VITE_SERVER_URL as string | undefined
   if (override) return override
   if (import.meta.env.DEV) return 'ws://localhost:8081'
-  return 'wss://jskit.bugfocus.com/pirates/server'
+  return 'wss://pirates.miksoft.pro/ws'
 }

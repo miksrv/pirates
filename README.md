@@ -63,6 +63,7 @@ See [Game Mechanics Docs](#game-mechanics-docs) for the full rules.
 │   ├── game/                # Simulation: ships, AI, pickups, physics, map
 │   └── net/protocol.ts      # WebSocket message protocol
 ├── docs/mechanics/          # Short reference docs per game system
+├── config/nginx.conf        # Reference nginx vhost for pirates.miksoft.pro
 ├── ecosystem.config.js      # PM2 config for production (client + WS server)
 └── vite.config.ts           # Vite config (root: client, outDir: ../dist)
 ```
@@ -124,7 +125,7 @@ Details: [`docs/mechanics/multiplayer.md`](docs/mechanics/multiplayer.md)
 | `DB_PATH`          | server  | Path to the stats SQLite file (default `server/data/stats.sqlite3`)          |
 | `VITE_SERVER_URL`  | client  | Override the WebSocket URL the client connects to, e.g. `ws://host:port`     |
 
-Production client builds default to `wss://jskit.bugfocus.com/pirates/server` when `VITE_SERVER_URL` is not set.
+Production client builds default to `wss://pirates.miksoft.pro/ws` when `VITE_SERVER_URL` is not set.
 
 ## Building for Production
 
@@ -146,17 +147,17 @@ To deploy:
 1. Trigger the `Deploy` workflow from the GitHub Actions tab (`workflow_dispatch`), **or** run the equivalent steps locally:
    ```bash
    npm ci
-   VITE_SERVER_URL=wss://<host>/path/to/server npm run build
-   rsync -avz dist/ <user>@<host>:<deploy-path>/dist
-   rsync -avz --exclude 'data' server/ <user>@<host>:<deploy-path>/server
-   rsync -avz shared/ <user>@<host>:<deploy-path>/shared
-   rsync -avz package.json package-lock.json tsconfig.json ecosystem.config.js <user>@<host>:<deploy-path>/
-   ssh <user>@<host> "cd <deploy-path> && npm ci && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
+   VITE_SERVER_URL=wss://pirates.miksoft.pro/ws npm run build
+   rsync -avz dist/ <user>@<host>:/var/www/pirates.miksoft.pro/dist
+   rsync -avz --exclude 'data' server/ <user>@<host>:/var/www/pirates.miksoft.pro/server
+   rsync -avz shared/ <user>@<host>:/var/www/pirates.miksoft.pro/shared
+   rsync -avz package.json package-lock.json tsconfig.json ecosystem.config.js <user>@<host>:/var/www/pirates.miksoft.pro/
+   ssh <user>@<host> "cd /var/www/pirates.miksoft.pro && npm ci && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
    ```
 2. The workflow ships only source files, not `node_modules` — `npm ci` runs on the VPS itself so `better-sqlite3`'s native binding is built for the target machine's Node/OS instead of the CI runner's.
 3. `server/data/` (the SQLite stats DB) is gitignored and excluded from the sync, so it survives redeploys.
-4. Required GitHub secrets: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, `SSH_PATH` (deploy directory on the VPS), and `VITE_SERVER_URL` (the production WS URL baked into the client build).
-5. Prerequisites on the VPS: Node.js, `pm2`, and `serve` (`npm i -g serve`) installed globally, and a reverse proxy forwarding the WebSocket upgrade to `pirates-server`'s port.
+4. Required GitHub secrets: `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_KEY`, and `VITE_SERVER_URL` (the production WS URL baked into the client build, `wss://pirates.miksoft.pro/ws`). The deploy directory (`/var/www/pirates.miksoft.pro`) is hardcoded in the workflow, not a secret.
+5. Prerequisites on the VPS: Node.js, `pm2`, and `serve` (`npm i -g serve`) installed globally, plus the nginx vhost in [`config/nginx.conf`](config/nginx.conf) applied for `pirates.miksoft.pro` — it proxies `/` to the client (`pirates-client`, port 3010) and `/ws/` to the game server (`pirates-server`, port 8081), forwarding the WebSocket upgrade.
 
 ## Game Mechanics Docs
 
