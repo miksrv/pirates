@@ -55,7 +55,7 @@ jobs:
         run: |
           rsync -avz -e ssh --exclude 'data' server/ vps:/var/www/pirates.miksoft.pro/server
           rsync -avz -e ssh shared/ vps:/var/www/pirates.miksoft.pro/shared
-          rsync -avz -e ssh package.json package-lock.json tsconfig.json ecosystem.config.js vps:/var/www/pirates.miksoft.pro/
+          rsync -avz -e ssh package.json package-lock.json tsconfig.json ecosystem.config.cjs vps:/var/www/pirates.miksoft.pro/
 
       # better-sqlite3 has native bindings, so deps are installed on the VPS itself rather than
       # shipped from the runner (matching architecture/Node ABI).
@@ -63,4 +63,4 @@ jobs:
         run: ssh vps "cd /var/www/pirates.miksoft.pro && npm ci"
 
       - name: Restart PM2
-        run: ssh vps "cd /var/www/pirates.miksoft.pro && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
+        run: ssh vps "cd /var/www/pirates.miksoft.pro && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"

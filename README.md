@@ -64,7 +64,7 @@ See [Game Mechanics Docs](#game-mechanics-docs) for the full rules.
 │   └── net/protocol.ts      # WebSocket message protocol
 ├── docs/mechanics/          # Short reference docs per game system
 ├── config/nginx.conf        # Reference nginx vhost for pirates.miksoft.pro
-├── ecosystem.config.js      # PM2 config for production (client + WS server)
+├── ecosystem.config.cjs     # PM2 config for production (client + WS server)
 └── vite.config.ts           # Vite config (root: client, outDir: ../dist)
 ```
 
@@ -137,22 +137,22 @@ This type-checks the project and outputs a static bundle to `dist/`. Serve `dist
 
 ## Deployment
 
-CI/CD is defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) and is **manual-dispatch only** (auto-deploy on push is disabled due to SSH access restrictions on the target server). Both the client and the WebSocket server are deployed together, run as two PM2 processes on the same VPS (see [`ecosystem.config.js`](ecosystem.config.js)):
+CI/CD is defined in [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) and runs on every push to `main`. Both the client and the WebSocket server are deployed together, run as two PM2 processes on the same VPS (see [`ecosystem.config.cjs`](ecosystem.config.cjs)):
 
 - `pirates-client` — static client via `serve -s dist -l 3010`.
 - `pirates-server` — the WS/game server via `tsx server/index.ts` (`PORT` defaults to 8081).
 
 To deploy:
 
-1. Trigger the `Deploy` workflow from the GitHub Actions tab (`workflow_dispatch`), **or** run the equivalent steps locally:
+1. Push to `main` (auto-deploys), or trigger the `Deploy` workflow manually from the GitHub Actions tab, **or** run the equivalent steps locally:
    ```bash
    npm ci
    VITE_SERVER_URL=wss://pirates.miksoft.pro/ws npm run build
    rsync -avz dist/ <user>@<host>:/var/www/pirates.miksoft.pro/dist
    rsync -avz --exclude 'data' server/ <user>@<host>:/var/www/pirates.miksoft.pro/server
    rsync -avz shared/ <user>@<host>:/var/www/pirates.miksoft.pro/shared
-   rsync -avz package.json package-lock.json tsconfig.json ecosystem.config.js <user>@<host>:/var/www/pirates.miksoft.pro/
-   ssh <user>@<host> "cd /var/www/pirates.miksoft.pro && npm ci && pm2 startOrReload ecosystem.config.js --update-env && pm2 save"
+   rsync -avz package.json package-lock.json tsconfig.json ecosystem.config.cjs <user>@<host>:/var/www/pirates.miksoft.pro/
+   ssh <user>@<host> "cd /var/www/pirates.miksoft.pro && npm ci && pm2 startOrReload ecosystem.config.cjs --update-env && pm2 save"
    ```
 2. The workflow ships only source files, not `node_modules` — `npm ci` runs on the VPS itself so `better-sqlite3`'s native binding is built for the target machine's Node/OS instead of the CI runner's.
 3. `server/data/` (the SQLite stats DB) is gitignored and excluded from the sync, so it survives redeploys.
