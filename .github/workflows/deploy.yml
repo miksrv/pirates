@@ -1,9 +1,9 @@
 name: Deploy
 
+# Автодеплой на push отключён: VPS слишком мал, чтобы держать pirates постоянно поднятым рядом
+# с критичными проектами — деплой запускается вручную из вкладки Actions, когда нужно.
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch: {}
 
 jobs:
   build-and-deploy:

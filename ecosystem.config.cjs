@@ -3,7 +3,7 @@ module.exports = {
         {
             name: 'pirates-client',
             script: 'serve',
-            args: '-s dist -l 3010',
+            args: ['-s', 'dist', '-l', '3010'],
             autorestart: true,
             watch: false,
             max_memory_restart: '256M',
